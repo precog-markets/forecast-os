@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "forecastos": {
+      "command": "node",
+      "args": ["./mcp/server.js"],
+      "env": {
+        "FORECASTOS_STATE_DIR": ".forecastos"
+      }
+    }
+  }
+}

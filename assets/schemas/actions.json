@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forecastos.local/schemas/actions.json",
+  "title": "ForecastOS Action Inputs",
+  "type": "object",
+  "definitions": {
+    "draft_market": {
+      "type": "object",
+      "required": ["prompt"],
+      "properties": {
+        "prompt": { "type": "string", "minLength": 1 },
+        "decision_context": { "type": "string" },
+        "preferred_category": {
+          "type": "string",
+          "enum": ["agent_launch", "revenue", "integration", "strategy", "sentiment", "other"]
+        },
+        "preferred_market_type": {
+          "type": "string",
+          "const": "multi_outcome"
+        },
+        "requested_outcomes": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "source_hints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requested_close_time": { "type": "string" },
+        "requested_resolution_time": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "create_market": {
+      "type": "object",
+      "required": ["draft_id", "approved", "approved_by", "approval_text"],
+      "properties": {
+        "draft_id": { "type": "string", "minLength": 1 },
+        "approved": { "type": "boolean", "const": true },
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approval_text": { "type": "string", "minLength": 1 },
+        "operator_wallet_reference": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "fund_market": {
+      "type": "object",
+      "required": ["approved", "state"],
+      "properties": {
+        "approved": { "type": "boolean", "const": true },
+        "state": { "type": "object" },
+        "event": {
+          "type": "object",
+          "properties": {
+            "funding_request": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": ["bankr", "lifi", "manual"]
+                },
+                "amount": { "type": "string" },
+                "asset": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
