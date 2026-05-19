@@ -16,7 +16,7 @@ const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
 
 assert(/^---\nname: forecast-os\n/m.test(skill), "SKILL.md needs hyphen-case forecast-os name frontmatter");
 assert(
-  /^description: .+ForecastOS.+multi-outcome.+\.forecastos.+read-only MCP.+action bridge.+Precog.+fund.+no wallet custody.+no signing/m.test(skill),
+  /^description: ".+ForecastOS.+multi-outcome.+\.forecastos.+read-only MCP.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
   "SKILL.md description needs ForecastOS trigger, boundaries, and action context",
 );
 assert(frontmatter, "SKILL.md needs YAML frontmatter");

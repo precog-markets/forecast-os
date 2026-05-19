@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: Use ForecastOS for multi-outcome prediction-market workflows: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval.
+description: "Use ForecastOS for multi-outcome prediction-market workflows: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
 ---
 
 # ForecastOS
