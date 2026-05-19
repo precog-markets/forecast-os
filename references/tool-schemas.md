@@ -19,6 +19,8 @@ Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `req
 }
 ```
 
+Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, the bundled runtime treats it as UTC and records a warning.
+
 ## run_skill_step
 
 ```json
@@ -44,21 +46,26 @@ Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `req
   "draft_id": "draft-id",
   "approved": true,
   "approved_by": "operator-id",
-  "approval_text": "I approve ForecastOS draft draft-id at hash draft-hash.",
+  "approved_draft_hash": "hash-from-workflow-state",
+  "image_url": "https://example.com/image.png",
+  "category": "AI",
   "collateral_address": "0xCollateral",
   "chain_id": 8453,
   "creator_address": "0xCreatorAddress",
   "creator_signature": "0xSignature",
-  "creator_email": "optional@email.com",
-  "image_url": "https://example.com/image.png"
+  "creator_email": "optional@email.com"
 }
 ```
+
+For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
 `creator_signature` must be provided by the operator wallet layer. It signs:
 
 ```txt
 precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
 ```
+
+`image_url` is required for the live Precog create endpoint. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category.
 
 ## await_precog_approval
 

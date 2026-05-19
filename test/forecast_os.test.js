@@ -12,7 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const DEFAULT_PRECOG_API_ROOT = "http://localhost:8081/";
+const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -77,7 +77,7 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
         event: {
           approved: true,
           approved_by: "operator",
-          approval_text: drafted.result.state.approval_text,
+          approval: "yes",
         },
       },
       null,
@@ -93,6 +93,8 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
+  assert.equal(approved.result.state.approved_draft_id, draftId);
+  assert.equal(approved.result.state.approved_draft_hash, drafted.result.state.draft_hash);
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
     "create_market",
@@ -170,6 +172,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     approved: true,
     approved_by: "operator",
     approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
     collateral_address: "0xCollateral",
     chain_id: 8453,
     creator_address: "0xCreator",

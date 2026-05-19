@@ -61,9 +61,6 @@ function enforceApproval(actionName, input) {
   if (actionName === "create_market" && input.approved !== true) {
     fail("create_market requires approved: true.");
   }
-  if (actionName === "create_market" && !input.approval_text) {
-    fail("create_market requires approval_text.");
-  }
   if (actionName === "fund_market" && input.approved !== true) {
     fail("fund_market requires explicit operator approval with approved: true.");
   }

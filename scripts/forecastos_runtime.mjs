@@ -12,7 +12,7 @@ const STATUS_FOLDERS = Object.freeze([
   "consume_prediction",
   "done",
 ]);
-const DEFAULT_PRECOG_API_ROOT = "http://localhost:8081/";
+const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
 
 export class DirectoryDraftStateStore {
   constructor(rootDir = ".forecastos") {
@@ -93,21 +93,21 @@ class ForecastOSLocalRuntime {
 
   async createMarket(input) {
     if (input.approved !== true) fail("create_market requires approved: true.");
-    if (!input.approval_text) fail("create_market requires approval_text.");
     requireFields(input, [
+      "image_url",
       "collateral_address",
       "chain_id",
       "creator_address",
       "creator_signature",
     ], "create_market");
-    const draft = await this.store.get(input.draft_id);
+    const approvalContext = await resolveApprovalContext(this.store, input);
+    const draftId = input.draft_id ?? approvalContext?.draft_id ?? approvalContext?.approved_draft_id;
+    const draft = await this.store.get(draftId);
     if (!draft) fail(`Draft not found: ${input.draft_id}`);
     if (draft.quality.blocking_issues.length) {
       fail(`Draft has blocking issues: ${draft.quality.blocking_issues.join(", ")}`);
     }
-    if (!input.approval_text.includes(draft.draft_id) || !input.approval_text.includes(draft.draft_hash)) {
-      fail("Approval text does not match the draft id and hash.");
-    }
+    validateDraftApproval(draft, input, approvalContext);
     const response = await this.#postPrecog(
       "/api/v1/create-upcoming-market/",
       buildCreatePayload(draft, input, this.now),
@@ -128,6 +128,7 @@ class ForecastOSLocalRuntime {
           prompt: event.input.prompt ?? current.prompt,
           draft_id: draft.draft_id,
           draft_hash: draft.draft_hash,
+          approval_prompt: draft.approval_prompt,
           approval_text: draft.approval_text,
           missing_fields: draft.missing_fields,
           last_result: draft,
@@ -139,19 +140,24 @@ class ForecastOSLocalRuntime {
     }
 
     if (current.step === "await_approval") {
-      if (!event.approved || !event.approval_text) {
+      if (!isApprovalEvent(event, current)) {
         return {
           state: current,
           needs_human_input: true,
-          agent_message: "Ask the operator to approve the exact ForecastOS approval text.",
+          agent_message: "Ask the operator to reply yes to approve this draft.",
         };
       }
+      const approvedAt = new Date().toISOString();
       return this.#saveResult({
         state: transition(current, {
           ...current,
           step: "create_market",
-          approval_text: event.approval_text,
-          approved_by: event.approved_by,
+          approved_by: event.approved_by ?? "operator",
+          approved_at: approvedAt,
+          approved_draft_id: current.draft_id,
+          approved_draft_hash: current.draft_hash,
+          approval_response: approvalResponseText(event),
+          approval_text: event.approval_text ?? current.approval_text,
         }, "approval_recorded"),
         needs_human_input: false,
         agent_message: "Approval recorded. Next step is create_market.",
@@ -166,6 +172,9 @@ class ForecastOSLocalRuntime {
           approved: true,
           approved_by: current.approved_by ?? event.approved_by ?? "operator",
           approval_text: current.approval_text,
+          approved_draft_id: current.approved_draft_id,
+          approved_draft_hash: current.approved_draft_hash,
+          state: current,
         });
         return this.#saveResult({
           state: transition(current, {
@@ -455,11 +464,18 @@ function buildDraft(input = {}) {
   const draftHash = `hash_${randomUUID()}`;
   const outcomes = input.requested_outcomes ?? input.outcomes ?? [];
   const missingFields = [];
+  const warnings = [];
+  const closeTime = normalizeUtcIso(input.requested_close_time, "close_time", warnings);
+  const resolutionTime = normalizeUtcIso(
+    input.requested_resolution_time,
+    "resolution_time",
+    warnings,
+  );
   if (!input.prompt) missingFields.push("prompt");
   if (!outcomes.length) missingFields.push("outcomes");
   if (!input.source_hints?.length && !input.source_of_truth) missingFields.push("source_of_truth");
-  if (!input.requested_close_time) missingFields.push("close_time");
-  if (!input.requested_resolution_time) missingFields.push("resolution_time");
+  if (!closeTime) missingFields.push("close_time");
+  if (!resolutionTime) missingFields.push("resolution_time");
 
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
   const market = {
@@ -471,8 +487,9 @@ function buildDraft(input = {}) {
     resolution_criteria:
       input.resolution_criteria ??
       "Resolve to the listed outcome confirmed by the stated source of truth.",
-    close_time: input.requested_close_time ?? null,
-    resolution_time: input.requested_resolution_time ?? null,
+    close_time: closeTime,
+    resolution_time: resolutionTime,
+    time_zone: "UTC",
     source_of_truth: input.source_of_truth ?? input.source_hints?.[0] ?? null,
     category: input.preferred_category ?? "other",
     tags: ["forecastos", "multi_outcome"],
@@ -486,17 +503,13 @@ function buildDraft(input = {}) {
     quality: {
       score: blockingIssues.length ? 50 : 90,
       blocking_issues: blockingIssues,
-      warnings: [],
+      warnings,
       duplicate_warning: null,
     },
     missing_fields: missingFields,
     approval_text: `I approve ForecastOS draft ${draftId} at hash ${draftHash}.`,
-    review_message: [
-      "ForecastOS draft ready for review.",
-      `Title: ${market.title}`,
-      `Outcomes: ${market.outcomes.join(", ")}`,
-      `Approval text: I approve ForecastOS draft ${draftId} at hash ${draftHash}.`,
-    ].join("\n"),
+    approval_prompt: "Reply yes to approve this draft.",
+    review_message: buildFriendlyReviewMessage({ market, quality: { blocking_issues: blockingIssues, warnings } }),
     created_at: new Date().toISOString(),
   };
 }
@@ -515,22 +528,42 @@ function ensureState(state, event) {
 }
 
 function buildCreatePayload(draft, input, now) {
-  return withoutUndefined({
-    question: input.question ?? draft.market.question,
+  const startTimestamp = toUnixTimestamp(input.start_timestamp ?? now());
+  const endTimestamp = toUnixTimestamp(
+    input.end_timestamp ?? input.resolution_time ?? draft.market.resolution_time,
+  );
+  if (startTimestamp >= endTimestamp) {
+    fail("create_market requires start_timestamp to be before end_timestamp.");
+  }
+
+  const payload = withoutUndefined({
+    question: normalizePrecogQuestion(input.question ?? draft.market.question),
     resolution_criteria: input.resolution_criteria ?? draft.market.resolution_criteria,
-    image_url: input.image_url,
-    category: input.category ?? draft.market.category,
-    outcomes: input.outcomes ?? draft.market.outcomes,
-    start_timestamp: toUnixTimestamp(input.start_timestamp ?? now()),
-    end_timestamp: toUnixTimestamp(
-      input.end_timestamp ?? input.resolution_time ?? draft.market.resolution_time,
-    ),
+    image_url: normalizeUrl(input.image_url, "image_url"),
+    category: normalizePrecogCategory(input.category ?? draft.market.category),
+    outcomes: normalizePrecogOutcomes(input.outcomes ?? draft.market.outcomes),
+    start_timestamp: startTimestamp,
+    end_timestamp: endTimestamp,
     collateral_address: input.collateral_address,
     chain_id: input.chain_id,
     creator_address: input.creator_address,
     creator_signature: input.creator_signature,
     creator_email: input.creator_email,
   });
+  requireFields(payload, [
+    "question",
+    "resolution_criteria",
+    "image_url",
+    "category",
+    "outcomes",
+    "start_timestamp",
+    "end_timestamp",
+    "collateral_address",
+    "chain_id",
+    "creator_address",
+    "creator_signature",
+  ], "Precog create payload");
+  return payload;
 }
 
 function normalizeCreateResponse(response, draft, input = {}) {
@@ -722,6 +755,141 @@ function normalizeFundResponse(response, request) {
   };
 }
 
+async function resolveApprovalContext(store, input = {}) {
+  if (input.state) return input.state;
+  if (input.workflow) return input.workflow;
+  if (input.workflow_id && typeof store.getWorkflow === "function") {
+    return store.getWorkflow(input.workflow_id);
+  }
+  return null;
+}
+
+function validateDraftApproval(draft, input = {}, approvalContext = null) {
+  const approvedDraftId =
+    input.approved_draft_id ??
+    approvalContext?.approved_draft_id ??
+    approvalContext?.draft_id;
+  const approvedDraftHash =
+    input.approved_draft_hash ?? approvalContext?.approved_draft_hash;
+
+  if (approvedDraftHash) {
+    if (approvedDraftId && approvedDraftId !== draft.draft_id) {
+      fail("Approved draft id does not match the draft being created.");
+    }
+    if (approvedDraftHash !== draft.draft_hash) {
+      fail("Approved draft hash does not match the draft being created.");
+    }
+    return;
+  }
+
+  if (
+    input.approval_text &&
+    input.approval_text.includes(draft.draft_id) &&
+    input.approval_text.includes(draft.draft_hash)
+  ) {
+    return;
+  }
+
+  fail("create_market requires approved_draft_hash from workflow state or legacy matching approval_text.");
+}
+
+function isApprovalEvent(event = {}, state = {}) {
+  if (event.approved === true) return true;
+  const text = approvalResponseText(event);
+  if (!text) return false;
+  if (state.draft_id && state.draft_hash && text.includes(state.draft_id) && text.includes(state.draft_hash)) {
+    return true;
+  }
+  return /^(y|yes|approve|approved|ok|okay|looks good|go ahead|ship it)$/i.test(
+    text.trim(),
+  );
+}
+
+function approvalResponseText(event = {}) {
+  return String(
+    event.approval_response ??
+      event.approval ??
+      event.response ??
+      event.text ??
+      event.message ??
+      event.approval_text ??
+      "",
+  ).trim();
+}
+
+function buildFriendlyReviewMessage(draft) {
+  const market = draft.market ?? {};
+  const quality = draft.quality ?? {};
+  const lines = [
+    "Draft ready for review.",
+    market.title ? `Market: ${market.title}` : null,
+    market.question ? `Question: ${market.question}` : null,
+    Array.isArray(market.outcomes) ? `Outcomes: ${market.outcomes.join(" / ")}` : null,
+    market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
+    market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
+    market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
+    market.resolution_criteria ? `Criteria: ${market.resolution_criteria}` : null,
+    quality.blocking_issues?.length
+      ? `Needs: ${quality.blocking_issues.join(" ")}`
+      : null,
+    quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
+    "Reply yes to approve this draft.",
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
+function formatUtcForReview(value) {
+  const date = parseUtcDate(value);
+  return `${date.toISOString()} UTC`;
+}
+
+function normalizePrecogQuestion(question) {
+  const value = String(question ?? "").trim();
+  if (!value) fail("Precog create payload missing required field: question.");
+  return value.endsWith("?") ? value : `${value}?`;
+}
+
+function normalizePrecogCategory(category) {
+  const value = String(category ?? "").trim();
+  if (!value) fail("Precog create payload missing required field: category.");
+  const categoryMap = {
+    agent_launch: "AI",
+    integration: "AI",
+    strategy: "AI",
+    sentiment: "AI",
+    revenue: "AI",
+    other: "AI",
+  };
+  return categoryMap[value] ?? value;
+}
+
+function normalizePrecogOutcomes(outcomes) {
+  if (!Array.isArray(outcomes)) {
+    fail("Precog create payload requires outcomes as an array.");
+  }
+  const normalized = outcomes.map((outcome) =>
+    outcome === undefined || outcome === null ? null : String(outcome).trim(),
+  );
+  if (normalized.length < 2 || normalized.some((outcome) => !outcome)) {
+    fail("Precog create payload requires at least two non-empty outcomes.");
+  }
+  return normalized;
+}
+
+function normalizeUrl(value, label) {
+  const url = String(value ?? "").trim();
+  if (!url) fail(`create_market missing required field(s): ${label}.`);
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      fail(`${label} must be an http(s) URL.`);
+    }
+    return parsed.toString();
+  } catch {
+    fail(`${label} must be a valid URL.`);
+  }
+}
+
 function getUpcomingMarketId(state = {}, event = {}) {
   const request = getPredictionRequest(event);
   const upcomingMarket =
@@ -835,15 +1003,47 @@ async function readResponseBody(response) {
   }
 }
 
-function toUnixTimestamp(value) {
-  if (value instanceof Date) return Math.floor(value.getTime() / 1000);
-  if (typeof value === "number" && Number.isFinite(value)) return Math.floor(value);
-  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+function normalizeUtcIso(value, label, warnings = []) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string" && !hasExplicitTimeZone(value)) {
+    warnings.push(`${label} had no timezone; treated as UTC.`);
+  }
+  return parseUtcDate(value).toISOString();
+}
+
+function parseUtcDate(value) {
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) fail(`Invalid timestamp: ${value}`);
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(Math.floor(value) * 1000);
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return new Date(Number(value) * 1000);
+  }
   if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    if (Number.isFinite(parsed)) return Math.floor(parsed / 1000);
+    const normalized = value.trim();
+    const parseTarget = hasExplicitTimeZone(normalized)
+      ? normalized
+      : normalizeTimezoneLessUtcString(normalized);
+    const parsed = Date.parse(parseTarget);
+    if (Number.isFinite(parsed)) return new Date(parsed);
   }
   fail(`Invalid timestamp: ${value}`);
+}
+
+function hasExplicitTimeZone(value) {
+  return /(?:z|[+-]\d{2}:?\d{2})$/i.test(String(value).trim());
+}
+
+function normalizeTimezoneLessUtcString(value) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00Z`;
+  return `${value}Z`;
+}
+
+function toUnixTimestamp(value) {
+  return Math.floor(parseUtcDate(value).getTime() / 1000);
 }
 
 function requireFields(value, fields, label) {

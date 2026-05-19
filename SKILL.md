@@ -10,6 +10,7 @@ Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only
 ## Core Rules
 
 - Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
+- Normalize and present all market times in UTC. Label user-facing close/resolution times as UTC.
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Use `mcp/` only for read-only docs, templates, examples, drafts, and workflow inspection.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
@@ -23,7 +24,7 @@ intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
 ```
 
-Present the draft and exact approval text before creation. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
+Present a friendly draft summary before creation. Ask the user to reply `yes` to approve; keep draft IDs and hashes in `.forecastos/` memory, not in the main user-facing response. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
 
 ## Read Next
 

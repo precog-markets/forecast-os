@@ -31,24 +31,33 @@ print({
   quality,
   missing_fields: draft.missing_fields ?? workflow?.missing_fields ?? [],
   approval_text: draft.approval_text ?? workflow?.approval_text ?? null,
+  approval_prompt: draft.approval_prompt ?? "Reply yes to approve this draft.",
   review_message: buildReviewMessage(draft, workflow),
 });
 
 function buildReviewMessage(draft, workflow) {
   const market = draft.market ?? {};
+  const quality = draft.quality ?? {};
   const lines = [
-    `ForecastOS review for draft ${draft.draft_id ?? "unknown"}`,
-    workflow?.workflow_id ? `Workflow: ${workflow.workflow_id}` : null,
-    market.title ? `Title: ${market.title}` : null,
+    "Draft ready for review.",
+    market.title ? `Market: ${market.title}` : null,
     market.question ? `Question: ${market.question}` : null,
     Array.isArray(market.outcomes) ? `Outcomes: ${market.outcomes.join(" / ")}` : null,
     market.resolution_criteria ? `Resolution: ${market.resolution_criteria}` : null,
-    market.close_time ? `Close time: ${market.close_time}` : null,
-    market.resolution_time ? `Resolution time: ${market.resolution_time}` : null,
+    market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
+    market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
-    draft.approval_text ? `Approval text: ${draft.approval_text}` : null,
+    quality.blocking_issues?.length ? `Needs: ${quality.blocking_issues.join(" ")}` : null,
+    quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
+    draft.approval_prompt ?? "Reply yes to approve this draft.",
   ].filter(Boolean);
   return lines.join("\n");
+}
+
+function formatUtcForReview(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return `${value} UTC`;
+  return `${parsed.toISOString()} UTC`;
 }
 
 async function readWorkflow(workflowId) {

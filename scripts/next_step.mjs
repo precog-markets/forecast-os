@@ -25,7 +25,6 @@ print({
 });
 
 function guidanceFor(step, workflow) {
-  const draftId = workflow.draft_id ?? "<draft_id>";
   const workflowId = workflow.workflow_id ?? "<workflow_id>";
 
   const commands = {
@@ -63,10 +62,10 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "collect_approval",
       needs_human_input: true,
-      required_fields: ["approved_by", "approval_text", `draft_id:${draftId}`],
+      required_fields: ["approved_by", "approval response: yes/approved/looks good"],
       suggested_command: commands.renderReview,
       notes: [
-        "Show the review message and wait for exact approval before create_market.",
+        "Show the friendly review message and wait for a simple approval before create_market.",
       ],
     };
   }
@@ -75,9 +74,21 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "create_market",
       needs_human_input: false,
-      required_fields: ["approved:true", "approved_by", "approval_text", `draft_id:${draftId}`],
+      required_fields: [
+        "approved:true",
+        "approved_by",
+        "approved_draft_hash from workflow state",
+        "image_url",
+        "collateral_address",
+        "chain_id",
+        "creator_address",
+        "creator_signature",
+      ],
       suggested_command: commands.createMarket,
-      notes: ["Creation is allowed only through the ForecastOS action bridge."],
+      notes: [
+        "Creation is allowed only through the ForecastOS action bridge.",
+        "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
+      ],
     };
   }
 
