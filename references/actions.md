@@ -29,14 +29,13 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
 ```json
 {
   "precog": {
-    "api_root": "https://tracker.precog.market/",
     "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E"
   }
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. `config.local.json` is ignored and may override any `precog` field for local testing. `api_root` defaults to `https://tracker.precog.market/` when omitted. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. `api_root` is intentionally omitted and comes from the bundled runtime default unless `config.local.json` overrides it. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
 
 ## Supported Actions
 

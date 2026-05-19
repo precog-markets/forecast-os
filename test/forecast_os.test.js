@@ -12,6 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -116,7 +117,6 @@ test("bundled runtime builds Precog create and fund requests from local config",
     join(stateDir, "config.json"),
     JSON.stringify({
       precog: {
-        api_root: "https://tracker.precog.market/",
         open_api_key: "test-open-api-key",
         deployed_master_address: "0xMaster",
       },
@@ -209,9 +209,9 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(funded.precog_status, "FUNDED");
   assert.equal(consumed.ready_to_finish, true);
   assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
-  assert.equal(requests[0].url, "https://tracker.precog.market/api/v1/create-upcoming-market/");
+  assert.equal(requests[0].url, `${DEFAULT_PRECOG_API_ROOT}api/v1/create-upcoming-market/`);
   assert.match(requests[1].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/upcoming-markets\/\?/);
-  assert.equal(requests[2].url, "https://tracker.precog.market/api/v1/fund-upcoming-market/");
+  assert.equal(requests[2].url, `${DEFAULT_PRECOG_API_ROOT}api/v1/fund-upcoming-market/`);
   assert.match(requests[3].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/markets\/\?/);
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[2].body.upcoming_market, 123);
