@@ -12,7 +12,7 @@ const STATUS_FOLDERS = Object.freeze([
   "consume_prediction",
   "done",
 ]);
-const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
+const DEFAULT_PRECOG_API_ROOT = "http://localhost:8081/";
 
 export class DirectoryDraftStateStore {
   constructor(rootDir = ".forecastos") {

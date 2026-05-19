@@ -12,7 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
+const DEFAULT_PRECOG_API_ROOT = "http://localhost:8081/";
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
