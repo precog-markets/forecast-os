@@ -85,9 +85,13 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "await_precog_approval",
       needs_human_input: false,
-      required_fields: ["market_id"],
+      required_fields: [
+        "market_id",
+        "chain_id",
+        ".forecastos/config.json precog.deployed_master_address",
+      ],
       suggested_command: commands.awaitPrecog,
-      notes: ["This remains TODO/mock unless a trusted Precog approval adapter is configured."],
+      notes: ["Funding is valid only after Precog returns status VALIDATED."],
     };
   }
 
@@ -95,7 +99,7 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "fund_market",
       needs_human_input: true,
-      required_fields: ["approved:true", "funding_request.provider", "amount", "asset"],
+      required_fields: ["approved:true", "amount", "tx_hash", "funder_address", "funder_signature"],
       suggested_command: commands.fundMarket,
       notes: [
         "Require operator approval. Bankr/LiFi are provider hints, not built-in custody.",

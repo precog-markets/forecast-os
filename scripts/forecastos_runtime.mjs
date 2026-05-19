@@ -110,7 +110,7 @@ class ForecastOSLocalRuntime {
       "/api/v1/create-upcoming-market/",
       buildCreatePayload(draft, input, this.now),
     );
-    return normalizeCreateResponse(response, draft);
+    return normalizeCreateResponse(response, draft, input);
   }
 
   async runSkillStep(state = {}, event = {}) {
@@ -170,8 +170,12 @@ class ForecastOSLocalRuntime {
             ...current,
             step: "await_precog_approval",
             market_id: result.market_id,
+            upcoming_market: result.upcoming_market,
             market_url: result.url,
             precog_status: result.precog_status,
+            chain_id: result.chain_id,
+            collateral_address: result.collateral_address,
+            creator_address: result.creator_address,
             last_result: result,
           }, "market_created"),
           tool_result: result,
@@ -189,18 +193,42 @@ class ForecastOSLocalRuntime {
     }
 
     if (current.step === "await_precog_approval") {
-      const result = await this.awaitPrecogApproval(current, event);
-      return this.#saveResult({
-        state: transition(current, {
-          ...current,
-          step: "fund",
-          precog_approval: result,
-          last_result: result,
-        }, "precog_approval_todo"),
-        tool_result: result,
-        needs_human_input: false,
-        agent_message: "Precog approval is TODO/mock. Next step is fund.",
-      });
+      try {
+        const result = await this.awaitPrecogApproval(current, event);
+        if (result.ready_to_fund) {
+          return this.#saveResult({
+            state: transition(current, {
+              ...current,
+              step: "fund",
+              precog_approval: result,
+              precog_status: result.precog_status,
+              last_result: result,
+            }, "precog_approval_validated"),
+            tool_result: result,
+            needs_human_input: false,
+            agent_message: "Precog status is VALIDATED. Funding is now allowed.",
+          });
+        }
+        return this.#saveResult({
+          state: transition(current, {
+            ...current,
+            step: "await_precog_approval",
+            precog_approval: result,
+            precog_status: result.precog_status,
+            last_result: result,
+          }, "precog_approval_checked"),
+          tool_result: result,
+          needs_human_input: false,
+          agent_message: `Precog status is ${result.precog_status ?? "unknown"}. Funding is not valid yet.`,
+        });
+      } catch (error) {
+        return this.#saveResult({
+          state: markWorkflowError(current, error),
+          tool_result: serializeError(error),
+          needs_human_input: true,
+          agent_message: "Precog approval check failed. The workflow remains at await_precog_approval.",
+        });
+      }
     }
 
     if (current.step === "fund") {
@@ -246,19 +274,32 @@ class ForecastOSLocalRuntime {
     return { state: current, needs_human_input: false, agent_message: "No workflow action taken." };
   }
 
-  async awaitPrecogApproval(state) {
-    return {
-      todo: true,
-      mocked: true,
-      provider: "precog",
-      status: "todo_mock_precog_approval",
-      replace_with: "Replace with real Precog approval lookup once the API contract is confirmed.",
-      market_id: state.market_id,
-    };
+  async awaitPrecogApproval(state, event = {}) {
+    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const upcomingMarket = event.upcoming_market ?? event.id ?? state.upcoming_market ?? state.market_id;
+    const chainId = event.chain_id ?? state.chain_id;
+    const deployedMasterAddress =
+      event.deployed_master_address ?? config.deployed_master_address;
+    if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
+      fail("await_precog_approval requires state.market_id or upcoming_market.");
+    }
+    if (chainId === undefined || chainId === null || chainId === "") {
+      fail("await_precog_approval requires state.chain_id or event.chain_id.");
+    }
+    const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
+      chain_id: chainId,
+      deployed_master_address: deployedMasterAddress,
+      id: upcomingMarket,
+    }, config);
+    return normalizeApprovalResponse(response, upcomingMarket);
   }
 
   async fundMarket(state, event = {}) {
     if (event.approved !== true) fail("fund_market requires explicit operator approval with approved: true.");
+    const approvalStatus = state.precog_approval?.precog_status ?? state.precog_approval?.status;
+    if (approvalStatus !== "VALIDATED") {
+      fail("fund_market requires Precog status VALIDATED.");
+    }
     const request = event.funding_request ?? event;
     requireFields(request, ["amount", "tx_hash", "funder_address", "funder_signature"], "fund_market");
     const upcomingMarket = request.upcoming_market ?? state.market_id;
@@ -312,6 +353,34 @@ class ForecastOSLocalRuntime {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+    });
+    const body = await readResponseBody(response);
+    if (!response.ok) {
+      throw new PrecogApiError("Precog API request failed.", {
+        code: "PRECOG_API_ERROR",
+        status: response.status,
+        endpoint,
+        body,
+      });
+    }
+    return body;
+  }
+
+  async #getPrecog(path, params, config = null) {
+    if (typeof this.fetch !== "function") {
+      throw new PrecogApiError("Fetch API is not available in this runtime.", {
+        code: "FETCH_UNAVAILABLE",
+        endpoint: path,
+      });
+    }
+    const precogConfig = config ?? await readPrecogConfig(this.store);
+    const endpoint = buildPrecogUrl(precogConfig.api_root, path, params);
+    const response = await this.fetch(endpoint, {
+      method: "GET",
+      headers: {
+        "x-api-key": precogConfig.open_api_key,
+        "Content-Type": "application/json",
+      },
     });
     const body = await readResponseBody(response);
     if (!response.ok) {
@@ -409,7 +478,7 @@ function buildCreatePayload(draft, input, now) {
   });
 }
 
-function normalizeCreateResponse(response, draft) {
+function normalizeCreateResponse(response, draft, input = {}) {
   const marketId =
     response.upcoming_market ?? response.upcoming_market_id ?? response.market_id ?? response.id;
   return {
@@ -417,12 +486,49 @@ function normalizeCreateResponse(response, draft) {
     upcoming_market: response.upcoming_market ?? marketId,
     precog_status: response.status,
     status: response.status,
+    chain_id: input.chain_id,
+    collateral_address: input.collateral_address,
+    creator_address: input.creator_address,
     title: draft.market.title,
     close_time: draft.market.close_time,
     resolution_time: draft.market.resolution_time,
     url: response.url ?? null,
     precog_response: response,
   };
+}
+
+function normalizeApprovalResponse(response, expectedId) {
+  if (Array.isArray(response)) {
+    const market =
+      response.find((entry) => String(entry.id) === String(expectedId)) ?? response[0];
+    if (!market) {
+      throw new PrecogApiError("Upcoming market was not found.", {
+        code: "PRECOG_UPCOMING_MARKET_NOT_FOUND",
+        status: 404,
+        body: [],
+      });
+    }
+    return {
+      ready_to_fund: market.status === "VALIDATED",
+      market_id: market.id,
+      upcoming_market: market.id,
+      precog_status: market.status,
+      status: market.status,
+      upcoming_market_status: market,
+      precog_response: market,
+    };
+  }
+  if (response?.detail) {
+    throw new PrecogApiError("Precog upcoming market lookup failed.", {
+      code: "PRECOG_UPCOMING_MARKET_LOOKUP_ERROR",
+      status: response.detail === "Not found." ? 404 : 403,
+      body: response,
+    });
+  }
+  throw new PrecogApiError("Unexpected Precog upcoming market response.", {
+    code: "PRECOG_UNEXPECTED_RESPONSE",
+    body: response,
+  });
 }
 
 function normalizeFundResponse(response, request) {
@@ -439,7 +545,7 @@ function normalizeFundResponse(response, request) {
   };
 }
 
-async function readPrecogConfig(store) {
+async function readPrecogConfig(store, options = {}) {
   const config = typeof store.getConfig === "function" ? await store.getConfig() : null;
   const precog = config?.precog ?? {};
   if (!precog.open_api_key) {
@@ -449,14 +555,33 @@ async function readPrecogConfig(store) {
       body: { error: "Missing precog.open_api_key" },
     });
   }
+  if (options.requireDeployedMasterAddress && !precog.deployed_master_address) {
+    throw new PrecogApiError(
+      "Missing .forecastos/config.json precog.deployed_master_address.",
+      {
+        code: "PRECOG_CONFIG_ERROR",
+        endpoint: null,
+        body: { error: "Missing precog.deployed_master_address" },
+      },
+    );
+  }
   return {
     api_root: precog.api_root ?? DEFAULT_PRECOG_API_ROOT,
     open_api_key: precog.open_api_key,
+    deployed_master_address: precog.deployed_master_address,
   };
 }
 
-function buildPrecogUrl(root, path) {
-  return `${root.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+function buildPrecogUrl(root, path, params = null) {
+  const url = new URL(`${root.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+  return url.toString();
 }
 
 async function readResponseBody(response) {

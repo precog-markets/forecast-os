@@ -67,11 +67,14 @@ precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
   "state": {
     "workflow_id": "workflow-id",
     "step": "await_precog_approval",
-    "market_id": "market-id"
+    "market_id": 123,
+    "chain_id": 8453
   },
   "event": {}
 }
 ```
+
+This checks `GET /api/v1/upcoming-markets/` using `chain_id`, `id`, and `precog.deployed_master_address` from `.forecastos/config.json`. Funding is allowed only when Precog returns `status: "VALIDATED"`.
 
 ## fund_market
 

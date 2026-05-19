@@ -97,6 +97,35 @@
         }
       },
       "additionalProperties": true
+    },
+    "await_precog_approval": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "object",
+          "required": ["market_id"],
+          "properties": {
+            "workflow_id": { "type": "string" },
+            "step": { "type": "string", "const": "await_precog_approval" },
+            "market_id": { "type": ["integer", "string"] },
+            "upcoming_market": { "type": ["integer", "string"] },
+            "chain_id": { "type": "integer" }
+          },
+          "additionalProperties": true
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "chain_id": { "type": "integer" },
+            "deployed_master_address": { "type": "string" },
+            "id": { "type": ["integer", "string"] },
+            "upcoming_market": { "type": ["integer", "string"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
     }
   }
 }

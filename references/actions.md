@@ -30,12 +30,13 @@ Live Precog calls read config from `.forecastos/config.json`:
 {
   "precog": {
     "api_root": "https://tracker.precog.market/",
-    "open_api_key": "..."
+    "open_api_key": "...",
+    "deployed_master_address": "0x..."
   }
 }
 ```
 
-`api_root` defaults to `https://tracker.precog.market/` when omitted. `open_api_key` is required for `create_market` and `fund_market`. MCP must not expose this file.
+`api_root` defaults to `https://tracker.precog.market/` when omitted. `open_api_key` is required for live Precog calls. `deployed_master_address` is required for `await_precog_approval`. MCP must not expose this file.
 
 ## Supported Actions
 
@@ -93,6 +94,20 @@ Signatures are EIP-191 `signMessage(...)`, not typed data. ForecastOS expects th
 ```txt
 precog.markets|<address_lowercase>|<chain_id>|<next_pending_nonce>
 ```
+
+Approval status uses `GET /api/v1/upcoming-markets/` with query params:
+
+```txt
+chain_id=<chain_id>&deployed_master_address=<deployed_master_address>&id=<upcoming_market>
+```
+
+Precog lifecycle is:
+
+```txt
+CREATED -> VALIDATED -> FUNDED -> DEPLOYED
+```
+
+Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` means the market exists but is not approved for funding yet.
 
 ## Replace Points
 

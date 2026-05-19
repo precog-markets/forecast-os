@@ -20,7 +20,7 @@ intake
 - `needs_info`: ask for missing entity, source, dates, launch timestamp, or outcome labels.
 - `await_approval`: present review message and exact approval text.
 - `create_market`: requires explicit approval and a non-stale draft hash.
-- `await_precog_approval`: TODO/mock until Precog approval semantics are confirmed.
+- `await_precog_approval`: check Precog upcoming market status. `CREATED` waits; `VALIDATED` advances to funding.
 - `fund`: TODO/mock until Bankr/LiFi/manual funding adapters are configured.
 - `consume_prediction`: TODO/mock until market data APIs are confirmed.
 - `done`: workflow has reached a terminal local state.

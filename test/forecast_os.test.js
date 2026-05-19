@@ -118,6 +118,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
       precog: {
         api_root: "https://tracker.precog.market/",
         open_api_key: "test-open-api-key",
+        deployed_master_address: "0xMaster",
       },
     }),
   );
@@ -126,8 +127,10 @@ test("bundled runtime builds Precog create and fund requests from local config",
   const forecastos = createForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
-      requests.push({ url, options, body: JSON.parse(options.body) });
-      const body = url.endsWith("/create-upcoming-market/")
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      const body = url.includes("/upcoming-markets/")
+        ? [{ id: 123, chain_id: 8453, deployed_master_address: "0xMaster", status: "VALIDATED" }]
+        : url.endsWith("/create-upcoming-market/")
         ? { upcoming_market: 123, status: "PENDING" }
         : { upcoming_market: 123, status: "FUNDED", funding_amount: 100.0 };
       return {
@@ -158,8 +161,13 @@ test("bundled runtime builds Precog create and fund requests from local config",
     creator_address: "0xCreator",
     creator_signature: "0xCreatorSignature",
   });
+  const approved = await forecastos.awaitPrecogApproval({
+    step: "await_precog_approval",
+    market_id: created.market_id,
+    chain_id: 8453,
+  });
   const funded = await forecastos.fundMarket(
-    { step: "fund", market_id: created.market_id, precog_approval: { status: "PENDING" } },
+    { step: "fund", market_id: created.market_id, precog_approval: { status: "VALIDATED" } },
     {
       approved: true,
       funding_request: {
@@ -172,11 +180,14 @@ test("bundled runtime builds Precog create and fund requests from local config",
   );
 
   assert.equal(created.market_id, 123);
+  assert.equal(approved.precog_status, "VALIDATED");
+  assert.equal(approved.ready_to_fund, true);
   assert.equal(funded.precog_status, "FUNDED");
   assert.equal(requests[0].url, "https://tracker.precog.market/api/v1/create-upcoming-market/");
-  assert.equal(requests[1].url, "https://tracker.precog.market/api/v1/fund-upcoming-market/");
+  assert.match(requests[1].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/upcoming-markets\/\?/);
+  assert.equal(requests[2].url, "https://tracker.precog.market/api/v1/fund-upcoming-market/");
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
-  assert.equal(requests[1].body.upcoming_market, 123);
+  assert.equal(requests[2].body.upcoming_market, 123);
 });
 
 async function runActionBridge(action, inputPath, stateDir) {

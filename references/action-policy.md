@@ -35,12 +35,14 @@ If any condition is missing, ask for it before submitting to Precog.
 An agent may attempt `fund_market` only when:
 
 - market creation has completed or the workflow is at the funding step
-- Precog approval state is present when required
+- Precog approval state is present with status `VALIDATED`
 - the operator explicitly approves funding
 - `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
 - `.forecastos/config.json` includes `precog.open_api_key`
 
 Bankr and LiFi remain useful for creating the funding transaction and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog.
+
+Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
 ## Prediction Consumption Policy
 
