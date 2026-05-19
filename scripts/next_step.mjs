@@ -111,9 +111,17 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "consume_prediction",
       needs_human_input: false,
-      required_fields: ["market_id", "prediction_request.source"],
+      required_fields: [
+        "market_id",
+        "chain_id",
+        ".forecastos/config.json precog.deployed_master_address",
+        "deployed_market_id or deployable upcoming market status",
+      ],
       suggested_command: commands.consumePrediction,
-      notes: ["Consume predictions only from a configured market data adapter."],
+      notes: [
+        "Checks the upcoming market deployment first, then fetches the deployed market from Precog /api/v1/markets/.",
+        "Workflow stays in consume_prediction until Precog returns a deployed market.",
+      ],
     };
   }
 

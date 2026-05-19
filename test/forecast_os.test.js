@@ -130,6 +130,20 @@ test("bundled runtime builds Precog create and fund requests from local config",
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
       const body = url.includes("/upcoming-markets/")
         ? [{ id: 123, chain_id: 8453, deployed_master_address: "0xMaster", status: "VALIDATED" }]
+        : url.includes("/markets/")
+        ? [{
+            id: 1,
+            status: "OPEN",
+            oracle_status: "EOA",
+            reported_result: null,
+            funding_amount: 100,
+            outcomes: "Clawpump,Liquid,Virtuals,Other",
+            outcomes_prices: "0.4,0.3,0.2,0.1",
+            chain_id: 8453,
+            master_address: "0xMaster",
+            master_market_id: 1,
+            contract_address: "0xContract",
+          }]
         : url.endsWith("/create-upcoming-market/")
         ? { upcoming_market: 123, status: "PENDING" }
         : { upcoming_market: 123, status: "FUNDED", funding_amount: 100.0 };
@@ -178,14 +192,27 @@ test("bundled runtime builds Precog create and fund requests from local config",
       },
     },
   );
+  const consumed = await forecastos.consumePrediction(
+    {
+      step: "consume_prediction",
+      market_id: created.market_id,
+      chain_id: 8453,
+      deployed_market_id: 1,
+      funding_result: funded,
+    },
+    {},
+  );
 
   assert.equal(created.market_id, 123);
   assert.equal(approved.precog_status, "VALIDATED");
   assert.equal(approved.ready_to_fund, true);
   assert.equal(funded.precog_status, "FUNDED");
+  assert.equal(consumed.ready_to_finish, true);
+  assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
   assert.equal(requests[0].url, "https://tracker.precog.market/api/v1/create-upcoming-market/");
   assert.match(requests[1].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/upcoming-markets\/\?/);
   assert.equal(requests[2].url, "https://tracker.precog.market/api/v1/fund-upcoming-market/");
+  assert.match(requests[3].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/markets\/\?/);
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[2].body.upcoming_market, 123);
 });

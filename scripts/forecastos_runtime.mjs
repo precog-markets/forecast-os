@@ -257,18 +257,49 @@ class ForecastOSLocalRuntime {
     }
 
     if (current.step === "consume_prediction") {
-      const result = await this.consumePrediction(current, event);
-      return this.#saveResult({
-        state: transition(current, {
-          ...current,
-          step: "done",
-          prediction_result: result,
-          last_result: result,
-        }, "prediction_consumed_todo"),
-        tool_result: result,
-        needs_human_input: false,
-        agent_message: "Prediction consumption is TODO/mock. Workflow is done.",
-      });
+      try {
+        const result = await this.consumePrediction(current, event);
+        if (result.ready_to_finish) {
+          return this.#saveResult({
+            state: transition(current, {
+              ...current,
+              step: "done",
+              market_id: result.market_id ?? current.market_id,
+              upcoming_market: result.upcoming_market ?? current.upcoming_market,
+              deployed_master_address:
+                result.deployed_master_address ?? current.deployed_master_address,
+              deployed_market_id: result.deployed_market_id ?? current.deployed_market_id,
+              prediction_result: result,
+              last_result: result,
+            }, "prediction_consumed"),
+            tool_result: result,
+            needs_human_input: false,
+            agent_message: "Deployed Precog market found. Workflow is done.",
+          });
+        }
+        return this.#saveResult({
+          state: transition(current, {
+            ...current,
+            step: "consume_prediction",
+            precog_status: result.precog_status ?? current.precog_status,
+            deployed_master_address:
+              result.deployed_master_address ?? current.deployed_master_address,
+            deployed_market_id: result.deployed_market_id ?? current.deployed_market_id,
+            prediction_result: result,
+            last_result: result,
+          }, "prediction_waiting_for_deployment"),
+          tool_result: result,
+          needs_human_input: false,
+          agent_message: "Precog market is not deployed yet. Workflow remains at consume_prediction.",
+        });
+      } catch (error) {
+        return this.#saveResult({
+          state: markWorkflowError(current, error),
+          tool_result: serializeError(error),
+          needs_human_input: true,
+          agent_message: "Prediction consumption failed. The workflow remains at consume_prediction.",
+        });
+      }
     }
 
     return { state: current, needs_human_input: false, agent_message: "No workflow action taken." };
@@ -276,19 +307,11 @@ class ForecastOSLocalRuntime {
 
   async awaitPrecogApproval(state, event = {}) {
     const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
-    const upcomingMarket = event.upcoming_market ?? event.id ?? state.upcoming_market ?? state.market_id;
-    const chainId = event.chain_id ?? state.chain_id;
-    const deployedMasterAddress =
-      event.deployed_master_address ?? config.deployed_master_address;
-    if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
-      fail("await_precog_approval requires state.market_id or upcoming_market.");
-    }
-    if (chainId === undefined || chainId === null || chainId === "") {
-      fail("await_precog_approval requires state.chain_id or event.chain_id.");
-    }
+    const upcomingMarket = getUpcomingMarketId(state, event);
+    const chainId = getChainId(state, event, "await_precog_approval");
     const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
       chain_id: chainId,
-      deployed_master_address: deployedMasterAddress,
+      deployed_master_address: config.deployed_master_address,
       id: upcomingMarket,
     }, config);
     return normalizeApprovalResponse(response, upcomingMarket);
@@ -322,14 +345,44 @@ class ForecastOSLocalRuntime {
   }
 
   async consumePrediction(state, event = {}) {
-    return {
-      todo: true,
-      mocked: true,
-      provider: event.prediction_request?.source ?? "precog",
-      status: "todo_mock_prediction_consumed",
-      replace_with: "Replace with configured market data adapter once the API contract is confirmed.",
-      market_id: event.prediction_request?.market_id ?? state.market_id,
-    };
+    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const request = getPredictionRequest(event);
+    const upcomingMarket = getUpcomingMarketId(state, event);
+    const chainId = getChainId(state, event, "consume_prediction");
+    const deployedMasterAddress = config.deployed_master_address;
+    let deployedMarketId = getDeployedMarketId(state, request);
+
+    let upcomingStatus = null;
+    if (deployedMarketId === undefined || deployedMarketId === null || deployedMarketId === "") {
+      const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
+        chain_id: chainId,
+        deployed_master_address: deployedMasterAddress,
+        id: upcomingMarket,
+      }, config);
+      const deployment = normalizeDeploymentResponse(response, upcomingMarket);
+      upcomingStatus = deployment.upcoming_market_status;
+      deployedMarketId = deployment.deployed_market_id;
+
+      if (!deployment.ready_to_fetch_market) {
+        return deployment;
+      }
+    }
+
+    const response = await this.#getPrecog("/api/v1/markets/", {
+      chain_id: chainId,
+      master_address: deployedMasterAddress,
+      master_market_id: deployedMarketId,
+    }, config);
+    const market = normalizeDeployedMarketResponse(response, {
+      chain_id: chainId,
+      master_address: deployedMasterAddress,
+      master_market_id: deployedMarketId,
+    });
+    return normalizePredictionResponse(market, {
+      chain_id: chainId,
+      upcoming_market: upcomingMarket,
+      upcoming_market_status: upcomingStatus,
+    });
   }
 
   async #saveResult(result) {
@@ -531,6 +584,128 @@ function normalizeApprovalResponse(response, expectedId) {
   });
 }
 
+function normalizeDeploymentResponse(response, expectedId) {
+  if (Array.isArray(response)) {
+    const market =
+      response.find((entry) => String(entry.id) === String(expectedId)) ?? response[0];
+    if (!market) {
+      throw new PrecogApiError("Upcoming market was not found.", {
+        code: "PRECOG_UPCOMING_MARKET_NOT_FOUND",
+        status: 404,
+        body: [],
+      });
+    }
+    const deployedMasterAddress = market.deployed_master_address;
+    const deployedMarketId = market.deployed_market_id;
+    const ready =
+      market.status === "DEPLOYED" &&
+      deployedMarketId !== undefined &&
+      deployedMarketId !== null &&
+      deployedMarketId !== "";
+    return {
+      ready_to_finish: false,
+      ready_to_fetch_market: ready,
+      waiting_for_deployment: !ready,
+      market_id: market.id,
+      upcoming_market: market.id,
+      chain_id: market.chain_id,
+      deployed_master_address: deployedMasterAddress,
+      deployed_market_id: deployedMarketId,
+      precog_status: market.status,
+      status: market.status,
+      upcoming_market_status: market,
+      precog_response: market,
+      reason: ready
+        ? "Upcoming market is deployed."
+        : "Upcoming market is not deployed yet or is missing deployed_market_id.",
+    };
+  }
+  if (response?.detail) {
+    throw new PrecogApiError("Precog upcoming market deployment lookup failed.", {
+      code: "PRECOG_UPCOMING_MARKET_LOOKUP_ERROR",
+      status: response.detail === "Not found." ? 404 : 403,
+      body: response,
+    });
+  }
+  throw new PrecogApiError("Unexpected Precog upcoming market response.", {
+    code: "PRECOG_UNEXPECTED_RESPONSE",
+    body: response,
+  });
+}
+
+function normalizeDeployedMarketResponse(response, expected = {}) {
+  if (Array.isArray(response)) {
+    const market =
+      response.find((entry) =>
+        String(entry.master_market_id) === String(expected.master_market_id) &&
+        String(entry.chain_id) === String(expected.chain_id) &&
+        normalizeAddress(entry.master_address) === normalizeAddress(expected.master_address),
+      ) ?? response[0];
+    if (!market) {
+      throw new PrecogApiError("Deployed market was not found.", {
+        code: "PRECOG_DEPLOYED_MARKET_NOT_FOUND",
+        status: 404,
+        body: [],
+      });
+    }
+    return market;
+  }
+  if (response?.detail) {
+    throw new PrecogApiError("Precog deployed market lookup failed.", {
+      code: "PRECOG_DEPLOYED_MARKET_LOOKUP_ERROR",
+      status: response.detail === "Not found." ? 404 : 403,
+      body: response,
+    });
+  }
+  if (response && typeof response === "object") {
+    throw new PrecogApiError("Precog deployed market lookup failed.", {
+      code: "PRECOG_DEPLOYED_MARKET_LOOKUP_ERROR",
+      status: 400,
+      body: response,
+    });
+  }
+  throw new PrecogApiError("Unexpected Precog deployed market response.", {
+    code: "PRECOG_UNEXPECTED_RESPONSE",
+    body: response,
+  });
+}
+
+function normalizePredictionResponse(market, context = {}) {
+  const outcomes = parseList(market.outcomes);
+  const outcomePrices = parseList(market.outcomes_prices).map((value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : value;
+  });
+  return {
+    ready_to_finish: true,
+    market_id: market.id,
+    upcoming_market: context.upcoming_market,
+    deployed_market_id: market.master_market_id,
+    deployed_master_address: market.master_address,
+    chain_id: market.chain_id ?? context.chain_id,
+    status: market.status,
+    market,
+    parsed: {
+      outcomes,
+      outcomes_prices: outcomePrices,
+    },
+    signal: {
+      status: market.status,
+      oracle_status: market.oracle_status,
+      reported_result: market.reported_result,
+      funding_amount: market.funding_amount,
+      outcomes,
+      outcomes_prices: outcomePrices,
+      chain_id: market.chain_id ?? context.chain_id,
+      master_address: market.master_address,
+      master_market_id: market.master_market_id,
+      contract_address: market.contract_address,
+    },
+    upcoming_market_status: context.upcoming_market_status,
+    precog_response: market,
+  };
+}
+
 function normalizeFundResponse(response, request) {
   return {
     market_id: response.upcoming_market ?? request.upcoming_market,
@@ -543,6 +718,59 @@ function normalizeFundResponse(response, request) {
     funder_address: request.funder_address,
     precog_response: response,
   };
+}
+
+function getUpcomingMarketId(state = {}, event = {}) {
+  const request = getPredictionRequest(event);
+  const upcomingMarket =
+    event.upcoming_market ??
+    event.id ??
+    request.upcoming_market ??
+    request.market_id ??
+    state.upcoming_market ??
+    state.market_id;
+  if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
+    fail("ForecastOS requires state.market_id or upcoming_market.");
+  }
+  return upcomingMarket;
+}
+
+function getChainId(state = {}, event = {}, label = "ForecastOS action") {
+  const request = getPredictionRequest(event);
+  const chainId = event.chain_id ?? request.chain_id ?? state.chain_id;
+  if (chainId === undefined || chainId === null || chainId === "") {
+    fail(`${label} requires state.chain_id or event.chain_id.`);
+  }
+  return chainId;
+}
+
+function getPredictionRequest(event = {}) {
+  return event.prediction_request ?? event ?? {};
+}
+
+function getDeployedMarketId(state = {}, request = {}) {
+  return request.master_market_id ?? request.deployed_market_id ?? state.deployed_market_id;
+}
+
+function parseList(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === "") return [];
+  if (typeof value !== "string") return [value];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Fall through to comma parsing.
+    }
+  }
+  return trimmed.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function normalizeAddress(value) {
+  return value ? String(value).toLowerCase() : "";
 }
 
 async function readPrecogConfig(store, options = {}) {

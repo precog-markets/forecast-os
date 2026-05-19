@@ -11,5 +11,6 @@ Expected behavior:
 - Inspect workflow state first.
 - Confirm market creation/Precog approval has happened or explain what is missing.
 - Require explicit operator approval for funding.
-- Return TODO/mock output unless a trusted Bankr/LiFi/manual funding adapter is configured.
+- Use Bankr/LiFi/manual flow outside ForecastOS to produce the transaction hash and wallet signature.
+- Submit only the approved signed funding payload through `fund_market`.
 - Do not request private keys, seed phrases, or raw custody credentials.

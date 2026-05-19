@@ -9,9 +9,11 @@ ForecastOS is allowed to help agents reason about prediction-market workflows an
 - Require explicit human approval before market creation.
 - Require explicit operator approval before funding.
 - Check Precog approval status before funding; only `VALIDATED` can move to funding.
+- Check upcoming-market deployment before consuming predictions; only `DEPLOYED` can move to the deployed market lookup.
 - Reject stale approval when draft IDs or hashes do not match.
 - Submit Precog create/fund requests only through `forecastos_action.mjs` after approval and signed fields are present.
-- Treat Precog approval polling, Bankr/LiFi transaction creation, and prediction consumption as TODO/mock unless a trusted adapter is configured.
+- Treat Bankr/LiFi transaction creation as external to ForecastOS unless a trusted adapter is configured.
+- Never invent market prices or probabilities when Precog returns no deployed market data.
 - Never ask for seed phrases, private keys, raw signing secrets, or custody credentials.
 
 ## Human-Facing Behavior
@@ -19,3 +21,5 @@ ForecastOS is allowed to help agents reason about prediction-market workflows an
 When a user asks for live creation or funding, verify `.forecastos/config.json`, approval text, and operator-provided signatures before submission. If config or signed fields are missing, ask for those fields instead of pretending success.
 
 If an upcoming market is still `CREATED`, report that it is waiting for Precog validation and do not fund.
+
+If an upcoming market is funded but not yet `DEPLOYED`, report that ForecastOS is waiting for deployment before reading predictions.

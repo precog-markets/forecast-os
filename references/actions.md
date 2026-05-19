@@ -36,7 +36,7 @@ Live Precog calls read config from `.forecastos/config.json`:
 }
 ```
 
-`api_root` defaults to `https://tracker.precog.market/` when omitted. `open_api_key` is required for live Precog calls. `deployed_master_address` is required for `await_precog_approval`. MCP must not expose this file.
+`api_root` defaults to `https://tracker.precog.market/` when omitted. `open_api_key` is required for live Precog calls. `deployed_master_address` is required for `await_precog_approval` and `consume_prediction`. It is config-only and must not be overridden by action input. MCP must not expose this file.
 
 ## Supported Actions
 
@@ -109,8 +109,18 @@ CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 
 Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` means the market exists but is not approved for funding yet.
 
+Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/`. ForecastOS always sends `deployed_master_address` from `.forecastos/config.json`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`.
+
+After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
+
+```txt
+chain_id=<chain_id>&master_address=<config.deployed_master_address>&master_market_id=<deployed_market_id>
+```
+
+The stored `prediction_result` includes the full market object plus a compact `signal` with parsed `outcomes` and `outcomes_prices`. ForecastOS never invents missing probabilities.
+
 ## Replace Points
 
 - Precog approval adapter: approval status source and polling/subscription behavior.
 - Funding transaction adapter: Bankr, LiFi, manual operator flow, or another provider to create the transaction and signature.
-- Prediction adapter: probability/source API and response schema.
+- Prediction adapter: deployed market read API, probability/source API, and response schema.
