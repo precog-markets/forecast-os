@@ -861,16 +861,14 @@ function normalizePrecogCategory(category) {
 }
 
 function normalizePrecogOutcomes(outcomes) {
-  if (!Array.isArray(outcomes)) {
-    fail("Precog create payload requires outcomes as an array.");
-  }
-  const normalized = outcomes.map((outcome) =>
+  const input = Array.isArray(outcomes) ? outcomes : String(outcomes ?? "").split(",");
+  const normalized = input.map((outcome) =>
     outcome === undefined || outcome === null ? null : String(outcome).trim(),
   );
   if (normalized.length < 2 || normalized.some((outcome) => !outcome)) {
     fail("Precog create payload requires at least two non-empty outcomes.");
   }
-  return normalized;
+  return normalized.join(",");
 }
 
 function normalizeUrl(value, label) {

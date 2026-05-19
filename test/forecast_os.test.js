@@ -220,6 +220,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=8453&master_address=0xMaster&master_market_id=1`);
   assert.ok(requests[3].url.includes("master_address=0xMaster"));
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
+  assert.equal(requests[0].body.outcomes, "Clawpump,Liquid,Virtuals,Other");
   assert.equal(requests[2].body.upcoming_market, 123);
 });
 

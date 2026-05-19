@@ -68,7 +68,7 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
   "resolution_criteria": "...",
   "image_url": "https://example.com/image.png",
   "category": "crypto",
-  "outcomes": ["YES", "NO"],
+  "outcomes": "YES,NO",
   "start_timestamp": 1717000000,
   "end_timestamp": 1719700000,
   "collateral_address": "0x...",
@@ -84,7 +84,7 @@ Creation payload hygiene:
 - `question` is normalized to end with `?`.
 - `start_timestamp` and `end_timestamp` are derived from UTC times.
 - `image_url` must be an `http` or `https` URL.
-- `outcomes` must contain at least two non-empty labels.
+- `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 
