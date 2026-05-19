@@ -25,8 +25,10 @@ An agent may attempt `create_market` only when:
 - the human has provided explicit approval
 - the approval text matches the current draft ID and hash
 - the bundled ForecastOS runtime or a trusted replacement module is configured
+- `.forecastos/config.json` includes `precog.open_api_key`
+- operator-provided `creator_address` and `creator_signature` are present
 
-If any condition is missing, ask for the missing condition or return the TODO/unavailable result.
+If any condition is missing, ask for it before submitting to Precog.
 
 ## Funding Policy
 
@@ -35,10 +37,10 @@ An agent may attempt `fund_market` only when:
 - market creation has completed or the workflow is at the funding step
 - Precog approval state is present when required
 - the operator explicitly approves funding
-- provider, amount, and asset are specified
-- a trusted funding adapter is configured by the host project
+- `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
+- `.forecastos/config.json` includes `precog.open_api_key`
 
-Bankr and LiFi are provider hints in this package, not live built-in integrations.
+Bankr and LiFi remain useful for creating the funding transaction and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog.
 
 ## Prediction Consumption Policy
 
@@ -60,3 +62,5 @@ Do not request or store:
 - custody credentials
 
 Use operator wallet references only, such as a label or account ID controlled outside this skill.
+
+ForecastOS may store public addresses, transaction hashes, and signatures needed for Precog submission. It must not generate signatures or request signing secrets.

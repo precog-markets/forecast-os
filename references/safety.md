@@ -1,6 +1,6 @@
 # Safety
 
-ForecastOS is allowed to help agents reason about prediction-market workflows. It should not silently spend money, sign transactions, or mutate live markets.
+ForecastOS is allowed to help agents reason about prediction-market workflows and submit approved signed payloads to Precog. It should not silently spend money, sign transactions, or mutate live markets without explicit approval.
 
 ## Guardrails
 
@@ -9,9 +9,10 @@ ForecastOS is allowed to help agents reason about prediction-market workflows. I
 - Require explicit human approval before market creation.
 - Require explicit operator approval before funding.
 - Reject stale approval when draft IDs or hashes do not match.
-- Treat Precog creation/approval, Bankr/LiFi funding, and prediction consumption as TODO/mock unless a trusted host adapter is configured.
+- Submit Precog create/fund requests only through `forecastos_action.mjs` after approval and signed fields are present.
+- Treat Precog approval polling, Bankr/LiFi transaction creation, and prediction consumption as TODO/mock unless a trusted adapter is configured.
 - Never ask for seed phrases, private keys, raw signing secrets, or custody credentials.
 
 ## Human-Facing Behavior
 
-When a user asks for live creation or funding and adapters are missing, say that the workflow is ready but the external action is not wired yet. Return the TODO/replacement point instead of pretending success.
+When a user asks for live creation or funding, verify `.forecastos/config.json`, approval text, and operator-provided signatures before submission. If config or signed fields are missing, ask for those fields instead of pretending success.

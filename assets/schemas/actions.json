@@ -34,21 +34,50 @@
     },
     "create_market": {
       "type": "object",
-      "required": ["draft_id", "approved", "approved_by", "approval_text"],
+      "required": [
+        "draft_id",
+        "approved",
+        "approved_by",
+        "approval_text",
+        "collateral_address",
+        "chain_id",
+        "creator_address",
+        "creator_signature"
+      ],
       "properties": {
         "draft_id": { "type": "string", "minLength": 1 },
         "approved": { "type": "boolean", "const": true },
         "approved_by": { "type": "string", "minLength": 1 },
         "approval_text": { "type": "string", "minLength": 1 },
-        "operator_wallet_reference": { "type": "string" }
+        "operator_wallet_reference": { "type": "string" },
+        "image_url": { "type": "string" },
+        "start_timestamp": { "type": ["integer", "string"] },
+        "end_timestamp": { "type": ["integer", "string"] },
+        "collateral_address": { "type": "string", "minLength": 1 },
+        "chain_id": { "type": "integer" },
+        "creator_address": { "type": "string", "minLength": 1 },
+        "creator_signature": { "type": "string", "minLength": 1 },
+        "creator_email": { "type": "string" }
       },
       "additionalProperties": true
     },
     "fund_market": {
       "type": "object",
-      "required": ["approved", "state"],
+      "required": [
+        "approved",
+        "state",
+        "amount",
+        "tx_hash",
+        "funder_address",
+        "funder_signature"
+      ],
       "properties": {
         "approved": { "type": "boolean", "const": true },
+        "upcoming_market": { "type": ["integer", "string"] },
+        "amount": { "type": "string", "minLength": 1 },
+        "tx_hash": { "type": "string", "minLength": 1 },
+        "funder_address": { "type": "string", "minLength": 1 },
+        "funder_signature": { "type": "string", "minLength": 1 },
         "state": { "type": "object" },
         "event": {
           "type": "object",

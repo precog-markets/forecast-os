@@ -45,8 +45,19 @@ Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `req
   "approved": true,
   "approved_by": "operator-id",
   "approval_text": "I approve ForecastOS draft draft-id at hash draft-hash.",
-  "operator_wallet_reference": "optional operator-controlled wallet/account reference"
+  "collateral_address": "0xCollateral",
+  "chain_id": 8453,
+  "creator_address": "0xCreatorAddress",
+  "creator_signature": "0xSignature",
+  "creator_email": "optional@email.com",
+  "image_url": "https://example.com/image.png"
 }
+```
+
+`creator_signature` must be provided by the operator wallet layer. It signs:
+
+```txt
+precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
 ```
 
 ## await_precog_approval
@@ -64,7 +75,7 @@ Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `req
 
 ## fund_market
 
-Funding requires explicit operator approval. Bankr/LiFi are adapter hints, not built-in live execution.
+Funding requires explicit operator approval. Bankr/LiFi can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog.
 
 ```json
 {
@@ -75,14 +86,18 @@ Funding requires explicit operator approval. Bankr/LiFi are adapter hints, not b
     "market_id": "market-id",
     "precog_approval": {}
   },
-  "event": {
-    "funding_request": {
-      "provider": "manual",
-      "amount": "100",
-      "asset": "USDC"
-    }
-  }
+  "upcoming_market": 123,
+  "amount": "100000000",
+  "tx_hash": "0xTransactionHash",
+  "funder_address": "0xFunderAddress",
+  "funder_signature": "0xSignature"
 }
+```
+
+`funder_signature` signs:
+
+```txt
+precog.markets|<funder_address_lowercase>|<market_chain_id>|<next_pending_nonce>
 ```
 
 ## consume_prediction

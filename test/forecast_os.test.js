@@ -5,6 +5,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
+import {
+  DirectoryDraftStateStore,
+  createForecastOS,
+} from "../scripts/forecastos_runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -101,6 +105,78 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
   await assert.rejects(
     readFile(join(stateDir, "workflows", "await_approval", `${workflowId}.json`), "utf8"),
   );
+});
+
+test("bundled runtime builds Precog create and fund requests from local config", async () => {
+  const rootDir = join(skillRoot, "api-test-output");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: "https://tracker.precog.market/",
+        open_api_key: "test-open-api-key",
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: JSON.parse(options.body) });
+      const body = url.endsWith("/create-upcoming-market/")
+        ? { upcoming_market: 123, status: "PENDING" }
+        : { upcoming_market: 123, status: "FUNDED", funding_amount: 100.0 };
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify(body);
+        },
+      };
+    },
+    now: () => new Date("2026-06-01T12:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  const created = await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    collateral_address: "0xCollateral",
+    chain_id: 8453,
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+  const funded = await forecastos.fundMarket(
+    { step: "fund", market_id: created.market_id, precog_approval: { status: "PENDING" } },
+    {
+      approved: true,
+      funding_request: {
+        amount: "100000000",
+        tx_hash: "0xTransactionHash",
+        funder_address: "0xFunder",
+        funder_signature: "0xFunderSignature",
+      },
+    },
+  );
+
+  assert.equal(created.market_id, 123);
+  assert.equal(funded.precog_status, "FUNDED");
+  assert.equal(requests[0].url, "https://tracker.precog.market/api/v1/create-upcoming-market/");
+  assert.equal(requests[1].url, "https://tracker.precog.market/api/v1/fund-upcoming-market/");
+  assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
+  assert.equal(requests[1].body.upcoming_market, 123);
 });
 
 async function runActionBridge(action, inputPath, stateDir) {

@@ -28,13 +28,29 @@ const input = normalizeInput(action, inputPath ? JSON.parse(await readFile(input
 enforceApproval(action, input);
 
 const forecastos = await loadForecastOS(sdkModule);
-const result = await dispatch(forecastos, action, input);
-print({
-  action,
-  status: "ok",
-  runtime: sdkModule ? "external" : "bundled",
-  result,
-});
+try {
+  const result = await dispatch(forecastos, action, input);
+  print({
+    action,
+    status: "ok",
+    runtime: sdkModule ? "external" : "bundled",
+    result,
+  });
+} catch (error) {
+  process.stderr.write(
+    `${JSON.stringify(
+      {
+        action,
+        status: "error",
+        runtime: sdkModule ? "external" : "bundled",
+        error: serializeError(error),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  process.exit(1);
+}
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -126,7 +142,21 @@ async function dispatch(forecastos, actionName, input) {
   if (actionName === "await_precog_approval") {
     return forecastos.awaitPrecogApproval(input.state, input.event ?? {});
   }
-  if (actionName === "fund_market") return forecastos.fundMarket(input.state, input.event ?? {});
+  if (actionName === "fund_market") {
+    return forecastos.fundMarket(input.state, {
+      ...(input.event ?? {}),
+      approved: input.approved,
+      funding_request: {
+        ...(input.event?.funding_request ?? {}),
+        ...(input.funding_request ?? {}),
+        upcoming_market: input.upcoming_market ?? input.funding_request?.upcoming_market ?? input.event?.funding_request?.upcoming_market,
+        amount: input.amount ?? input.funding_request?.amount ?? input.event?.funding_request?.amount,
+        tx_hash: input.tx_hash ?? input.funding_request?.tx_hash ?? input.event?.funding_request?.tx_hash,
+        funder_address: input.funder_address ?? input.funding_request?.funder_address ?? input.event?.funding_request?.funder_address,
+        funder_signature: input.funder_signature ?? input.funding_request?.funder_signature ?? input.event?.funding_request?.funder_signature,
+      },
+    });
+  }
   if (actionName === "consume_prediction") {
     return forecastos.consumePrediction(input.state, input.event ?? {});
   }
@@ -140,4 +170,15 @@ function print(value) {
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
+}
+
+function serializeError(error) {
+  return {
+    name: error?.name ?? "Error",
+    message: error?.message ?? String(error),
+    code: error?.code,
+    status: error?.status,
+    endpoint: error?.endpoint,
+    body: error?.body,
+  };
 }
