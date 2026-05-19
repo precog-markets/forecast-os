@@ -2,5 +2,5 @@
 test-output/
 api-test-output/
 
-# Local API credentials.
-.forecastos/config.json
+# Optional local overrides.
+.forecastos/config.local.json

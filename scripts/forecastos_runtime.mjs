@@ -61,7 +61,9 @@ export class DirectoryDraftStateStore {
   }
 
   async getConfig() {
-    return readJsonOrNull(join(this.rootDir, "config.json"));
+    const config = await readJsonOrNull(join(this.rootDir, "config.json"));
+    const localConfig = await readJsonOrNull(join(this.rootDir, "config.local.json"));
+    return mergeConfig(config, localConfig);
   }
 }
 
@@ -797,6 +799,17 @@ async function readPrecogConfig(store, options = {}) {
     api_root: precog.api_root ?? DEFAULT_PRECOG_API_ROOT,
     open_api_key: precog.open_api_key,
     deployed_master_address: precog.deployed_master_address,
+  };
+}
+
+function mergeConfig(config, localConfig) {
+  return {
+    ...(config ?? {}),
+    ...(localConfig ?? {}),
+    precog: {
+      ...(config?.precog ?? {}),
+      ...(localConfig?.precog ?? {}),
+    },
   };
 }
 

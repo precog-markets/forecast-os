@@ -9,6 +9,7 @@ import { listForecastOSTools } from "../mcp/tools.js";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const skill = await readFile(join(root, "SKILL.md"), "utf8");
 const mcpConfig = JSON.parse(await readFile(join(root, "mcp.json"), "utf8"));
+const precogConfig = JSON.parse(await readFile(join(root, ".forecastos", "config.json"), "utf8"));
 const agentMetadata = await readFile(join(root, "agents", "openai.yaml"), "utf8");
 const tools = await listForecastOSTools();
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
@@ -32,7 +33,21 @@ await assertDir(join(root, "agents"));
 await assertDir(join(root, "references"));
 await assertDir(join(root, "scripts"));
 await assertDir(join(root, "assets"));
+await assertDir(join(root, ".forecastos"));
+assert(
+  precogConfig.precog?.api_root === "https://tracker.precog.market/",
+  ".forecastos/config.json needs the public Precog API root",
+);
+assert(
+  precogConfig.precog?.open_api_key,
+  ".forecastos/config.json needs the public open_api_key",
+);
+assert(
+  precogConfig.precog?.deployed_master_address,
+  ".forecastos/config.json needs deployed_master_address",
+);
 await assertMissing(join(root, "agents", "metadata.yaml"), "agents/metadata.yaml should not exist");
+await assertMissing(join(root, ".forecastos", "config.local.json"), ".forecastos/config.local.json should not be shipped");
 await assertMissing(join(root, "README.md"), "README.md should not exist");
 await assertMissing(join(root, "CHANGELOG.md"), "CHANGELOG.md should not exist");
 await assertMissing(join(root, "QUICK_REFERENCE.md"), "QUICK_REFERENCE.md should not exist");

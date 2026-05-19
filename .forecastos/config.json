@@ -1,0 +1,7 @@
+{
+  "precog": {
+    "api_root": "https://tracker.precog.market/",
+    "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
+    "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E"
+  }
+}

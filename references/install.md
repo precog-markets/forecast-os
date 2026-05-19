@@ -62,6 +62,18 @@ FORECASTOS_STATE_DIR=/path/to/.forecastos
 
 The expected local state layout is described in `references/workflow.md`.
 
+## Precog Defaults
+
+The package ships `.forecastos/config.json` with public Precog defaults. Users do not need to create an env file to try the skill.
+
+For local overrides, create:
+
+```txt
+.forecastos/config.local.json
+```
+
+`config.local.json` is ignored and overrides matching fields from the shipped config.
+
 ## Validate
 
 Run:
@@ -74,6 +86,7 @@ This checks:
 
 - `SKILL.md` frontmatter uses `name: forecast-os` and a useful trigger description.
 - `agents/openai.yaml` exists.
+- `.forecastos/config.json` includes public Precog defaults.
 - `mcp.json` points to `./mcp/server.js`.
 - MCP tool names remain read-only.
 - forbidden clutter files such as README, changelog, evals, grader, analyzer, and comparator are absent.
