@@ -51,10 +51,10 @@ An agent may attempt `consume_prediction` only when:
 - the workflow has reached `consume_prediction`
 - a market ID is present
 - `chain_id` is present
-- `precog.deployed_master_address` is present in `.forecastos/config.json`
+- `precog.deployed_master_address` is present in `.forecastos/config.json` before fetching the deployed market from `/api/v1/markets/`
 - `deployed_market_id` is present in state or discoverable from Precog upcoming-market status
 
-ForecastOS first checks the upcoming market. It may fetch the deployed market only after Precog reports `DEPLOYED` with `deployed_market_id`. It always uses config `deployed_master_address` for Precog queries. Empty responses, invalid filters, or API-key failures must keep the workflow in `consume_prediction`.
+ForecastOS first checks the upcoming market. It may fetch the deployed market only after Precog reports `DEPLOYED` with `deployed_market_id`. It sends only `chain_id` and `id` to upcoming-market queries, and uses config `deployed_master_address` only for deployed-market queries. Empty responses, invalid filters, or API-key failures must keep the workflow in `consume_prediction`.
 
 Never invent prices or probabilities. Store only the values returned by Precog.
 

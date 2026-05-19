@@ -81,7 +81,7 @@ precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
 }
 ```
 
-This checks `GET /api/v1/upcoming-markets/` using `chain_id`, `id`, and `precog.deployed_master_address` from `.forecastos/config.json`. The deployed master address is config-only. Funding is allowed only when Precog returns `status: "VALIDATED"`.
+This checks `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`.
 
 ## fund_market
 
@@ -133,6 +133,6 @@ precog.markets|<funder_address_lowercase>|<market_chain_id>|<next_pending_nonce>
 }
 ```
 
-If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with `chain_id`, `master_market_id`, and `master_address` from `.forecastos/config.json`.
+If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first using only `chain_id` and `id`. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with `chain_id`, `master_market_id`, and `master_address` from `.forecastos/config.json`.
 
 The result stores the raw market plus parsed `outcomes` and `outcomes_prices` in `prediction_result.signal`. Empty or errored responses keep the workflow in `consume_prediction`.

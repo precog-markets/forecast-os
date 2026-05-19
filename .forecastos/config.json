@@ -1,6 +1,7 @@
 {
   "precog": {
-    "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
+    "api_root": "http://localhost:8081/",
+    "open_api_key": "2bbcd786-7cd6-4fdc-a979-e88b22333558",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E"
   }
 }

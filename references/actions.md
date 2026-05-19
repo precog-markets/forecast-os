@@ -29,13 +29,14 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
 ```json
 {
   "precog": {
+    "api_root": "https://tracker.precog.market/",
     "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E"
   }
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. `api_root` is intentionally omitted and comes from the bundled runtime default unless `config.local.json` overrides it. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -108,7 +109,7 @@ precog.markets|<address_lowercase>|<chain_id>|<next_pending_nonce>
 Approval status uses `GET /api/v1/upcoming-markets/` with query params:
 
 ```txt
-chain_id=<chain_id>&deployed_master_address=<deployed_master_address>&id=<upcoming_market>
+chain_id=<chain_id>&id=<upcoming_market>
 ```
 
 Precog lifecycle is:
@@ -119,7 +120,7 @@ CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 
 Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` means the market exists but is not approved for funding yet.
 
-Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/`. ForecastOS always sends `deployed_master_address` from `.forecastos/config.json`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`.
+Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
 
 After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
 

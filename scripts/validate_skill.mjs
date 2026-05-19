@@ -35,8 +35,8 @@ await assertDir(join(root, "scripts"));
 await assertDir(join(root, "assets"));
 await assertDir(join(root, ".forecastos"));
 assert(
-  !("api_root" in (precogConfig.precog ?? {})),
-  ".forecastos/config.json should rely on the runtime default api_root unless overriding locally",
+  precogConfig.precog?.api_root,
+  ".forecastos/config.json needs precog.api_root",
 );
 assert(
   precogConfig.precog?.open_api_key,

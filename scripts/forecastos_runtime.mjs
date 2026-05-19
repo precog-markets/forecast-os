@@ -12,7 +12,6 @@ const STATUS_FOLDERS = Object.freeze([
   "consume_prediction",
   "done",
 ]);
-const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
 
 export class DirectoryDraftStateStore {
   constructor(rootDir = ".forecastos") {
@@ -317,12 +316,11 @@ class ForecastOSLocalRuntime {
   }
 
   async awaitPrecogApproval(state, event = {}) {
-    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const config = await readPrecogConfig(this.store);
     const upcomingMarket = getUpcomingMarketId(state, event);
     const chainId = getChainId(state, event, "await_precog_approval");
     const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
       chain_id: chainId,
-      deployed_master_address: config.deployed_master_address,
       id: upcomingMarket,
     }, config);
     return normalizeApprovalResponse(response, upcomingMarket);
@@ -356,18 +354,16 @@ class ForecastOSLocalRuntime {
   }
 
   async consumePrediction(state, event = {}) {
-    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const config = await readPrecogConfig(this.store);
     const request = getPredictionRequest(event);
     const upcomingMarket = getUpcomingMarketId(state, event);
     const chainId = getChainId(state, event, "consume_prediction");
-    const deployedMasterAddress = config.deployed_master_address;
     let deployedMarketId = getDeployedMarketId(state, request);
 
     let upcomingStatus = null;
     if (deployedMarketId === undefined || deployedMarketId === null || deployedMarketId === "") {
       const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
         chain_id: chainId,
-        deployed_master_address: deployedMasterAddress,
         id: upcomingMarket,
       }, config);
       const deployment = normalizeDeploymentResponse(response, upcomingMarket);
@@ -379,6 +375,7 @@ class ForecastOSLocalRuntime {
       }
     }
 
+    const deployedMasterAddress = requireDeployedMasterAddress(config);
     const response = await this.#getPrecog("/api/v1/markets/", {
       chain_id: chainId,
       master_address: deployedMasterAddress,
@@ -953,6 +950,13 @@ async function readPrecogConfig(store, options = {}) {
       body: { error: "Missing precog.open_api_key" },
     });
   }
+  if (!precog.api_root) {
+    throw new PrecogApiError("Missing .forecastos/config.json precog.api_root.", {
+      code: "PRECOG_CONFIG_ERROR",
+      endpoint: null,
+      body: { error: "Missing precog.api_root" },
+    });
+  }
   if (options.requireDeployedMasterAddress && !precog.deployed_master_address) {
     throw new PrecogApiError(
       "Missing .forecastos/config.json precog.deployed_master_address.",
@@ -964,10 +968,24 @@ async function readPrecogConfig(store, options = {}) {
     );
   }
   return {
-    api_root: precog.api_root ?? DEFAULT_PRECOG_API_ROOT,
+    api_root: precog.api_root,
     open_api_key: precog.open_api_key,
     deployed_master_address: precog.deployed_master_address,
   };
+}
+
+function requireDeployedMasterAddress(config) {
+  if (!config.deployed_master_address) {
+    throw new PrecogApiError(
+      "Missing .forecastos/config.json precog.deployed_master_address.",
+      {
+        code: "PRECOG_CONFIG_ERROR",
+        endpoint: null,
+        body: { error: "Missing precog.deployed_master_address" },
+      },
+    );
+  }
+  return config.deployed_master_address;
 }
 
 function mergeConfig(config, localConfig) {

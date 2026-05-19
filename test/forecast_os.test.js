@@ -12,7 +12,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const DEFAULT_PRECOG_API_ROOT = "https://tracker.precog.market/";
+const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "config.json"), "utf8"));
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -119,6 +119,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     join(stateDir, "config.json"),
     JSON.stringify({
       precog: {
+        api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         deployed_master_address: "0xMaster",
       },
@@ -212,14 +213,146 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(funded.precog_status, "FUNDED");
   assert.equal(consumed.ready_to_finish, true);
   assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
-  assert.equal(requests[0].url, `${DEFAULT_PRECOG_API_ROOT}api/v1/create-upcoming-market/`);
-  assert.match(requests[1].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/upcoming-markets\/\?/);
-  assert.equal(requests[2].url, `${DEFAULT_PRECOG_API_ROOT}api/v1/fund-upcoming-market/`);
-  assert.match(requests[3].url, /^https:\/\/tracker\.precog\.market\/api\/v1\/markets\/\?/);
+  assert.equal(requests[0].url, `${shippedConfig.precog.api_root}api/v1/create-upcoming-market/`);
+  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=8453&id=123`);
+  assert.ok(!requests[1].url.includes("deployed_master_address"));
+  assert.equal(requests[2].url, `${shippedConfig.precog.api_root}api/v1/fund-upcoming-market/`);
+  assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=8453&master_address=0xMaster&master_market_id=1`);
+  assert.ok(requests[3].url.includes("master_address=0xMaster"));
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[2].body.upcoming_market, 123);
 });
 
+test("await_precog_approval omits deployed_master_address and does not require it", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "await-no-master");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify([{ id: 123, chain_id: 8453, status: "VALIDATED" }]);
+        },
+      };
+    },
+  });
+
+  const approved = await forecastos.awaitPrecogApproval({
+    step: "await_precog_approval",
+    market_id: 123,
+    chain_id: 8453,
+  });
+
+  assert.equal(approved.ready_to_fund, true);
+  assert.equal(requests.length, 1);
+  assert.ok(requests[0].url.includes("/api/v1/upcoming-markets/?"));
+  assert.ok(requests[0].url.includes("chain_id=8453"));
+  assert.ok(requests[0].url.includes("id=123"));
+  assert.ok(!requests[0].url.includes("deployed_master_address"));
+});
+
+test("consume_prediction can check upcoming deployment without deployed_master_address", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "consume-no-master-waiting");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify([{ id: 123, chain_id: 8453, status: "FUNDED" }]);
+        },
+      };
+    },
+  });
+
+  const result = await forecastos.consumePrediction({
+    step: "consume_prediction",
+    market_id: 123,
+    chain_id: 8453,
+  });
+
+  assert.equal(result.ready_to_fetch_market, false);
+  assert.equal(result.waiting_for_deployment, true);
+  assert.equal(requests.length, 1);
+  assert.ok(requests[0].url.includes("/api/v1/upcoming-markets/?"));
+  assert.ok(!requests[0].url.includes("deployed_master_address"));
+});
+
+test("consume_prediction requires deployed_master_address only before deployed market fetch", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "consume-no-master-deployed");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify([
+            { id: 123, chain_id: 8453, status: "DEPLOYED", deployed_market_id: 1 },
+          ]);
+        },
+      };
+    },
+  });
+
+  await assert.rejects(
+    forecastos.consumePrediction({
+      step: "consume_prediction",
+      market_id: 123,
+      chain_id: 8453,
+    }),
+    /Missing \.forecastos\/config\.json precog\.deployed_master_address/,
+  );
+  assert.equal(requests.length, 1);
+  assert.ok(!requests[0].url.includes("deployed_master_address"));
+});
 async function runActionBridge(action, inputPath, stateDir) {
   const scriptPath = join(skillRoot, "scripts", "forecastos_action.mjs");
   const { stdout } = await execFileAsync(
