@@ -36,7 +36,7 @@ export async function handleRequest(request) {
     return {
       protocolVersion: request.params?.protocolVersion ?? "2024-11-05",
       capabilities: { resources: {}, tools: {} },
-      serverInfo: { name: "forecast_os-readonly", version: "0.1.0" },
+      serverInfo: { name: "forecast-os-readonly", version: "0.1.0" },
     };
   }
   if (request.method === "resources/list") return { resources: await listForecastOSResources() };

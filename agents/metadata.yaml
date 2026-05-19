@@ -1,7 +1,0 @@
-interface:
-  display_name: "ForecastOS"
-  short_description: "Plan multi-outcome market workflows"
-  default_prompt: "Use $forecast_os to draft and inspect a human-approved ForecastOS market workflow."
-
-policy:
-  allow_implicit_invocation: true

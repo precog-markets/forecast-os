@@ -1,28 +1,20 @@
 ---
-name: forecast_os
-description: Use ForecastOS for agent-native multi-outcome prediction-market workflows, .forecastos state inspection, read-only MCP context, bundled CLI/runtime actions, human-approved market creation, Precog TODOs, Bankr/LiFi funding handoff TODOs, and forecast consumption planning. Assumes multi_outcome markets, keeps MCP read-only, and avoids live funding/signing.
+name: forecast-os
+description: Use ForecastOS for multi-outcome prediction-market workflows: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval.
 ---
 
-# ForecastOS Skill
+# ForecastOS
 
-Use this skill as the ForecastOS package for agent runtimes: concise trigger metadata, progressive disclosure, optional platform metadata in `agents/metadata.yaml`, and deterministic scripts only where they reduce repeated work.
+Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only, use scripts for deterministic execution, and require human/operator approval before live creation or funding.
 
-## Operating Model
+## Core Rules
 
-Keep the split crisp:
-
-- `SKILL.md`: when to use ForecastOS and which bundled resource to read next.
-- `agents/metadata.yaml`: optional platform UI metadata and invocation policy.
-- `references/`: architecture, workflow, safety, MCP, actions, examples, and tool schemas.
-- `assets/`: reusable templates and machine-readable schemas.
-- `scripts/`: deterministic local helpers.
-- `mcp/`: read-only context and state inspection.
-
-## Boundaries
-
-MCP is read-only. It can expose docs, templates, examples, drafts, and workflow state, but it should not draft, create, run workflow steps, fund, sign, swap, or call live Precog APIs.
-
-Execution belongs to the bundled CLI/runtime action bridge. Read `references/actions.md` before using `scripts/forecastos_action.mjs`.
+- Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
+- Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
+- Use `mcp/` only for read-only docs, templates, examples, drafts, and workflow inspection.
+- Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
+- Do not custody wallets, fetch nonces, sign messages, swap assets, or create funding transactions.
+- Treat Bankr/LiFi as external funding handoff providers unless a trusted adapter is explicitly configured.
 
 ## Workflow
 
@@ -31,28 +23,18 @@ intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
 ```
 
-Human approval is required before creation. Operator approval is required before funding. Multi-outcome markets require explicit outcome labels.
+Present the draft and exact approval text before creation. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
 
-Assume every ForecastOS market is `multi_outcome`. For yes/no-looking ideas, still model the market as multi-outcome with explicit labels such as `Yes` and `No`, and add an invalid/ambiguous outcome only when the resolution source genuinely needs it.
+## Read Next
 
-## Progressive Disclosure
-
-Read only what the task needs:
-
-- `references/architecture.md`: layered skill/MCP/runtime/state design.
-- `references/workflow.md`: workflow graph and `.forecastos/` folders.
-- `references/safety.md`: trust boundaries and guardrails.
-- `references/memory.md`: `.forecastos` persistent structured memory.
-- `references/mcp.md`: read-only MCP resources and tools.
-- `references/install.md`: install, state-dir, validation, and local-use notes.
-- `references/actions.md`: bundled CLI/runtime execution bridge.
-- `references/action-policy.md`: creation, funding, wallet, and prediction action rules.
-- `references/tool-schemas.md`: action input shapes for CLI/runtime execution.
-- `assets/templates/multi-outcome-market.md`: multi-outcome template.
-- `references/examples/agent-launch.md`: agent survival market example.
-- `references/examples/funding-handoff.md`: Bankr/LiFi funding handoff example.
-- `references/examples/full-workflow.md`: end-to-end multi-outcome workflow example.
-- `assets/schemas/actions.json`: machine-readable action input schema.
+- Read `references/workflow.md` for the workflow graph and `.forecastos/` status folders.
+- Read `references/actions.md` before running `scripts/forecastos_action.mjs`.
+- Read `references/action-policy.md` before create, fund, approval, wallet, or prediction actions.
+- Read `references/safety.md` when a task touches live API calls, funding, signing, or secrets.
+- Read `references/mcp.md` when configuring or inspecting the read-only MCP server.
+- Read `references/tool-schemas.md` or `assets/schemas/actions.json` for action input shapes.
+- Use `assets/templates/multi-outcome-market.md` when drafting a market structure.
+- Use `references/examples/` only when an example is directly relevant.
 
 ## Useful Commands
 
@@ -64,5 +46,3 @@ node scripts/next_step.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs <action> --input <json-file>
 node mcp/server.js
 ```
-
-By default it uses the bundled `scripts/forecastos_runtime.mjs`; `FORECASTOS_SDK_MODULE` is only an override for future production adapters.

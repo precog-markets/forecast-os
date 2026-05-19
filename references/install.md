@@ -31,13 +31,13 @@ Agent runtimes usually discover skills from repo, user, admin, or system locatio
 - Admin skills: a shared machine-level skills directory.
 - System skills: skills bundled by the host runtime.
 
-For this package, copy or symlink the whole folder as `forecast_os` into the desired skills directory. Keep the folder name stable so local references and `mcp.json` continue to resolve.
+For this package, copy or symlink the whole folder as `forecast-os` into the desired skills directory. The skill name is hyphen-case for Codex compatibility. Keep the folder contents together so local references and `mcp.json` continue to resolve.
 
 For reusable distribution beyond local authoring, package the skill with the host runtime's preferred plugin or extension format rather than relying on direct folder copying.
 
 ## Platform Metadata
 
-`agents/metadata.yaml` provides optional platform metadata:
+`agents/openai.yaml` provides optional platform metadata:
 
 - display name
 - short description
@@ -72,9 +72,11 @@ node scripts/validate_skill.mjs
 
 This checks:
 
-- `SKILL.md` frontmatter exists.
+- `SKILL.md` frontmatter uses `name: forecast-os` and a useful trigger description.
+- `agents/openai.yaml` exists.
 - `mcp.json` points to `./mcp/server.js`.
 - MCP tool names remain read-only.
+- forbidden clutter files such as README, changelog, evals, grader, analyzer, and comparator are absent.
 
 ## Inspect State
 

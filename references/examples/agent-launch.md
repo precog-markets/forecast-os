@@ -13,4 +13,4 @@ Expected behavior:
 - Ask for exact agent identifier, launch timestamp, lifecycle source, close time, and resolution time.
 - Block creation until missing facts are provided.
 - Require exact human approval text before creation.
-- Treat Precog creation as TODO unless a trusted adapter is configured.
+- Submit creation through the bundled action bridge only after `.forecastos/config.json` and operator signature fields are present.
