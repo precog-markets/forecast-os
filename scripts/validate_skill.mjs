@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Validates that the ForecastOS skill package keeps its expected shape and safety boundaries.
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -11,6 +11,7 @@ const skill = await readFile(join(root, "SKILL.md"), "utf8");
 const mcpConfig = JSON.parse(await readFile(join(root, "mcp.json"), "utf8"));
 const precogConfig = JSON.parse(await readFile(join(root, ".forecastos", "config.json"), "utf8"));
 const agentMetadata = await readFile(join(root, "agents", "openai.yaml"), "utf8");
+const actionSchema = JSON.parse(await readFile(join(root, "assets", "schemas", "actions.json"), "utf8"));
 const tools = await listForecastOSTools();
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
 
@@ -46,6 +47,19 @@ assert(
   precogConfig.precog?.deployed_master_address,
   ".forecastos/config.json needs deployed_master_address",
 );
+assert(
+  Number.isInteger(Number(precogConfig.precog?.chain_id)) && Number(precogConfig.precog?.chain_id) > 0,
+  ".forecastos/config.json needs precog.chain_id",
+);
+await assertMissing(join(root, "scripts", "sign_precog_message.mjs"), "sign_precog_message.mjs should not exist");
+await assertMissing(join(root, "scripts", "sign_precog_ethers.mjs"), "sign_precog_ethers.mjs should not exist");
+const scriptNames = await readdir(join(root, "scripts"));
+for (const scriptName of scriptNames.filter((name) => name.endsWith(".mjs"))) {
+  const script = await readFile(join(root, "scripts", scriptName), "utf8");
+  const forbiddenChainConstant = "DEFAULT" + "_CHAIN_ID";
+  assert(!script.includes(forbiddenChainConstant), `${scriptName} must not contain ${forbiddenChainConstant}`);
+}
+assert(!schemaContainsKey(actionSchema.definitions, "chain_id"), "actions schema must not expose chain_id inputs");
 await assertMissing(join(root, "agents", "metadata.yaml"), "agents/metadata.yaml should not exist");
 await assertMissing(join(root, ".forecastos", "config.local.json"), ".forecastos/config.local.json should not be shipped");
 await assertMissing(join(root, "README.md"), "README.md should not exist");
@@ -78,6 +92,13 @@ process.stdout.write(
   ) + "\n",
 );
 
+function schemaContainsKey(value, key) {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((entry) => schemaContainsKey(entry, key));
+  return Object.entries(value).some(([entryKey, entryValue]) =>
+    entryKey === key || schemaContainsKey(entryValue, key),
+  );
+}
 function assert(condition, message) {
   if (!condition) {
     process.stderr.write(`${message}\n`);

@@ -92,26 +92,27 @@ class ForecastOSLocalRuntime {
 
   async createMarket(input) {
     if (input.approved !== true) fail("create_market requires approved: true.");
-    requireFields(input, [
+    const config = await readPrecogConfig(this.store);
+    const createInput = { ...input, chain_id: config.chain_id };
+    requireFields(createInput, [
       "image_url",
       "collateral_address",
-      "chain_id",
       "creator_address",
       "creator_signature",
     ], "create_market");
-    const approvalContext = await resolveApprovalContext(this.store, input);
-    const draftId = input.draft_id ?? approvalContext?.draft_id ?? approvalContext?.approved_draft_id;
+    const approvalContext = await resolveApprovalContext(this.store, createInput);
+    const draftId = createInput.draft_id ?? approvalContext?.draft_id ?? approvalContext?.approved_draft_id;
     const draft = await this.store.get(draftId);
-    if (!draft) fail(`Draft not found: ${input.draft_id}`);
+    if (!draft) fail(`Draft not found: ${draftId}`);
     if (draft.quality.blocking_issues.length) {
       fail(`Draft has blocking issues: ${draft.quality.blocking_issues.join(", ")}`);
     }
-    validateDraftApproval(draft, input, approvalContext);
+    validateDraftApproval(draft, createInput, approvalContext);
     const response = await this.#postPrecog(
       "/api/v1/create-upcoming-market/",
-      buildCreatePayload(draft, input, this.now),
+      buildCreatePayload(draft, createInput, this.now),
     );
-    return normalizeCreateResponse(response, draft, input);
+    return normalizeCreateResponse(response, draft, createInput);
   }
 
   async runSkillStep(state = {}, event = {}) {
@@ -318,7 +319,7 @@ class ForecastOSLocalRuntime {
   async awaitPrecogApproval(state, event = {}) {
     const config = await readPrecogConfig(this.store);
     const upcomingMarket = getUpcomingMarketId(state, event);
-    const chainId = getChainId(state, event, "await_precog_approval");
+    const chainId = getChainId(state, event, "await_precog_approval", config);
     const response = await this.#getPrecog("/api/v1/upcoming-markets/", {
       chain_id: chainId,
       id: upcomingMarket,
@@ -326,6 +327,50 @@ class ForecastOSLocalRuntime {
     return normalizeApprovalResponse(response, upcomingMarket);
   }
 
+  async prepareFundingIntent(state, event = {}) {
+    const approvalStatus = state.precog_approval?.precog_status ?? state.precog_approval?.status;
+    if (approvalStatus !== "VALIDATED") {
+      fail("prepare_funding_intent requires Precog status VALIDATED.");
+    }
+    const request = event.funding_request ?? event;
+    requireFields(request, ["amount"], "prepare_funding_intent");
+    const amount = normalizePrecogFundingAmount(request.amount);
+    const upcomingMarket = request.upcoming_market ?? state.market_id ?? state.upcoming_market;
+    if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
+      fail("prepare_funding_intent requires upcoming_market or state.market_id.");
+    }
+    const chainId = (await readPrecogConfig(this.store)).chain_id;
+    const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? "manual");
+    const fundingAsset = request.funding_asset ?? request.asset ?? request.collateral_symbol ?? state.collateral_symbol;
+    return withoutUndefined({
+      intent_type: "forecastos.fund_market",
+      wallet_provider: provider,
+      wallet_provider_candidates: ["bankr", "privy", "turnkey", "manual"],
+      wallet_runtime_candidates: ["codex", "claude_code", "openclaw"],
+      upcoming_market: upcomingMarket,
+      chain_id: chainId,
+      amount,
+      amount_format: "precog_display_units_decimal_string",
+      funding_asset: fundingAsset,
+      collateral_symbol: request.collateral_symbol ?? state.collateral_symbol,
+      collateral_address: request.collateral_address ?? state.collateral_address,
+      message_to_sign_template: "precog.markets|<funder_address_lowercase>|<chain_id>|<next_pending_nonce>",
+      wallet_resolution_required: ["tx_hash", "funder_address", "funder_signature"],
+      resolved_action: "fund_market",
+      precog_payload_template: {
+        upcoming_market: upcomingMarket,
+        amount,
+        tx_hash: "<wallet_tx_hash>",
+        funder_address: "<wallet_address>",
+        funder_signature: "<wallet_signature>",
+      },
+      notes: [
+        "ForecastOS does not choose token decimals, sign messages, fetch nonces, or move funds.",
+        "Bankr, Privy, Turnkey, or a manual wallet resolves this intent into tx_hash, funder_address, and funder_signature.",
+        "Submit the resolved payload with fund_market only after operator approval.",
+      ],
+    });
+  }
   async fundMarket(state, event = {}) {
     if (event.approved !== true) fail("fund_market requires explicit operator approval with approved: true.");
     const approvalStatus = state.precog_approval?.precog_status ?? state.precog_approval?.status;
@@ -358,7 +403,7 @@ class ForecastOSLocalRuntime {
     const config = await readPrecogConfig(this.store);
     const request = getPredictionRequest(event);
     const upcomingMarket = getUpcomingMarketId(state, event);
-    const chainId = getChainId(state, event, "consume_prediction");
+    const chainId = getChainId(state, event, "consume_prediction", config);
     let deployedMarketId = getDeployedMarketId(state, request);
 
     let upcomingStatus = null;
@@ -739,6 +784,14 @@ function normalizePredictionResponse(market, context = {}) {
   };
 }
 
+function normalizeWalletProvider(value) {
+  const provider = String(value ?? "manual").trim().toLowerCase();
+  const supported = new Set(["bankr", "privy", "turnkey", "manual"]);
+  if (!supported.has(provider)) {
+    fail("Funding wallet provider must be one of: bankr, privy, turnkey, manual.");
+  }
+  return provider;
+}
 function normalizePrecogFundingAmount(value) {
   const raw = String(value ?? "");
   const amount = raw.trim();
@@ -844,7 +897,7 @@ function buildFriendlyReviewMessage(draft) {
     quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
     "Reply yes to approve this draft.",
   ].filter(Boolean);
-  return lines.join("\n");
+  return lines.join("\\n");
 }
 
 function formatUtcForReview(value) {
@@ -912,13 +965,9 @@ function getUpcomingMarketId(state = {}, event = {}) {
   return upcomingMarket;
 }
 
-function getChainId(state = {}, event = {}, label = "ForecastOS action") {
+function getChainId(state = {}, event = {}, label = "ForecastOS action", config = {}) {
   const request = getPredictionRequest(event);
-  const chainId = event.chain_id ?? request.chain_id ?? state.chain_id;
-  if (chainId === undefined || chainId === null || chainId === "") {
-    fail(`${label} requires state.chain_id or event.chain_id.`);
-  }
-  return chainId;
+  return config.chain_id;
 }
 
 function getPredictionRequest(event = {}) {
@@ -981,9 +1030,21 @@ async function readPrecogConfig(store, options = {}) {
     api_root: precog.api_root,
     open_api_key: precog.open_api_key,
     deployed_master_address: precog.deployed_master_address,
+    chain_id: requireConfigChainId(precog),
   };
 }
 
+function requireConfigChainId(precog) {
+  const chainId = Number(precog.chain_id);
+  if (!Number.isInteger(chainId) || chainId <= 0) {
+    throw new PrecogApiError("Missing .forecastos/config.json precog.chain_id.", {
+      code: "PRECOG_CONFIG_ERROR",
+      endpoint: null,
+      body: { error: "Missing precog.chain_id" },
+    });
+  }
+  return chainId;
+}
 function requireDeployedMasterAddress(config) {
   if (!config.deployed_master_address) {
     throw new PrecogApiError(
@@ -1142,7 +1203,8 @@ function titleFromPrompt(prompt = "") {
 
 async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify(value, null, 2)}
+`, "utf8");
 }
 
 async function readJsonOrNull(path) {

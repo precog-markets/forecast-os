@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: "Use ForecastOS for multi-outcome prediction-market workflows: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
+description: "Use ForecastOS for multi-outcome prediction-market workflows across Codex, Claude Code, and OpenClaw: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, generating wallet-agnostic funding intents for Bankr/Privy/Turnkey/manual wallets, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
 ---
 
 # ForecastOS
@@ -11,12 +11,14 @@ Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only
 
 - Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
 - Normalize and present all market times in UTC. Label user-facing close/resolution times as UTC.
+- Read chain identity only from `.forecastos/config.json`; do not ask users to choose a chain or accept action-level chain overrides.
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Use `mcp/` only for read-only docs, templates, examples, drafts, and workflow inspection.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
+- For funding, first generate a wallet-agnostic `prepare_funding_intent`; Bankr, Privy, Turnkey, or a manual wallet resolves it into `tx_hash`, `funder_address`, and `funder_signature`.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
 - Do not custody wallets, fetch nonces, sign messages, swap assets, or create funding transactions.
-- Treat Bankr/LiFi as external funding handoff providers unless a trusted adapter is explicitly configured.
+- Treat Bankr, Privy, and Turnkey as external wallet resolvers unless a trusted adapter is explicitly configured.
 
 ## Workflow
 

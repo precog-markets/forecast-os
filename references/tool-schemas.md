@@ -4,7 +4,7 @@ These shapes are for `scripts/forecastos_action.mjs` and bundled runtime calls. 
 
 ## draft_market
 
-Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `requested_outcomes` when known.
+Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `requested_outcomes` when known. Do not ask the user for chain selection; ForecastOS reads `precog.chain_id` from `.forecastos/config.json`.
 
 ```json
 {
@@ -50,7 +50,6 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
   "image_url": "https://example.com/image.png",
   "category": "AI",
   "collateral_address": "0xCollateral",
-  "chain_id": 8453,
   "creator_address": "0xCreatorAddress",
   "creator_signature": "0xSignature",
   "creator_email": "optional@email.com"
@@ -59,7 +58,7 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
 
 For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
-`creator_signature` must be provided by the operator wallet layer. It signs:
+`creator_signature` must be provided by the operator wallet layer. ForecastOS does not include signing helpers. The wallet signs:
 
 ```txt
 precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
@@ -75,17 +74,34 @@ precog.markets|<creator_address_lowercase>|<chain_id>|<next_pending_nonce>
     "workflow_id": "workflow-id",
     "step": "await_precog_approval",
     "market_id": 123,
-    "chain_id": 8453
   },
   "event": {}
 }
 ```
 
-This checks `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`.
+This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`.
 
+## prepare_funding_intent
+
+Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic intent that Codex, Claude Code, or OpenClaw can hand to Bankr, Privy, Turnkey, or a manual wallet flow.
+
+```json
+{
+  "state": {
+    "step": "fund",
+    "market_id": 123,
+    "precog_approval": { "status": "VALIDATED" }
+  },
+  "provider": "bankr",
+  "amount": "1",
+  "funding_asset": "MATE"
+}
+```
+
+The wallet resolver returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields.
 ## fund_market
 
-Funding requires explicit operator approval. Bankr/LiFi can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
+Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual wallet can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
 
 ```json
 {
@@ -119,20 +135,18 @@ precog.markets|<funder_address_lowercase>|<market_chain_id>|<next_pending_nonce>
     "step": "consume_prediction",
     "market_id": 123,
     "upcoming_market": 123,
-    "chain_id": 8453,
     "deployed_market_id": 1,
     "funding_result": {}
   },
   "event": {
     "prediction_request": {
       "source": "precog",
-      "chain_id": 8453,
       "master_market_id": 1
     }
   }
 }
 ```
 
-If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first using only `chain_id` and `id`. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with `chain_id`, `master_market_id`, and `master_address` from `.forecastos/config.json`.
+If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first using only `chain_id` and `id`. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with config `precog.chain_id`, `master_market_id`, and `master_address` from `.forecastos/config.json`.
 
 The result stores the raw market plus parsed `outcomes` and `outcomes_prices` in `prediction_result.signal`. Empty or errored responses keep the workflow in `consume_prediction`.

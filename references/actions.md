@@ -20,7 +20,7 @@ FORECASTOS_SDK_MODULE=<module-or-path>
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. `FORECASTOS_SDK_MODULE` is optional and should only point to a trusted replacement runtime when real Precog, Bankr/LiFi, or prediction adapters are ready.
+`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. `FORECASTOS_SDK_MODULE` is optional and should only point to a trusted replacement runtime when real Precog, Bankr, Privy, Turnkey, or prediction adapters are ready.
 
 ## Precog Config
 
@@ -31,12 +31,13 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
   "precog": {
     "api_root": "https://tracker.precog.market/",
     "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
-    "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E"
+    "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
+    "chain_id": 8453
   }
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -44,6 +45,7 @@ The shipped `config.json` contains public defaults so users can run the skill wi
 - `run_skill_step`
 - `create_market`
 - `await_precog_approval`
+- `prepare_funding_intent`
 - `fund_market`
 - `consume_prediction`
 
@@ -54,7 +56,9 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - Chat-facing draft approval can be a simple `yes`, `approved`, or `looks good`.
 - `create_market` requires `approved: true` plus a matching `approved_draft_hash` from workflow state. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
-- `fund_market` requires `approved: true` from an operator.
+- `prepare_funding_intent`
+- `prepare_funding_intent` creates a wallet-agnostic intent for Bankr, Privy, Turnkey, or manual wallets.
+- `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog.
 - The bundled runtime does not sign messages, fetch nonces, transfer funds, or custody wallets.
 
@@ -88,7 +92,9 @@ Creation payload hygiene:
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 
-Fund uses `POST /api/v1/fund-upcoming-market/` with:
+Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, the signature-message template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves that intent into `tx_hash`, `funder_address`, and `funder_signature`.
+
+After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/` with:
 
 ```json
 {
@@ -102,7 +108,7 @@ Fund uses `POST /api/v1/fund-upcoming-market/` with:
 
 Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
-Signatures are EIP-191 `signMessage(...)`, not typed data. ForecastOS expects the operator/wallet layer to provide signatures for:
+The wallet layer owns nonce lookup and EIP-191 `signMessage(...)`. ForecastOS only provides the message template the wallet must resolve:
 
 ```txt
 precog.markets|<address_lowercase>|<chain_id>|<next_pending_nonce>
@@ -111,7 +117,7 @@ precog.markets|<address_lowercase>|<chain_id>|<next_pending_nonce>
 Approval status uses `GET /api/v1/upcoming-markets/` with query params:
 
 ```txt
-chain_id=<chain_id>&id=<upcoming_market>
+chain_id=<config.precog.chain_id>&id=<upcoming_market>
 ```
 
 Precog lifecycle is:
@@ -127,7 +133,7 @@ Prediction consumption first confirms deployment through `GET /api/v1/upcoming-m
 After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
 
 ```txt
-chain_id=<chain_id>&master_address=<config.deployed_master_address>&master_market_id=<deployed_market_id>
+chain_id=<config.precog.chain_id>&master_address=<config.deployed_master_address>&master_market_id=<deployed_market_id>
 ```
 
 The stored `prediction_result` includes the full market object plus a compact `signal` with parsed `outcomes` and `outcomes_prices`. ForecastOS never invents missing probabilities.
@@ -135,5 +141,5 @@ The stored `prediction_result` includes the full market object plus a compact `s
 ## Replace Points
 
 - Precog approval adapter: approval status source and polling/subscription behavior.
-- Funding transaction adapter: Bankr, LiFi, manual operator flow, or another provider to create the transaction and signature.
+- Wallet intent resolvers: Bankr, Privy, Turnkey, manual operator flow, or another provider to create the transaction and signature.
 - Prediction adapter: deployed market read API, probability/source API, and response schema.

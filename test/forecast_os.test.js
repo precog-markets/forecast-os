@@ -13,6 +13,7 @@ import {
 const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "config.json"), "utf8"));
+const configChainId = shippedConfig.precog.chain_id;
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -121,6 +122,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
       precog: {
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
+        chain_id: configChainId,
         deployed_master_address: "0xMaster",
       },
     }),
@@ -132,7 +134,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
       const body = url.includes("/upcoming-markets/")
-        ? [{ id: 123, chain_id: 8453, deployed_master_address: "0xMaster", status: "VALIDATED" }]
+        ? [{ id: 123, chain_id: configChainId, deployed_master_address: "0xMaster", status: "VALIDATED" }]
         : url.includes("/markets/")
         ? [{
             id: 1,
@@ -142,7 +144,6 @@ test("bundled runtime builds Precog create and fund requests from local config",
             funding_amount: 100,
             outcomes: "Clawpump,Liquid,Virtuals,Other",
             outcomes_prices: "0.4,0.3,0.2,0.1",
-            chain_id: 8453,
             master_address: "0xMaster",
             master_market_id: 1,
             contract_address: "0xContract",
@@ -175,21 +176,20 @@ test("bundled runtime builds Precog create and fund requests from local config",
     approval_text: draft.approval_text,
     image_url: "https://example.com/image.png",
     collateral_address: "0xCollateral",
-    chain_id: 8453,
+    chain_id: 999999,
     creator_address: "0xCreator",
     creator_signature: "0xCreatorSignature",
   });
   const approved = await forecastos.awaitPrecogApproval({
     step: "await_precog_approval",
     market_id: created.market_id,
-    chain_id: 8453,
   });
   const funded = await forecastos.fundMarket(
     { step: "fund", market_id: created.market_id, precog_approval: { status: "VALIDATED" } },
     {
       approved: true,
       funding_request: {
-        amount: "100000000",
+        amount: "1",
         tx_hash: "0xTransactionHash",
         funder_address: "0xFunder",
         funder_signature: "0xFunderSignature",
@@ -200,7 +200,6 @@ test("bundled runtime builds Precog create and fund requests from local config",
     {
       step: "consume_prediction",
       market_id: created.market_id,
-      chain_id: 8453,
       deployed_market_id: 1,
       funding_result: funded,
     },
@@ -214,14 +213,16 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(consumed.ready_to_finish, true);
   assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
   assert.equal(requests[0].url, `${shippedConfig.precog.api_root}api/v1/create-upcoming-market/`);
-  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=8453&id=123`);
+  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=${configChainId}&id=123`);
   assert.ok(!requests[1].url.includes("deployed_master_address"));
   assert.equal(requests[2].url, `${shippedConfig.precog.api_root}api/v1/fund-upcoming-market/`);
-  assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=8453&master_address=0xMaster&master_market_id=1`);
+  assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=${configChainId}&master_address=0xMaster&master_market_id=1`);
   assert.ok(requests[3].url.includes("master_address=0xMaster"));
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[0].body.outcomes, "Clawpump,Liquid,Virtuals,Other");
+  assert.equal(requests[0].body.chain_id, configChainId);
   assert.equal(requests[2].body.upcoming_market, 123);
+  assert.equal(requests[2].body.amount, "1");
 });
 
 test("await_precog_approval omits deployed_master_address and does not require it", async () => {
@@ -235,6 +236,7 @@ test("await_precog_approval omits deployed_master_address and does not require i
       precog: {
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
+        chain_id: configChainId,
       },
     }),
   );
@@ -248,7 +250,7 @@ test("await_precog_approval omits deployed_master_address and does not require i
         ok: true,
         status: 200,
         async text() {
-          return JSON.stringify([{ id: 123, chain_id: 8453, status: "VALIDATED" }]);
+          return JSON.stringify([{ id: 123, chain_id: configChainId, status: "VALIDATED" }]);
         },
       };
     },
@@ -257,13 +259,12 @@ test("await_precog_approval omits deployed_master_address and does not require i
   const approved = await forecastos.awaitPrecogApproval({
     step: "await_precog_approval",
     market_id: 123,
-    chain_id: 8453,
   });
 
   assert.equal(approved.ready_to_fund, true);
   assert.equal(requests.length, 1);
   assert.ok(requests[0].url.includes("/api/v1/upcoming-markets/?"));
-  assert.ok(requests[0].url.includes("chain_id=8453"));
+  assert.ok(requests[0].url.includes(`chain_id=${configChainId}`));
   assert.ok(requests[0].url.includes("id=123"));
   assert.ok(!requests[0].url.includes("deployed_master_address"));
 });
@@ -279,6 +280,7 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
       precog: {
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
+        chain_id: configChainId,
       },
     }),
   );
@@ -292,7 +294,7 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
         ok: true,
         status: 200,
         async text() {
-          return JSON.stringify([{ id: 123, chain_id: 8453, status: "FUNDED" }]);
+          return JSON.stringify([{ id: 123, chain_id: configChainId, status: "FUNDED" }]);
         },
       };
     },
@@ -301,7 +303,6 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
   const result = await forecastos.consumePrediction({
     step: "consume_prediction",
     market_id: 123,
-    chain_id: 8453,
   });
 
   assert.equal(result.ready_to_fetch_market, false);
@@ -322,6 +323,7 @@ test("consume_prediction requires deployed_master_address only before deployed m
       precog: {
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
+        chain_id: configChainId,
       },
     }),
   );
@@ -336,7 +338,7 @@ test("consume_prediction requires deployed_master_address only before deployed m
         status: 200,
         async text() {
           return JSON.stringify([
-            { id: 123, chain_id: 8453, status: "DEPLOYED", deployed_market_id: 1 },
+            { id: 123, chain_id: configChainId, status: "DEPLOYED", deployed_market_id: 1 },
           ]);
         },
       };
@@ -347,12 +349,58 @@ test("consume_prediction requires deployed_master_address only before deployed m
     forecastos.consumePrediction({
       step: "consume_prediction",
       market_id: 123,
-      chain_id: 8453,
     }),
     /Missing \.forecastos\/config\.json precog\.deployed_master_address/,
   );
   assert.equal(requests.length, 1);
   assert.ok(!requests[0].url.includes("deployed_master_address"));
+});
+test("prepare_funding_intent creates wallet-agnostic intents for supported wallets", async () => {
+  const forecastos = createForecastOS({
+    fetch: async () => {
+      throw new Error("prepare_funding_intent must not call the network");
+    },
+  });
+  for (const provider of ["bankr", "privy", "turnkey"]) {
+    const intent = await forecastos.prepareFundingIntent(
+      {
+        step: "fund",
+        market_id: 493,
+        collateral_symbol: "MATE",
+        precog_approval: { status: "VALIDATED" },
+      },
+      { provider, amount: "1", funding_asset: "MATE", chain_id: 999999 },
+    );
+    assert.equal(intent.wallet_provider, provider);
+    assert.equal(intent.amount, "1");
+    assert.equal(intent.chain_id, configChainId);
+    assert.equal(intent.amount_format, "precog_display_units_decimal_string");
+    assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
+    assert.equal(intent.precog_payload_template.amount, "1");
+  }
+});
+
+test("fund_market rejects ambiguous or non-display amount strings", async () => {
+  const forecastos = createForecastOS({
+    fetch: async () => {
+      throw new Error("invalid funding amounts must not call the network");
+    },
+  });
+  const state = { step: "fund", market_id: 493, precog_approval: { status: "VALIDATED" } };
+  for (const amount of ["1 MATE", "1000000000000000000 wei", "1e18", "1,000", "0", "-1"]) {
+    await assert.rejects(
+      forecastos.fundMarket(state, {
+        approved: true,
+        funding_request: {
+          amount,
+          tx_hash: "0xTransactionHash",
+          funder_address: "0xFunder",
+          funder_signature: "0xFunderSignature",
+        },
+      }),
+      /amount must be a positive plain decimal string/,
+    );
+  }
 });
 async function runActionBridge(action, inputPath, stateDir) {
   const scriptPath = join(skillRoot, "scripts", "forecastos_action.mjs");

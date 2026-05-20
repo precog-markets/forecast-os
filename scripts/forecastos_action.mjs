@@ -10,6 +10,7 @@ const ACTIONS = new Set([
   "run_skill_step",
   "create_market",
   "await_precog_approval",
+  "prepare_funding_intent",
   "fund_market",
   "consume_prediction",
 ]);
@@ -138,6 +139,22 @@ async function dispatch(forecastos, actionName, input) {
   if (actionName === "create_market") return forecastos.createMarket(input);
   if (actionName === "await_precog_approval") {
     return forecastos.awaitPrecogApproval(input.state, input.event ?? {});
+  }
+  if (actionName === "prepare_funding_intent") {
+    return forecastos.prepareFundingIntent(input.state, {
+      ...(input.event ?? {}),
+      funding_request: {
+        ...(input.event?.funding_request ?? {}),
+        ...(input.funding_request ?? {}),
+        provider: input.provider ?? input.wallet_provider ?? input.funding_request?.provider ?? input.event?.funding_request?.provider,
+        amount: input.amount ?? input.funding_request?.amount ?? input.event?.funding_request?.amount,
+        asset: input.asset ?? input.funding_request?.asset ?? input.event?.funding_request?.asset,
+        funding_asset: input.funding_asset ?? input.funding_request?.funding_asset ?? input.event?.funding_request?.funding_asset,
+        collateral_symbol: input.collateral_symbol ?? input.funding_request?.collateral_symbol ?? input.event?.funding_request?.collateral_symbol,
+        collateral_address: input.collateral_address ?? input.funding_request?.collateral_address ?? input.event?.funding_request?.collateral_address,
+        upcoming_market: input.upcoming_market ?? input.funding_request?.upcoming_market ?? input.event?.funding_request?.upcoming_market,
+      },
+    });
   }
   if (actionName === "fund_market") {
     return forecastos.fundMarket(input.state, {

@@ -14,7 +14,7 @@ MCP is read-only. Do not add MCP tools for:
 - signing
 - swaps
 - live Precog mutation
-- live Bankr/LiFi calls
+- live Bankr, Privy, or Turnkey calls
 
 ## Creation Policy
 
@@ -40,7 +40,7 @@ An agent may attempt `fund_market` only when:
 - `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Bankr and LiFi remain useful for creating the funding transaction and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
+Bankr, Privy, and Turnkey remain useful for resolving a ForecastOS funding intent into the transaction hash and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
@@ -50,11 +50,11 @@ An agent may attempt `consume_prediction` only when:
 
 - the workflow has reached `consume_prediction`
 - a market ID is present
-- `chain_id` is present
+- `precog.chain_id` comes from `.forecastos/config.json`
 - `precog.deployed_master_address` is present in `.forecastos/config.json` before fetching the deployed market from `/api/v1/markets/`
 - `deployed_market_id` is present in state or discoverable from Precog upcoming-market status
 
-ForecastOS first checks the upcoming market. It may fetch the deployed market only after Precog reports `DEPLOYED` with `deployed_market_id`. It sends only `chain_id` and `id` to upcoming-market queries, and uses config `deployed_master_address` only for deployed-market queries. Empty responses, invalid filters, or API-key failures must keep the workflow in `consume_prediction`.
+ForecastOS first checks the upcoming market. It may fetch the deployed market only after Precog reports `DEPLOYED` with `deployed_market_id`. It sends config `precog.chain_id` and `id` to upcoming-market queries, and uses config `deployed_master_address` only for deployed-market queries. Empty responses, invalid filters, or API-key failures must keep the workflow in `consume_prediction`.
 
 Never invent prices or probabilities. Store only the values returned by Precog.
 

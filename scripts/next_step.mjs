@@ -32,6 +32,7 @@ function guidanceFor(step, workflow) {
     createMarket: "node scripts/forecastos_action.mjs create_market --input <json-file>",
     awaitPrecog:
       "node scripts/forecastos_action.mjs await_precog_approval --input <json-file>",
+    prepareFundingIntent: "node scripts/forecastos_action.mjs prepare_funding_intent --input <json-file>",
     fundMarket: "node scripts/forecastos_action.mjs fund_market --input <json-file>",
     consumePrediction:
       "node scripts/forecastos_action.mjs consume_prediction --input <json-file>",
@@ -80,7 +81,7 @@ function guidanceFor(step, workflow) {
         "approved_draft_hash from workflow state",
         "image_url",
         "collateral_address",
-        "chain_id",
+
         "creator_address",
         "creator_signature",
       ],
@@ -98,7 +99,7 @@ function guidanceFor(step, workflow) {
       needs_human_input: false,
       required_fields: [
         "market_id",
-        "chain_id",
+
       ],
       suggested_command: commands.awaitPrecog,
       notes: ["Funding is valid only after Precog returns status VALIDATED."],
@@ -107,13 +108,15 @@ function guidanceFor(step, workflow) {
 
   if (step === "fund") {
     return {
-      next_action: "fund_market",
+      next_action: "prepare_funding_intent",
       needs_human_input: true,
-      required_fields: ["approved:true", "amount", "tx_hash", "funder_address", "funder_signature"],
-      suggested_command: commands.fundMarket,
+      required_fields: ["amount", "wallet_provider: bankr|privy|turnkey|manual", "funding_asset or collateral_symbol"],
+      suggested_command: commands.prepareFundingIntent,
       notes: [
-        "Require operator approval. Bankr/LiFi are provider hints, not built-in custody.",
+        "Generate a wallet-agnostic funding intent; Bankr, Privy, Turnkey, or a manual wallet resolves it.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
+        "Do not ask for chain_id; ForecastOS assumes Base chain_id 8453 from .forecastos/config.json.",
+        "After Bankr, Privy, Turnkey, or a manual wallet resolves tx_hash, funder_address, and funder_signature, call fund_market.",
       ],
     };
   }
@@ -124,7 +127,7 @@ function guidanceFor(step, workflow) {
       needs_human_input: false,
       required_fields: [
         "market_id",
-        "chain_id",
+
         "deployed_market_id or deployable upcoming market status",
         ".forecastos/config.json precog.deployed_master_address before deployed market fetch",
       ],
