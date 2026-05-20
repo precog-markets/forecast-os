@@ -37,7 +37,7 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS also defaults to Base USDC from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS also defaults to Base USDC from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -92,7 +92,7 @@ Creation payload hygiene:
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 
-Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, the signature-message template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves that intent into `tx_hash`, `funder_address`, and `funder_signature`.
+Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, an EIP-712 typed-data template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves that intent into `tx_hash`, `funder_address`, and `funder_signature`.
 
 After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/` with:
 
@@ -108,10 +108,38 @@ After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/`
 
 Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
-The wallet layer owns nonce lookup and EIP-191 `signMessage(...)`. ForecastOS only provides the message template the wallet must resolve:
+The wallet layer owns nonce lookup and EIP-712 signing. ForecastOS only provides the typed-data shape the wallet must resolve:
 
-```txt
-precog.markets|<address_lowercase>|<chain_id>|<next_pending_nonce>
+```json
+{
+  "types": {
+    "EIP712Domain": [
+      { "name": "name", "type": "string" },
+      { "name": "version", "type": "string" },
+      { "name": "chainId", "type": "uint256" },
+      { "name": "verifyingContract", "type": "address" }
+    ],
+    "PrecogMarketAuthorization": [
+      { "name": "action", "type": "string" },
+      { "name": "account", "type": "address" },
+      { "name": "chainId", "type": "uint256" },
+      { "name": "nonce", "type": "uint256" }
+    ]
+  },
+  "primaryType": "PrecogMarketAuthorization",
+  "domain": {
+    "name": "Precog Markets",
+    "version": "1",
+    "chainId": "<config.precog.chain_id>",
+    "verifyingContract": "<config.precog.deployed_master_address>"
+  },
+  "message": {
+    "action": "<config.precog.signature_actions.create_market or fund_market>",
+    "account": "<wallet_address>",
+    "chainId": "<config.precog.chain_id>",
+    "nonce": "<next_pending_nonce>"
+  }
+}
 ```
 
 Approval status uses `GET /api/v1/upcoming-markets/` with query params:

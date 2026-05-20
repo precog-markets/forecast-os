@@ -1,10 +1,14 @@
 {
   "precog": {
-    "api_root": "http://localhost:8081/",
-    "open_api_key": "2bbcd786-7cd6-4fdc-a979-e88b22333558",
+    "api_root": "http://localhost/",
+    "open_api_key": "43f349ef-7e1e-40b0-b718-f0f913514b15",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
     "chain_id": 8453,
     "default_collateral_address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-    "default_collateral_symbol": "USDC"
+    "default_collateral_symbol": "USDC",
+    "signature_actions": {
+      "create_market": "create_market",
+      "fund_market": "fund_market"
+    }
   }
 }

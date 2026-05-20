@@ -115,7 +115,7 @@ function guidanceFor(step, workflow) {
         "Generate a wallet-agnostic funding intent; Bankr, Privy, Turnkey, or a manual wallet resolves it.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
         "Do not ask for chain_id; ForecastOS assumes Base chain_id 8453 from .forecastos/config.json.",
-        "After Bankr, Privy, Turnkey, or a manual wallet resolves tx_hash, funder_address, and funder_signature, call fund_market.",
+        "After Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
       ],
     };
   }

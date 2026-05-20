@@ -12,13 +12,13 @@ ForecastOS is allowed to help agents reason about prediction-market workflows an
 - Check upcoming-market deployment before consuming predictions; only `DEPLOYED` can move to the deployed market lookup.
 - Reject stale approval when draft IDs or hashes do not match.
 - Submit Precog create/fund requests only through `forecastos_action.mjs` after approval and signed fields are present.
-- Treat Bankr, Privy, and Turnkey transaction creation as external to ForecastOS unless a trusted adapter is configured. ForecastOS should generate funding intent only; wallets resolve token decimals, transaction execution, nonce lookup, and signatures.
+- Treat Bankr, Privy, and Turnkey transaction creation as external to ForecastOS unless a trusted adapter is configured. ForecastOS should generate funding intent only; wallets resolve token decimals, transaction execution, nonce lookup, and EIP-712 signatures.
 - Never invent market prices or probabilities when Precog returns no deployed market data.
 - Never ask for seed phrases, private keys, raw signing secrets, or custody credentials.
 
 ## Human-Facing Behavior
 
-When a user asks for live creation or funding, use the shipped `.forecastos/config.json` public defaults unless `.forecastos/config.local.json` overrides them. Still verify approval text and operator-provided signatures before submission. If signed fields are missing, ask for those fields instead of pretending success.
+When a user asks for live creation or funding, use the shipped `.forecastos/config.json` public defaults unless `.forecastos/config.local.json` overrides them. Still verify approval text and operator-provided EIP-712 signatures before submission. If signed fields are missing, ask for those fields instead of pretending success.
 
 If an upcoming market is still `CREATED`, report that it is waiting for Precog validation and do not fund.
 

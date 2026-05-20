@@ -15,6 +15,7 @@ const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "config.json"), "utf8"));
 const configChainId = shippedConfig.precog.chain_id;
 const configCollateralAddress = shippedConfig.precog.default_collateral_address;
+const configSignatureActions = shippedConfig.precog.signature_actions;
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -127,6 +128,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
         deployed_master_address: "0xMaster",
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -242,6 +244,7 @@ test("create_market allows explicit collateral override while keeping config cha
         chain_id: configChainId,
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -297,6 +300,7 @@ test("create_market fails clearly without config default collateral or override"
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -343,6 +347,7 @@ test("await_precog_approval omits deployed_master_address and does not require i
         chain_id: configChainId,
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -389,6 +394,7 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
         chain_id: configChainId,
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -434,6 +440,7 @@ test("consume_prediction requires deployed_master_address only before deployed m
         chain_id: configChainId,
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
       },
     }),
   );
@@ -485,11 +492,36 @@ test("prepare_funding_intent creates wallet-agnostic intents for supported walle
     assert.equal(intent.amount, "1");
     assert.equal(intent.chain_id, configChainId);
     assert.equal(intent.amount_format, "precog_display_units_decimal_string");
+    assert.equal(intent.signature_method, "eip712_typed_data");
+    assert.equal(intent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
+    assert.equal(intent.eip712_typed_data_template.domain.name, "Precog Markets");
+    assert.equal(intent.eip712_typed_data_template.domain.chainId, configChainId);
+    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, shippedConfig.precog.deployed_master_address);
+    assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
+    assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
+    assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");
     assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
     assert.equal(intent.precog_payload_template.amount, "1");
   }
 });
 
+test("docs and runtime do not use legacy string signing guidance", async () => {
+  const files = [
+    "SKILL.md",
+    "references/actions.md",
+    "references/tool-schemas.md",
+    "references/action-policy.md",
+    "references/safety.md",
+    "scripts/forecastos_runtime.mjs",
+  ];
+  const forbidden = ["EIP" + "-191", "sign" + "Message", "message_to_sign_template", "precog.markets|"];
+  for (const file of files) {
+    const content = await readFile(join(skillRoot, file), "utf8");
+    for (const pattern of forbidden) {
+      assert.ok(!content.includes(pattern), `${file} still contains ${pattern}`);
+    }
+  }
+});
 test("next_step presents human create guidance without chain or collateral as normal asks", async () => {
   const rootDir = join(skillRoot, "test-output", "next-step-create");
   const stateDir = join(rootDir, ".forecastos");

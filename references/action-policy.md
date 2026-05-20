@@ -41,7 +41,7 @@ An agent may attempt `fund_market` only when:
 - `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Bankr, Privy, and Turnkey remain useful for resolving a ForecastOS funding intent into the transaction hash and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
+Bankr, Privy, and Turnkey remain useful for resolving a ForecastOS funding intent into the transaction hash and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
@@ -70,4 +70,4 @@ Do not request or store:
 
 Use operator wallet references only, such as a label or account ID controlled outside this skill.
 
-ForecastOS may store public addresses, transaction hashes, and signatures needed for Precog submission. It must not generate signatures or request signing secrets.
+ForecastOS may store public addresses, transaction hashes, and signatures needed for Precog submission. It must not generate signatures, fetch nonces, or request signing secrets.

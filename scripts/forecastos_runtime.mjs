@@ -343,7 +343,8 @@ class ForecastOSLocalRuntime {
     if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
       fail("prepare_funding_intent requires upcoming_market or state.market_id.");
     }
-    const chainId = (await readPrecogConfig(this.store)).chain_id;
+    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const chainId = config.chain_id;
     const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? "manual");
     const fundingAsset = request.funding_asset ?? request.asset ?? request.collateral_symbol ?? state.collateral_symbol;
     return withoutUndefined({
@@ -357,8 +358,14 @@ class ForecastOSLocalRuntime {
       amount_format: "precog_display_units_decimal_string",
       funding_asset: fundingAsset,
       collateral_symbol: request.collateral_symbol ?? state.collateral_symbol,
-      collateral_address: request.collateral_address ?? state.collateral_address ?? (await readPrecogConfig(this.store)).default_collateral_address,
-      message_to_sign_template: "precog.markets|<funder_address_lowercase>|<chain_id>|<next_pending_nonce>",
+      collateral_address: request.collateral_address ?? state.collateral_address ?? config.default_collateral_address,
+      signature_method: "eip712_typed_data",
+      eip712_typed_data_template: buildPrecogAuthorizationTypedDataTemplate({
+        config,
+        action: config.signature_actions.fund_market,
+        account: "<funder_address>",
+        nonce: "<next_pending_nonce>",
+      }),
       wallet_resolution_required: ["tx_hash", "funder_address", "funder_signature"],
       resolved_action: "fund_market",
       precog_payload_template: {
@@ -369,7 +376,7 @@ class ForecastOSLocalRuntime {
         funder_signature: "<wallet_signature>",
       },
       notes: [
-        "ForecastOS does not choose token decimals, sign messages, fetch nonces, or move funds.",
+        "ForecastOS does not choose token decimals, sign EIP-712 typed data, fetch nonces, or move funds.",
         "Bankr, Privy, Turnkey, or a manual wallet resolves this intent into tx_hash, funder_address, and funder_signature.",
         "Submit the resolved payload with fund_market only after operator approval.",
       ],
@@ -1037,6 +1044,7 @@ async function readPrecogConfig(store, options = {}) {
     chain_id: requireConfigChainId(precog),
     default_collateral_address: precog.default_collateral_address,
     default_collateral_symbol: precog.default_collateral_symbol,
+    signature_actions: requireConfigSignatureActions(precog),
   };
 }
 
@@ -1050,6 +1058,53 @@ function requireConfigChainId(precog) {
     });
   }
   return chainId;
+}
+
+function requireConfigSignatureActions(precog) {
+  const actions = precog.signature_actions ?? {};
+  if (!actions.create_market || !actions.fund_market) {
+    throw new PrecogApiError("Missing .forecastos/config.json precog.signature_actions create_market/fund_market.", {
+      code: "PRECOG_CONFIG_ERROR",
+      endpoint: null,
+      body: { error: "Missing precog.signature_actions.create_market or precog.signature_actions.fund_market" },
+    });
+  }
+  return {
+    create_market: actions.create_market,
+    fund_market: actions.fund_market,
+  };
+}
+
+function buildPrecogAuthorizationTypedDataTemplate({ config, action, account, nonce }) {
+  return {
+    types: {
+      EIP712Domain: [
+        { name: "name", type: "string" },
+        { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" },
+      ],
+      PrecogMarketAuthorization: [
+        { name: "action", type: "string" },
+        { name: "account", type: "address" },
+        { name: "chainId", type: "uint256" },
+        { name: "nonce", type: "uint256" },
+      ],
+    },
+    primaryType: "PrecogMarketAuthorization",
+    domain: {
+      name: "Precog Markets",
+      version: "1",
+      chainId: config.chain_id,
+      verifyingContract: requireDeployedMasterAddress(config),
+    },
+    message: {
+      action,
+      account,
+      chainId: config.chain_id,
+      nonce,
+    },
+  };
 }
 
 function requireDefaultCollateralAddress(config) {

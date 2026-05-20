@@ -55,6 +55,10 @@ assert(
   precogConfig.precog?.default_collateral_address,
   ".forecastos/config.json needs precog.default_collateral_address",
 );
+assert(
+  precogConfig.precog?.signature_actions?.create_market && precogConfig.precog?.signature_actions?.fund_market,
+  ".forecastos/config.json needs precog.signature_actions.create_market and fund_market",
+);
 await assertMissing(join(root, "scripts", "sign_precog_message.mjs"), "sign_precog_message.mjs should not exist");
 await assertMissing(join(root, "scripts", "sign_precog_ethers.mjs"), "sign_precog_ethers.mjs should not exist");
 const scriptNames = await readdir(join(root, "scripts"));
