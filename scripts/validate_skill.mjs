@@ -51,6 +51,10 @@ assert(
   Number.isInteger(Number(precogConfig.precog?.chain_id)) && Number(precogConfig.precog?.chain_id) > 0,
   ".forecastos/config.json needs precog.chain_id",
 );
+assert(
+  precogConfig.precog?.default_collateral_address,
+  ".forecastos/config.json needs precog.default_collateral_address",
+);
 await assertMissing(join(root, "scripts", "sign_precog_message.mjs"), "sign_precog_message.mjs should not exist");
 await assertMissing(join(root, "scripts", "sign_precog_ethers.mjs"), "sign_precog_ethers.mjs should not exist");
 const scriptNames = await readdir(join(root, "scripts"));

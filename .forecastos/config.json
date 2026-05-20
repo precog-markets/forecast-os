@@ -1,8 +1,10 @@
 {
-    "precog":  {
-                   "api_root":  "http://localhost:8081/",
-                   "open_api_key":  "2bbcd786-7cd6-4fdc-a979-e88b22333558",
-                   "deployed_master_address":  "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
-                   "chain_id":  8453
-               }
+  "precog": {
+    "api_root": "http://localhost:8081/",
+    "open_api_key": "2bbcd786-7cd6-4fdc-a979-e88b22333558",
+    "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
+    "chain_id": 8453,
+    "default_collateral_address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "default_collateral_symbol": "USDC"
+  }
 }

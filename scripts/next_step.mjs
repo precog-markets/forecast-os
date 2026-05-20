@@ -80,14 +80,13 @@ function guidanceFor(step, workflow) {
         "approved_by",
         "approved_draft_hash from workflow state",
         "image_url",
-        "collateral_address",
-
         "creator_address",
         "creator_signature",
       ],
       suggested_command: commands.createMarket,
       notes: [
-        "Creation is allowed only through the ForecastOS action bridge.",
+        "The draft is approved. To publish it, ask for a market image URL and wallet approval from the creator wallet.",
+        "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
       ],
     };

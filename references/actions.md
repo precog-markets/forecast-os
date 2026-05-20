@@ -37,7 +37,7 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS also defaults to Base USDC from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and must not be overridden by action input. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -56,6 +56,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - Chat-facing draft approval can be a simple `yes`, `approved`, or `looks good`.
 - `create_market` requires `approved: true` plus a matching `approved_draft_hash` from workflow state. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
+- `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
 - `prepare_funding_intent`
 - `prepare_funding_intent` creates a wallet-agnostic intent for Bankr, Privy, Turnkey, or manual wallets.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
@@ -75,8 +76,6 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
   "outcomes": "YES,NO",
   "start_timestamp": 1717000000,
   "end_timestamp": 1719700000,
-  "collateral_address": "0x...",
-  "chain_id": 8453,
   "creator_address": "0xCreatorAddress",
   "creator_signature": "0xSignature",
   "creator_email": "optional@email.com"
@@ -89,6 +88,7 @@ Creation payload hygiene:
 - `start_timestamp` and `end_timestamp` are derived from UTC times.
 - `image_url` must be an `http` or `https` URL.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
+- `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 

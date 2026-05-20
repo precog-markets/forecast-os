@@ -12,6 +12,7 @@ Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only
 - Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
 - Normalize and present all market times in UTC. Label user-facing close/resolution times as UTC.
 - Read chain identity only from `.forecastos/config.json`; do not ask users to choose a chain or accept action-level chain overrides.
+- Default to Base USDC collateral from `.forecastos/config.json`; only use another `collateral_address` when the operator explicitly asks for it.
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Use `mcp/` only for read-only docs, templates, examples, drafts, and workflow inspection.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.

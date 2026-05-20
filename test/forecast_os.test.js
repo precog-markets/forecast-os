@@ -14,6 +14,7 @@ const execFileAsync = promisify(execFile);
 const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "config.json"), "utf8"));
 const configChainId = shippedConfig.precog.chain_id;
+const configCollateralAddress = shippedConfig.precog.default_collateral_address;
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -124,6 +125,8 @@ test("bundled runtime builds Precog create and fund requests from local config",
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
         deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
       },
     }),
   );
@@ -175,7 +178,6 @@ test("bundled runtime builds Precog create and fund requests from local config",
     approved_by: "operator",
     approval_text: draft.approval_text,
     image_url: "https://example.com/image.png",
-    collateral_address: "0xCollateral",
     chain_id: 999999,
     creator_address: "0xCreator",
     creator_signature: "0xCreatorSignature",
@@ -221,8 +223,110 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[0].body.outcomes, "Clawpump,Liquid,Virtuals,Other");
   assert.equal(requests[0].body.chain_id, configChainId);
+  assert.equal(requests[0].body.collateral_address, configCollateralAddress);
   assert.equal(requests[2].body.upcoming_market, 123);
   assert.equal(requests[2].body.amount, "1");
+});
+
+test("create_market allows explicit collateral override while keeping config chain", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "collateral-override");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 123, status: "PENDING" });
+        },
+      };
+    },
+    now: () => new Date("2026-06-01T12:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    collateral_address: "0xCustomCollateral",
+    chain_id: 999999,
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+
+  assert.equal(requests[0].body.chain_id, configChainId);
+  assert.equal(requests[0].body.collateral_address, "0xCustomCollateral");
+});
+
+test("create_market fails clearly without config default collateral or override", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "missing-collateral");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+      },
+    }),
+  );
+
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => {
+      throw new Error("missing collateral must not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  await assert.rejects(
+    forecastos.createMarket({
+      draft_id: draft.draft_id,
+      approved: true,
+      approved_by: "operator",
+      approval_text: draft.approval_text,
+      image_url: "https://example.com/image.png",
+      creator_address: "0xCreator",
+      creator_signature: "0xCreatorSignature",
+    }),
+    /Missing \.forecastos\/config\.json precog\.default_collateral_address/,
+  );
 });
 
 test("await_precog_approval omits deployed_master_address and does not require it", async () => {
@@ -237,6 +341,8 @@ test("await_precog_approval omits deployed_master_address and does not require i
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
       },
     }),
   );
@@ -281,6 +387,8 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
       },
     }),
   );
@@ -324,6 +432,8 @@ test("consume_prediction requires deployed_master_address only before deployed m
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
       },
     }),
   );
@@ -380,6 +490,29 @@ test("prepare_funding_intent creates wallet-agnostic intents for supported walle
   }
 });
 
+test("next_step presents human create guidance without chain or collateral as normal asks", async () => {
+  const rootDir = join(skillRoot, "test-output", "next-step-create");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+  const workflowId = "workflow_next_step_create";
+  await writeFile(
+    join(stateDir, "workflows", "all", `${workflowId}.json`),
+    JSON.stringify({ workflow_id: workflowId, step: "create_market" }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "next_step.mjs"), "--workflow-id", workflowId],
+    { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+  );
+  const guidance = JSON.parse(stdout);
+
+  assert.equal(guidance.next_action, "create_market");
+  assert.ok(!guidance.required_fields.includes("chain_id"));
+  assert.ok(!guidance.required_fields.includes("collateral_address"));
+  assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
+});
 test("fund_market rejects ambiguous or non-display amount strings", async () => {
   const forecastos = createForecastOS({
     fetch: async () => {

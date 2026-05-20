@@ -93,10 +93,14 @@ class ForecastOSLocalRuntime {
   async createMarket(input) {
     if (input.approved !== true) fail("create_market requires approved: true.");
     const config = await readPrecogConfig(this.store);
-    const createInput = { ...input, chain_id: config.chain_id };
+    const createInput = {
+      ...input,
+      chain_id: config.chain_id,
+      collateral_address: input.collateral_address ?? requireDefaultCollateralAddress(config),
+      collateral_symbol: input.collateral_symbol ?? config.default_collateral_symbol,
+    };
     requireFields(createInput, [
       "image_url",
-      "collateral_address",
       "creator_address",
       "creator_signature",
     ], "create_market");
@@ -353,7 +357,7 @@ class ForecastOSLocalRuntime {
       amount_format: "precog_display_units_decimal_string",
       funding_asset: fundingAsset,
       collateral_symbol: request.collateral_symbol ?? state.collateral_symbol,
-      collateral_address: request.collateral_address ?? state.collateral_address,
+      collateral_address: request.collateral_address ?? state.collateral_address ?? (await readPrecogConfig(this.store)).default_collateral_address,
       message_to_sign_template: "precog.markets|<funder_address_lowercase>|<chain_id>|<next_pending_nonce>",
       wallet_resolution_required: ["tx_hash", "funder_address", "funder_signature"],
       resolved_action: "fund_market",
@@ -1031,6 +1035,8 @@ async function readPrecogConfig(store, options = {}) {
     open_api_key: precog.open_api_key,
     deployed_master_address: precog.deployed_master_address,
     chain_id: requireConfigChainId(precog),
+    default_collateral_address: precog.default_collateral_address,
+    default_collateral_symbol: precog.default_collateral_symbol,
   };
 }
 
@@ -1045,6 +1051,21 @@ function requireConfigChainId(precog) {
   }
   return chainId;
 }
+
+function requireDefaultCollateralAddress(config) {
+  if (!config.default_collateral_address) {
+    throw new PrecogApiError(
+      "Missing .forecastos/config.json precog.default_collateral_address.",
+      {
+        code: "PRECOG_CONFIG_ERROR",
+        endpoint: null,
+        body: { error: "Missing precog.default_collateral_address" },
+      },
+    );
+  }
+  return config.default_collateral_address;
+}
+
 function requireDeployedMasterAddress(config) {
   if (!config.deployed_master_address) {
     throw new PrecogApiError(

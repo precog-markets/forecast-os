@@ -26,7 +26,8 @@ An agent may attempt `create_market` only when:
 - the approval text matches the current draft ID and hash
 - the bundled ForecastOS runtime or a trusted replacement module is configured
 - `.forecastos/config.json` includes `precog.open_api_key`
-- operator-provided `creator_address` and `creator_signature` are present
+- operator-provided `creator_address`, `creator_signature`, and `image_url` are present
+- collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
 
 If any condition is missing, ask for it before submitting to Precog.
 
