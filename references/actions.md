@@ -93,12 +93,14 @@ Fund uses `POST /api/v1/fund-upcoming-market/` with:
 ```json
 {
   "upcoming_market": 123,
-  "amount": "100000000",
+  "amount": "1",
   "tx_hash": "0xTransactionHash",
   "funder_address": "0xFunderAddress",
   "funder_signature": "0xSignature"
 }
 ```
+
+Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
 Signatures are EIP-191 `signMessage(...)`, not typed data. ForecastOS expects the operator/wallet layer to provide signatures for:
 

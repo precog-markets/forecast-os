@@ -85,7 +85,7 @@ This checks `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. Fund
 
 ## fund_market
 
-Funding requires explicit operator approval. Bankr/LiFi can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog.
+Funding requires explicit operator approval. Bankr/LiFi can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
 
 ```json
 {
@@ -97,7 +97,7 @@ Funding requires explicit operator approval. Bankr/LiFi can create the funding t
     "precog_approval": {}
   },
   "upcoming_market": 123,
-  "amount": "100000000",
+  "amount": "1",
   "tx_hash": "0xTransactionHash",
   "funder_address": "0xFunderAddress",
   "funder_signature": "0xSignature"

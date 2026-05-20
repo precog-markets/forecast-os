@@ -40,7 +40,7 @@ An agent may attempt `fund_market` only when:
 - `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Bankr and LiFi remain useful for creating the funding transaction and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog.
+Bankr and LiFi remain useful for creating the funding transaction and signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 

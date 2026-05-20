@@ -35,7 +35,7 @@ Create a ForecastOS market for which launchpad gets the most new agents in June:
 Funding is not automatic. The agent should ask for:
 
 - provider: `manual`, `bankr`, or `lifi`
-- amount
+- amount, as a plain display-unit string such as `"1"`
 - asset
 - tx_hash
 - funder_address

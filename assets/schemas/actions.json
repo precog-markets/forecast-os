@@ -78,7 +78,7 @@
       "properties": {
         "approved": { "type": "boolean", "const": true },
         "upcoming_market": { "type": ["integer", "string"] },
-        "amount": { "type": "string", "minLength": 1 },
+        "amount": { "type": "string", "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$", "description": "Precog display-unit amount as a plain positive decimal string; do not use base units, token symbols, commas, spaces, or exponent notation." },
         "tx_hash": { "type": "string", "minLength": 1 },
         "funder_address": { "type": "string", "minLength": 1 },
         "funder_signature": { "type": "string", "minLength": 1 },
@@ -93,7 +93,9 @@
                   "type": "string",
                   "enum": ["bankr", "lifi", "manual"]
                 },
-                "amount": { "type": "string" },
+                "amount": { "type": "string", "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$" },
+                "funding_asset": { "type": "string" },
+                "collateral_symbol": { "type": "string" },
                 "asset": { "type": "string" }
               }
             }

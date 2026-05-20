@@ -113,6 +113,7 @@ function guidanceFor(step, workflow) {
       suggested_command: commands.fundMarket,
       notes: [
         "Require operator approval. Bankr/LiFi are provider hints, not built-in custody.",
+        "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
       ],
     };
   }

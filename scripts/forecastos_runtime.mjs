@@ -334,20 +334,21 @@ class ForecastOSLocalRuntime {
     }
     const request = event.funding_request ?? event;
     requireFields(request, ["amount", "tx_hash", "funder_address", "funder_signature"], "fund_market");
+    const amount = normalizePrecogFundingAmount(request.amount);
     const upcomingMarket = request.upcoming_market ?? state.market_id;
     if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
       fail("fund_market requires upcoming_market or state.market_id.");
     }
     const response = await this.#postPrecog("/api/v1/fund-upcoming-market/", {
       upcoming_market: upcomingMarket,
-      amount: request.amount,
+      amount,
       tx_hash: request.tx_hash,
       funder_address: request.funder_address,
       funder_signature: request.funder_signature,
     });
     return normalizeFundResponse(response, {
       upcoming_market: upcomingMarket,
-      amount: request.amount,
+      amount,
       tx_hash: request.tx_hash,
       funder_address: request.funder_address,
     });
@@ -738,6 +739,17 @@ function normalizePredictionResponse(market, context = {}) {
   };
 }
 
+function normalizePrecogFundingAmount(value) {
+  const raw = String(value ?? "");
+  const amount = raw.trim();
+  if (raw !== amount || /\s/.test(raw)) {
+    fail("fund_market amount must be a positive plain decimal string in Precog display units, for example \"1\". Do not include spaces or token symbols.");
+  }
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(amount) || /^0(?:\.0+)?$/.test(amount)) {
+    fail("fund_market amount must be a positive plain decimal string in Precog display units, for example \"1\" or \"100.5\". Do not use wei/base units, commas, token symbols, or exponent notation.");
+  }
+  return amount;
+}
 function normalizeFundResponse(response, request) {
   return {
     market_id: response.upcoming_market ?? request.upcoming_market,
