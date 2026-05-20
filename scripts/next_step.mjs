@@ -85,7 +85,8 @@ function guidanceFor(step, workflow) {
       ],
       suggested_command: commands.createMarket,
       notes: [
-        "The draft is approved. To publish it, ask for a market image URL and wallet approval from the creator wallet.",
+        "The draft is approved. To publish it, ask for a market image URL and wallet approval/signature from the creator wallet.",
+        "Before creation, make sure the wallet policy allows EIP-712 typed-data signing.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
       ],
@@ -115,7 +116,9 @@ function guidanceFor(step, workflow) {
         "Generate a wallet-agnostic funding intent; Bankr, Privy, Turnkey, or a manual wallet resolves it.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
         "Do not ask for chain_id; ForecastOS assumes Base chain_id 8453 from .forecastos/config.json.",
-        "After Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
+        "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",
+        "If the collateral token allowance is insufficient, the wallet flow must approve the token before funding.",
+        "After Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, token approval if needed, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
       ],
     };
   }

@@ -500,11 +500,30 @@ test("prepare_funding_intent creates wallet-agnostic intents for supported walle
     assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
     assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
     assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");
+    assert.deepEqual(intent.wallet_policy_required, [
+      "eip712_typed_data_signing",
+      "transaction_signing",
+      "transaction_sending",
+    ]);
+    assert.equal(intent.token_approval_required_if_needed, true);
+    assert.ok(intent.token_approval_note.includes("approve collateral token allowance"));
     assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
     assert.equal(intent.precog_payload_template.amount, "1");
   }
 });
 
+test("docs preserve wallet and token approval boundaries", async () => {
+  const files = [
+    "SKILL.md",
+    "references/actions.md",
+    "references/action-policy.md",
+    "references/safety.md",
+  ];
+  const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n");
+  assert.ok(combined.includes("approve tokens"));
+  assert.ok(combined.includes("fetch nonces"));
+  assert.ok(combined.includes("sign/send transactions"));
+});
 test("docs and runtime do not use legacy string signing guidance", async () => {
   const files = [
     "SKILL.md",
@@ -544,6 +563,29 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(!guidance.required_fields.includes("chain_id"));
   assert.ok(!guidance.required_fields.includes("collateral_address"));
   assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
+  assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
+});
+test("next_step funding guidance mentions wallet policy and token approval", async () => {
+  const rootDir = join(skillRoot, "test-output", "next-step-fund");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+  const workflowId = "workflow_next_step_fund";
+  await writeFile(
+    join(stateDir, "workflows", "all", `${workflowId}.json`),
+    JSON.stringify({ workflow_id: workflowId, step: "fund" }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "next_step.mjs"), "--workflow-id", workflowId],
+    { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+  );
+  const guidance = JSON.parse(stdout);
+
+  assert.equal(guidance.next_action, "prepare_funding_intent");
+  assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));
+  assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));
 });
 test("fund_market rejects ambiguous or non-display amount strings", async () => {
   const forecastos = createForecastOS({

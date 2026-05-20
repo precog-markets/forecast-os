@@ -61,7 +61,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `prepare_funding_intent` creates a wallet-agnostic intent for Bankr, Privy, Turnkey, or manual wallets.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog.
-- The bundled runtime does not sign messages, fetch nonces, transfer funds, or custody wallets.
+- The bundled runtime does not approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets.
 
 ## Precog Endpoints
 
@@ -92,7 +92,7 @@ Creation payload hygiene:
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 
-Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, an EIP-712 typed-data template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves that intent into `tx_hash`, `funder_address`, and `funder_signature`.
+Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 
 After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/` with:
 
@@ -108,7 +108,7 @@ After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/`
 
 Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
-The wallet layer owns nonce lookup and EIP-712 signing. ForecastOS only provides the typed-data shape the wallet must resolve:
+The wallet layer owns nonce lookup and EIP-712 signing. For creation, the wallet policy must allow EIP-712 typed-data signatures. For funding, the wallet policy must allow EIP-712 signatures plus transaction signing/sending, and the wallet flow must approve collateral token allowance if needed. ForecastOS only provides the typed-data shape the wallet must resolve:
 
 ```json
 {

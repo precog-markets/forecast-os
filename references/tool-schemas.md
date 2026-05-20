@@ -57,7 +57,7 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
 
 For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
-`creator_signature` must be provided by the operator wallet layer. ForecastOS does not include signing helpers. The wallet signs EIP-712 typed data using `message.action = config.precog.signature_actions.create_market`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
+`creator_signature` must be provided by the operator wallet layer. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = config.precog.signature_actions.create_market`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
 
 `image_url` is required for the live Precog create endpoint. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral.
 
@@ -93,10 +93,10 @@ Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic in
 }
 ```
 
-The wallet resolver returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields.
+The wallet resolver checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields.
 ## fund_market
 
-Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual wallet can create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
+Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual wallet can approve tokens if needed and create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
 
 ```json
 {
@@ -115,7 +115,7 @@ Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual 
 }
 ```
 
-`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
+`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding.
 
 ## consume_prediction
 

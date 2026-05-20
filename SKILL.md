@@ -18,8 +18,9 @@ Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - For funding, first generate a wallet-agnostic `prepare_funding_intent`; Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, EIP-712 typed-data signing, and returns `tx_hash`, `funder_address`, and `funder_signature`.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
-- Do not custody wallets, fetch nonces, sign messages, swap assets, or create funding transactions.
+- Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
 - Treat Bankr, Privy, and Turnkey as external wallet resolvers unless a trusted adapter is explicitly configured.
+- Before live creation/funding, make sure the wallet policy allows EIP-712 signatures; before funding, the wallet flow must handle token approval if allowance is insufficient and must be allowed to sign/send funding transactions.
 
 ## Workflow
 

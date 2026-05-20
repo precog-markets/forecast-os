@@ -1,6 +1,6 @@
 {
   "precog": {
-    "api_root": "http://localhost/",
+    "api_root": "http://178.105.79.119/",
     "open_api_key": "43f349ef-7e1e-40b0-b718-f0f913514b15",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
     "chain_id": 8453,
