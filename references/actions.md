@@ -20,7 +20,7 @@ FORECASTOS_SDK_MODULE=<module-or-path>
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. `FORECASTOS_SDK_MODULE` is optional and should only point to a trusted replacement runtime when real Precog, Bankr, Privy, Turnkey, or prediction adapters are ready.
+`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. `FORECASTOS_SDK_MODULE` is optional and should only point to a trusted replacement runtime when real Precog, wallet/action, or prediction adapters are ready.
 
 ## Precog Config
 
@@ -58,10 +58,10 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
 - `prepare_funding_intent`
-- `prepare_funding_intent` creates a wallet-agnostic intent for Bankr, Privy, Turnkey, or manual wallets.
+- `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
-- The bundled runtime may submit approved signed payloads to Precog.
-- The bundled runtime does not approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets.
+- The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
+- The bundled runtime does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
 
 ## Precog Endpoints
 
@@ -76,8 +76,8 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
   "outcomes": "YES,NO",
   "start_timestamp": 1717000000,
   "end_timestamp": 1719700000,
-  "creator_address": "0xCreatorAddress",
-  "creator_signature": "0xSignature",
+  "creator_address": "<resolved_by_wallet_tool>",
+  "creator_signature": "<resolved_by_wallet_tool>",
   "creator_email": "optional@email.com"
 }
 ```
@@ -92,7 +92,7 @@ Creation payload hygiene:
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
 
-Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. Bankr, Privy, Turnkey, or a manual wallet resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
+Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 
 After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/` with:
 
@@ -101,14 +101,14 @@ After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/`
   "upcoming_market": 123,
   "amount": "1",
   "tx_hash": "0xTransactionHash",
-  "funder_address": "0xFunderAddress",
-  "funder_signature": "0xSignature"
+  "funder_address": "<resolved_by_wallet_tool>",
+  "funder_signature": "<resolved_by_wallet_tool>"
 }
 ```
 
 Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
-The wallet layer owns nonce lookup and EIP-712 signing. For creation, the wallet policy must allow EIP-712 typed-data signatures. For funding, the wallet policy must allow EIP-712 signatures plus transaction signing/sending, and the wallet flow must approve collateral token allowance if needed. ForecastOS only provides the typed-data shape the wallet must resolve:
+The wallet/action tooling owns address selection, nonce lookup, EIP-712 signing, and transaction execution. For creation, the wallet policy must allow EIP-712 typed-data signatures. For funding, the wallet policy must allow EIP-712 signatures plus transaction signing/sending, and the wallet/action tool must approve collateral token allowance if needed. ForecastOS only provides the typed-data shape the tooling must resolve:
 
 ```json
 {
@@ -169,5 +169,5 @@ The stored `prediction_result` includes the full market object plus a compact `s
 ## Replace Points
 
 - Precog approval adapter: approval status source and polling/subscription behavior.
-- Wallet intent resolvers: Bankr, Privy, Turnkey, manual operator flow, or another provider to create the transaction and signature.
+- Wallet intent resolvers: Configured wallet/action tooling or an external wallet flow to create the transaction and signature.
 - Prediction adapter: deployed market read API, probability/source API, and response schema.

@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: "Use ForecastOS for multi-outcome prediction-market workflows across Codex, Claude Code, and OpenClaw: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, generating wallet-agnostic funding intents for Bankr/Privy/Turnkey/manual wallets, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
+description: "Use ForecastOS for multi-outcome prediction-market workflows across Codex, Claude Code, and OpenClaw: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, generating wallet/action-tool handoff intents, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
 ---
 
 # ForecastOS
@@ -16,10 +16,10 @@ Use ForecastOS as a bounded prediction-market workflow skill. Keep MCP read-only
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Use `mcp/` only for read-only docs, templates, examples, drafts, and workflow inspection.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
-- For funding, first generate a wallet-agnostic `prepare_funding_intent`; Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, EIP-712 typed-data signing, and returns `tx_hash`, `funder_address`, and `funder_signature`.
+- For live creation or funding, ask whether a wallet/action tool is configured; do not ask the user for raw wallet addresses or signatures in normal chat. If no tooling is available, send them to https://core.precog.markets/launchpad/.
+- For funding, first generate a wallet-agnostic `prepare_funding_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing, token approval if needed, and the final signed payload.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
-- Treat Bankr, Privy, and Turnkey as external wallet resolvers unless a trusted adapter is explicitly configured.
 - Before live creation/funding, make sure the wallet policy allows EIP-712 signatures; before funding, the wallet flow must handle token approval if allowance is insufficient and must be allowed to sign/send funding transactions.
 
 ## Workflow

@@ -21,7 +21,7 @@ intake
 - `await_approval`: present a friendly review message and ask the user to reply `yes`.
 - `create_market`: requires explicit approval and a non-stale draft hash stored in workflow memory.
 - `await_precog_approval`: check Precog upcoming market status. `CREATED` waits; `VALIDATED` advances to funding.
-- `fund`: generate a wallet-agnostic funding intent, let Bankr/Privy/Turnkey/manual wallets resolve tx/signature fields, then submit the operator-approved funding record to Precog.
+- `fund`: generate a wallet-agnostic funding intent, let configured wallet/action tooling resolve transaction and signature fields, then submit the operator-approved funding record to Precog.
 - `consume_prediction`: wait for the upcoming market to become `DEPLOYED`, then check the upcoming market using config `precog.chain_id` and `id`, then fetch the deployed market from `/api/v1/markets/` using config `deployed_master_address`.
 - `done`: workflow has fetched the deployed market and stored a compact planning signal.
 

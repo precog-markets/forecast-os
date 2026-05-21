@@ -49,15 +49,15 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
   "approved_draft_hash": "hash-from-workflow-state",
   "image_url": "https://example.com/image.png",
   "category": "AI",
-  "creator_address": "0xCreatorAddress",
-  "creator_signature": "0xSignature",
+  "creator_address": "<resolved_by_wallet_tool>",
+  "creator_signature": "<resolved_by_wallet_tool>",
   "creator_email": "optional@email.com"
 }
 ```
 
 For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
-`creator_signature` must be provided by the operator wallet layer. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = config.precog.signature_actions.create_market`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
+`creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = config.precog.signature_actions.create_market`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
 
 `image_url` is required for the live Precog create endpoint. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral.
 
@@ -78,7 +78,7 @@ This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `
 
 ## prepare_funding_intent
 
-Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic intent that Codex, Claude Code, or OpenClaw can hand to Bankr, Privy, Turnkey, or a manual wallet flow.
+Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic intent that Codex, Claude Code, or OpenClaw can hand to A configured wallet/action tool flow.
 
 ```json
 {
@@ -87,16 +87,16 @@ Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic in
     "market_id": 123,
     "precog_approval": { "status": "VALIDATED" }
   },
-  "provider": "bankr",
+  "provider": "configured-wallet-tool",
   "amount": "1",
   "funding_asset": "MATE"
 }
 ```
 
-The wallet resolver checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields.
+The wallet/action tool checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields. If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/.
 ## fund_market
 
-Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual wallet can approve tokens if needed and create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
+Funding requires explicit operator approval. A configured wallet/action tool can approve tokens if needed and create the funding transaction outside ForecastOS; ForecastOS submits the resulting signed payload to Precog. `amount` must be a plain display-unit decimal string for the Precog API, such as `"1"` for `1 MATE`; never convert it to wei/base units and never include the token symbol in the amount string.
 
 ```json
 {
@@ -110,8 +110,8 @@ Funding requires explicit operator approval. Bankr, Privy, Turnkey, or a manual 
   "upcoming_market": 123,
   "amount": "1",
   "tx_hash": "0xTransactionHash",
-  "funder_address": "0xFunderAddress",
-  "funder_signature": "0xSignature"
+  "funder_address": "<resolved_by_wallet_tool>",
+  "funder_signature": "<resolved_by_wallet_tool>"
 }
 ```
 

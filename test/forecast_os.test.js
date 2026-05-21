@@ -472,13 +472,13 @@ test("consume_prediction requires deployed_master_address only before deployed m
   assert.equal(requests.length, 1);
   assert.ok(!requests[0].url.includes("deployed_master_address"));
 });
-test("prepare_funding_intent creates wallet-agnostic intents for supported wallets", async () => {
+test("prepare_funding_intent creates generic wallet-tool handoff intents", async () => {
   const forecastos = createForecastOS({
     fetch: async () => {
       throw new Error("prepare_funding_intent must not call the network");
     },
   });
-  for (const provider of ["bankr", "privy", "turnkey"]) {
+  for (const provider of ["configured-wallet-tool", "external-wallet-flow", "operator-tool"]) {
     const intent = await forecastos.prepareFundingIntent(
       {
         step: "fund",
@@ -489,6 +489,8 @@ test("prepare_funding_intent creates wallet-agnostic intents for supported walle
       { provider, amount: "1", funding_asset: "MATE", chain_id: 999999 },
     );
     assert.equal(intent.wallet_provider, provider);
+    assert.equal(intent.wallet_tool_hint.includes("configured wallet/action tool"), true);
+    assert.equal(intent.launchpad_fallback_url, "https://core.precog.markets/launchpad/");
     assert.equal(intent.amount, "1");
     assert.equal(intent.chain_id, configChainId);
     assert.equal(intent.amount_format, "precog_display_units_decimal_string");
@@ -512,6 +514,24 @@ test("prepare_funding_intent creates wallet-agnostic intents for supported walle
   }
 });
 
+test("skill guidance does not advertise named wallet provider support", async () => {
+  const files = [
+    "SKILL.md",
+    "references/actions.md",
+    "references/tool-schemas.md",
+    "references/action-policy.md",
+    "references/safety.md",
+    "references/architecture.md",
+    "references/workflow.md",
+    "scripts/forecastos_runtime.mjs",
+    "scripts/next_step.mjs",
+    "assets/schemas/actions.json",
+  ];
+  const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n").toLowerCase();
+  for (const provider of ["bank" + "r", "pri" + "vy", "turn" + "key"]) {
+    assert.ok(!combined.includes(provider), `provider-specific guidance leaked: ${provider}`);
+  }
+});
 test("docs preserve wallet and token approval boundaries", async () => {
   const files = [
     "SKILL.md",
@@ -562,6 +582,10 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.equal(guidance.next_action, "create_market");
   assert.ok(!guidance.required_fields.includes("chain_id"));
   assert.ok(!guidance.required_fields.includes("collateral_address"));
+  assert.ok(!guidance.required_fields.includes("creator_address"));
+  assert.ok(!guidance.required_fields.includes("creator_signature"));
+  assert.ok(guidance.notes.some((note) => note.includes("wallet or action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
   assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
 });

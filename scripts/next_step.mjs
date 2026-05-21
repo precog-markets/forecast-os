@@ -74,19 +74,17 @@ function guidanceFor(step, workflow) {
   if (step === "create_market") {
     return {
       next_action: "create_market",
-      needs_human_input: false,
+      needs_human_input: true,
       required_fields: [
-        "approved:true",
-        "approved_by",
-        "approved_draft_hash from workflow state",
         "image_url",
-        "creator_address",
-        "creator_signature",
+        "wallet_or_action_tool availability",
       ],
       suggested_command: commands.createMarket,
       notes: [
-        "The draft is approved. To publish it, ask for a market image URL and wallet approval/signature from the creator wallet.",
-        "Before creation, make sure the wallet policy allows EIP-712 typed-data signing.",
+        "The draft is approved. Ask whether there is a wallet or action tool to use for publishing.",
+        "Do not ask the user for raw wallet address or signature fields in normal chat.",
+        "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/ to create the market.",
+        "Before creation, any wallet/action tool must allow EIP-712 typed-data signing.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
       ],
@@ -110,15 +108,16 @@ function guidanceFor(step, workflow) {
     return {
       next_action: "prepare_funding_intent",
       needs_human_input: true,
-      required_fields: ["amount", "wallet_provider: bankr|privy|turnkey|manual", "funding_asset or collateral_symbol"],
+      required_fields: ["amount", "wallet_or_action_tool availability", "funding_asset or collateral_symbol"],
       suggested_command: commands.prepareFundingIntent,
       notes: [
-        "Generate a wallet-agnostic funding intent; Bankr, Privy, Turnkey, or a manual wallet resolves it.",
+        "Generate a wallet-agnostic funding intent and hand it to configured wallet/action tooling if available.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
         "Do not ask for chain_id; ForecastOS assumes Base chain_id 8453 from .forecastos/config.json.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",
-        "If the collateral token allowance is insufficient, the wallet flow must approve the token before funding.",
-        "After Bankr, Privy, Turnkey, or a manual wallet resolves nonce lookup, token approval if needed, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
+        "If the collateral token allowance is insufficient, the wallet/action tool must approve the token before funding.",
+        "After the wallet/action tool resolves nonce lookup, token approval if needed, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
+        "If no wallet/action tool is configured, do not ask for raw signatures in chat; direct the user to https://core.precog.markets/launchpad/.",
       ],
     };
   }

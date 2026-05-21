@@ -126,11 +126,13 @@
         },
         "creator_address": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
         },
         "creator_signature": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
         },
         "creator_email": {
           "type": "string"
@@ -154,21 +156,11 @@
         },
         "provider": {
           "type": "string",
-          "enum": [
-            "bankr",
-            "privy",
-            "turnkey",
-            "manual"
-          ]
+          "description": "Optional label for a configured wallet/action tool. ForecastOS does not provide built-in support for any specific provider."
         },
         "wallet_provider": {
           "type": "string",
-          "enum": [
-            "bankr",
-            "privy",
-            "turnkey",
-            "manual"
-          ]
+          "description": "Optional label for a configured wallet/action tool. ForecastOS does not provide built-in support for any specific provider."
         },
         "upcoming_market": {
           "type": [
@@ -228,11 +220,13 @@
         },
         "funder_address": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
         },
         "funder_signature": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
         },
         "state": {
           "type": "object"
@@ -245,12 +239,7 @@
               "properties": {
                 "provider": {
                   "type": "string",
-                  "enum": [
-                    "bankr",
-                    "privy",
-                    "turnkey",
-                    "manual"
-                  ]
+                  "description": "Optional label for a configured wallet/action tool."
                 },
                 "amount": {
                   "type": "string",

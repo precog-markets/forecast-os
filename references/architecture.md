@@ -18,7 +18,7 @@ Host agent / orchestrator
 - MCP server: exposes read-only docs/templates/examples/local state.
 - CLI/runtime action bridge: runs bundled deterministic ForecastOS methods and can later be replaced by a trusted production module.
 - State store: persists drafts and workflow status in `.forecastos/`.
-- External adapters: Precog, Bankr, Privy, Turnkey, manual wallet flows, and prediction APIs remain host-configured replacement points.
+- External adapters: Precog, wallet/action tools, external wallet flows, and prediction APIs remain host-configured replacement points.
 
 ## Why This Shape
 

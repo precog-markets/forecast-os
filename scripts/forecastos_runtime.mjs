@@ -345,12 +345,13 @@ class ForecastOSLocalRuntime {
     }
     const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
     const chainId = config.chain_id;
-    const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? "manual");
+    const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? request.wallet_tool);
     const fundingAsset = request.funding_asset ?? request.asset ?? request.collateral_symbol ?? state.collateral_symbol;
     return withoutUndefined({
       intent_type: "forecastos.fund_market",
       wallet_provider: provider,
-      wallet_provider_candidates: ["bankr", "privy", "turnkey", "manual"],
+      wallet_tool_hint: "Use any configured wallet/action tool. If none is configured, use the Precog launchpad instead of asking the user for raw signatures.",
+      launchpad_fallback_url: "https://core.precog.markets/launchpad/",
       wallet_runtime_candidates: ["codex", "claude_code", "openclaw"],
       wallet_policy_required: [
         "eip712_typed_data_signing",
@@ -384,9 +385,10 @@ class ForecastOSLocalRuntime {
       },
       notes: [
         "ForecastOS does not choose token decimals, approve tokens, sign EIP-712 typed data, sign/send transactions, fetch nonces, or move funds.",
-        "Bankr, Privy, Turnkey, or a manual wallet must have policy permission for EIP-712 signing and funding transactions.",
-        "If collateral allowance is insufficient, the wallet flow approves the token before funding.",
-        "Bankr, Privy, Turnkey, or a manual wallet resolves this intent into tx_hash, funder_address, and funder_signature.",
+        "Use a configured wallet/action tool with policy permission for EIP-712 signing and funding transactions.",
+        "If collateral allowance is insufficient, the wallet/action tool approves the token before funding.",
+        "The wallet/action tool resolves this intent into tx_hash, funder_address, and funder_signature.",
+        "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/ instead of asking for raw signatures.",
         "Submit the resolved payload with fund_market only after operator approval.",
       ],
     });
@@ -805,10 +807,9 @@ function normalizePredictionResponse(market, context = {}) {
 }
 
 function normalizeWalletProvider(value) {
-  const provider = String(value ?? "manual").trim().toLowerCase();
-  const supported = new Set(["bankr", "privy", "turnkey", "manual"]);
-  if (!supported.has(provider)) {
-    fail("Funding wallet provider must be one of: bankr, privy, turnkey, manual.");
+  const provider = String(value ?? "configured_wallet_tool").trim();
+  if (!provider) {
+    fail("Funding wallet/action tool name must be a non-empty string when provided.");
   }
   return provider;
 }

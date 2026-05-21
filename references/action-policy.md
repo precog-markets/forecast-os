@@ -14,7 +14,7 @@ MCP is read-only. Do not add MCP tools for:
 - signing
 - swaps
 - live Precog mutation
-- live Bankr, Privy, or Turnkey calls
+- live wallet/action tool calls
 
 ## Creation Policy
 
@@ -26,7 +26,8 @@ An agent may attempt `create_market` only when:
 - the approval text matches the current draft ID and hash
 - the bundled ForecastOS runtime or a trusted replacement module is configured
 - `.forecastos/config.json` includes `precog.open_api_key`
-- operator-provided `creator_address`, `creator_signature`, and `image_url` are present
+- `image_url` is present
+- `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
 - the wallet policy allows EIP-712 typed-data signing
 - collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
 
@@ -39,12 +40,13 @@ An agent may attempt `fund_market` only when:
 - market creation has completed or the workflow is at the funding step
 - Precog approval state is present with status `VALIDATED`
 - the operator explicitly approves funding
-- `amount`, `tx_hash`, `funder_address`, and `funder_signature` are specified
+- `amount` is specified
+- `tx_hash`, `funder_address`, and `funder_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
 - the wallet policy allows EIP-712 signing and transaction signing/sending
 - collateral token approval has been handled by the wallet flow if allowance was insufficient
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Bankr, Privy, and Turnkey remain useful for resolving a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
+Configured wallet/action tooling resolves a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
@@ -73,4 +75,4 @@ Do not request or store:
 
 Use operator wallet references only, such as a label or account ID controlled outside this skill.
 
-ForecastOS may store public addresses, transaction hashes, and signatures needed for Precog submission. It must not generate signatures, fetch nonces, approve tokens, sign/send transactions, or request signing secrets.
+ForecastOS may store public addresses, transaction hashes, and signatures returned by trusted wallet/action tooling for Precog submission. It must not ask users for raw signatures in normal chat, generate signatures, fetch nonces, approve tokens, sign/send transactions, or request signing secrets. If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/.
