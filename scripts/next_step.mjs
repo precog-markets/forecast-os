@@ -81,7 +81,7 @@ function guidanceFor(step, workflow) {
       ],
       suggested_command: commands.createMarket,
       notes: [
-        "The draft is approved. Ask whether there is a wallet or action tool to use for publishing.",
+        "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this?",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/ to create the market.",
         "Before creation, any wallet/action tool must allow EIP-712 typed-data signing.",
@@ -111,7 +111,7 @@ function guidanceFor(step, workflow) {
       required_fields: ["amount", "wallet_or_action_tool availability", "funding_asset or collateral_symbol"],
       suggested_command: commands.prepareFundingIntent,
       notes: [
-        "Generate a wallet-agnostic funding intent and hand it to configured wallet/action tooling if available.",
+        "Generate a wallet-agnostic funding intent, then ask what wallet or wallet/action tool should resolve funding.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
         "Do not ask for chain_id; ForecastOS assumes Base chain_id 8453 from .forecastos/config.json.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",

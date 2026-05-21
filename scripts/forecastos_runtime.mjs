@@ -163,8 +163,8 @@ class ForecastOSLocalRuntime {
           approval_response: approvalResponseText(event),
           approval_text: event.approval_text ?? current.approval_text,
         }, "approval_recorded"),
-        needs_human_input: false,
-        agent_message: "Approval recorded. Next step is create_market.",
+        needs_human_input: true,
+        agent_message: "Approval recorded. What wallet or wallet/action tool would you like to use to publish this? If no wallet tooling is available in this environment, use https://core.precog.markets/launchpad/.",
       });
     }
 
@@ -202,7 +202,7 @@ class ForecastOSLocalRuntime {
           state: markWorkflowError(current, error),
           tool_result: serializeError(error),
           needs_human_input: true,
-          agent_message: "Precog create_market failed. The workflow remains at create_market.",
+          agent_message: "The draft is approved, but live publishing still needs a wallet/action tool to complete wallet approval. Ask what wallet or wallet/action tool the user wants to use, or send them to https://core.precog.markets/launchpad/ if none is available.",
         });
       }
     }

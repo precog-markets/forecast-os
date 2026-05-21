@@ -96,6 +96,8 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
+  assert.ok(approved.result.agent_message.includes("What wallet or wallet/action tool"));
+  assert.ok(approved.result.agent_message.includes("https://core.precog.markets/launchpad/"));
   assert.equal(approved.result.state.approved_draft_id, draftId);
   assert.equal(approved.result.state.approved_draft_hash, drafted.result.state.draft_hash);
   assert.equal(
@@ -584,7 +586,7 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(!guidance.required_fields.includes("collateral_address"));
   assert.ok(!guidance.required_fields.includes("creator_address"));
   assert.ok(!guidance.required_fields.includes("creator_signature"));
-  assert.ok(guidance.notes.some((note) => note.includes("wallet or action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("What wallet or wallet/action tool")));
   assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
   assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
@@ -608,6 +610,7 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
   const guidance = JSON.parse(stdout);
 
   assert.equal(guidance.next_action, "prepare_funding_intent");
+  assert.ok(guidance.notes.some((note) => note.includes("what wallet or wallet/action tool")));
   assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));
   assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));
 });

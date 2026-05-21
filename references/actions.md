@@ -61,7 +61,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
-- The bundled runtime does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
+- The bundled runtime asks which wallet or wallet/action tool should publish or fund the market. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
 
 ## Precog Endpoints
 
