@@ -18,7 +18,7 @@ intake
 - `intake`: parse prompt, category, entity, timeframe, source hints, and requested outcomes.
 - `draft`: produce a structured market spec and quality result. Store all close/resolution times as UTC ISO strings.
 - `needs_info`: ask for missing entity, source, dates, launch timestamp, or outcome labels.
-- `await_approval`: present a friendly review message and ask the user to reply `yes`.
+- `await_approval`: present a friendly review message, not raw JSON, and ask the user to reply `yes` or request edits.
 - `create_market`: requires explicit approval and a non-stale draft hash stored in workflow memory.
 - `await_precog_approval`: check Precog upcoming market status. `CREATED` waits; `VALIDATED` advances to funding.
 - `fund`: generate a wallet-agnostic funding intent, let configured wallet/action tooling resolve transaction and signature fields, then submit the operator-approved funding record to Precog.
@@ -47,7 +47,7 @@ The workflow step `fund` is stored under the human-readable folder `funded/`.
 
 ## Memory Helpers
 
-Use `scripts/render_review.mjs` to turn a draft or workflow into a human approval view.
+Use `scripts/render_review.mjs` to turn a draft or workflow into a human approval view. In chat, summarize the review for the user; do not paste raw JSON unless the user asks for operator/debug detail.
 
 Use `scripts/next_step.mjs` to inspect a workflow and determine the next valid action:
 

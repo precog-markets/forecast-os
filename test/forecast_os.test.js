@@ -232,6 +232,73 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[2].body.amount, "1");
 });
 
+test("draft_market blocks binary yes/no drafts under multi-outcome default", async () => {
+  const rootDir = join(skillRoot, "test-output", "binary-outcomes-blocked");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Will Bilibili Gaming reach the 2026 Worlds Grand Final?",
+    requested_outcomes: ["Yes", "No"],
+    source_hints: ["Official Riot Games / LoL Esports results"],
+    requested_close_time: "2026-10-15T00:00:00Z",
+    requested_resolution_time: "2026-11-15T12:00:00Z",
+  });
+
+  assert.equal(draft.status, "blocked");
+  assert.ok(draft.missing_fields.includes("at_least_three_outcomes"));
+  assert.ok(
+    draft.quality.blocking_issues.some((issue) =>
+      issue.includes("requires at least three explicit outcomes"),
+    ),
+  );
+});
+
+test("skill docs tell agents to use the action bridge and split yes/no prompts", async () => {
+  const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+  const template = await readFile(
+    join(skillRoot, "assets", "templates", "multi-outcome-market.md"),
+    "utf8",
+  );
+
+  assert.ok(skill.includes("Do not hand-write or paste ForecastOS-looking JSON"));
+  assert.ok(skill.includes("run_skill_step"));
+  assert.ok(skill.includes("Do not use only `Yes` / `No` outcomes"));
+  assert.ok(template.includes("at least three explicit outcome labels"));
+  assert.ok(template.includes("Team X qualifies but is eliminated before the final"));
+});
+
+test("draft review is chat-facing and ends with next steps", async () => {
+  const forecastos = createForecastOS();
+  const draft = await forecastos.draftMarket({
+    prompt: "Which team wins the event?",
+    requested_outcomes: ["Team A", "Team B", "Other"],
+    source_hints: ["Official event results"],
+    requested_close_time: "2026-10-15T00:00:00Z",
+    requested_resolution_time: "2026-11-15T12:00:00Z",
+  });
+
+  assert.ok(draft.review_message.includes("Draft ready for review."));
+  assert.ok(draft.review_message.includes("Next: reply yes to approve"));
+  assert.ok(!draft.review_message.includes("{"));
+  assert.ok(!draft.review_message.includes("draft_"));
+  assert.ok(!draft.review_message.includes("hash_"));
+});
+
+test("skill docs forbid raw JSON as normal chat output and require next step prompt", async () => {
+  const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+  const workflow = await readFile(join(skillRoot, "references", "workflow.md"), "utf8");
+
+  assert.ok(skill.includes("Do not hand-write or paste ForecastOS-looking JSON"));
+  assert.ok(skill.includes("Every draft response must end with a next-step prompt"));
+  assert.ok(skill.includes("Do not expose raw JSON"));
+  assert.ok(workflow.includes("not raw JSON"));
+});
+
 test("create_market allows explicit collateral override while keeping config chain", async () => {
   const rootDir = join(skillRoot, "api-test-output", "collateral-override");
   const stateDir = join(rootDir, ".forecastos");

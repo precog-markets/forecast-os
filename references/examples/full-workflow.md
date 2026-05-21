@@ -24,17 +24,18 @@ Create a ForecastOS market for which launchpad gets the most new agents in June:
 
 1. Draft a multi-outcome market.
 2. Ask for missing source details if the source of truth is not objective enough.
-3. Present title, question, outcomes, resolution criteria, close time, resolution time, source, warnings, and approval text.
-4. Wait for explicit human approval.
-5. Attempt creation only through the bundled CLI/runtime action bridge.
-6. If Precog is not configured, return a clear config error.
-7. Move to Precog approval, funding, and deployed-market consumption only when the workflow state allows it.
+3. Present title, question, outcomes, resolution criteria, close time, resolution time, source, and only the warnings/blockers that matter.
+4. Do not paste raw JSON, draft IDs, workflow IDs, hashes, file paths, or quality scores unless the user asks for technical detail.
+5. End with a clear next step: "Reply yes to approve, or tell me what you want changed."
+6. Wait for explicit human approval.
+7. Attempt creation only through the bundled CLI/runtime action bridge.
+8. If Precog is not configured, return a clear config error.
+9. Move to Precog approval, funding, and deployed-market consumption only when the workflow state allows it.
 
 ## Funding Handoff
 
-Funding is not automatic. The agent should ask for:
+Funding is not automatic. The agent should ask what wallet or wallet/action tool should resolve funding. That tool returns the low-level fields needed by the action bridge:
 
-- provider: `manual`, `bankr`, `privy`, or `turnkey`
 - amount, as a plain display-unit string such as `"1"`
 - asset
 - tx_hash

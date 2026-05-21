@@ -17,6 +17,13 @@
 }
 ```
 
-Use this for every ForecastOS market. Even yes/no-looking prompts should be represented as `multi_outcome` with explicit outcome labels.
+Use this for every ForecastOS market. Even yes/no-looking prompts should be represented as `multi_outcome` with at least three explicit outcome labels.
 
 Include a clear fallback outcome such as `Other` or `Invalid / ambiguous` only when it is necessary for objective resolution.
+
+For a prompt like "Will Team X reach the final?", do not use only `Yes` and `No`. Prefer outcomes like:
+
+- `Team X reaches the final`
+- `Team X qualifies but is eliminated before the final`
+- `Team X does not qualify or does not participate`
+- `No official final / tournament cancelled`

@@ -527,7 +527,7 @@ class ForecastOSLocalRuntime {
 function buildDraft(input = {}) {
   const draftId = `draft_${randomUUID()}`;
   const draftHash = `hash_${randomUUID()}`;
-  const outcomes = input.requested_outcomes ?? input.outcomes ?? [];
+  const outcomes = normalizeDraftOutcomes(input.requested_outcomes ?? input.outcomes ?? []);
   const missingFields = [];
   const warnings = [];
   const closeTime = normalizeUtcIso(input.requested_close_time, "close_time", warnings);
@@ -543,6 +543,12 @@ function buildDraft(input = {}) {
   if (!resolutionTime) missingFields.push("resolution_time");
 
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
+  if (outcomes.length > 0 && outcomes.length < 3) {
+    missingFields.push("at_least_three_outcomes");
+    blockingIssues.push(
+      "ForecastOS defaults to multi-outcome markets and requires at least three explicit outcomes. Split yes/no-shaped prompts into concrete mutually exclusive outcomes.",
+    );
+  }
   const market = {
     market_type: "multi_outcome",
     title: input.title ?? titleFromPrompt(input.prompt),
@@ -577,6 +583,16 @@ function buildDraft(input = {}) {
     review_message: buildFriendlyReviewMessage({ market, quality: { blocking_issues: blockingIssues, warnings } }),
     created_at: new Date().toISOString(),
   };
+}
+
+function normalizeDraftOutcomes(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function ensureState(state, event) {
@@ -903,6 +919,7 @@ function approvalResponseText(event = {}) {
 function buildFriendlyReviewMessage(draft) {
   const market = draft.market ?? {};
   const quality = draft.quality ?? {};
+  const needs = quality.blocking_issues?.length;
   const lines = [
     "Draft ready for review.",
     market.title ? `Market: ${market.title}` : null,
@@ -916,7 +933,9 @@ function buildFriendlyReviewMessage(draft) {
       ? `Needs: ${quality.blocking_issues.join(" ")}`
       : null,
     quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
-    "Reply yes to approve this draft.",
+    needs
+      ? "Next: send the missing details or tell me what to change."
+      : "Next: reply yes to approve, or tell me what you want changed.",
   ].filter(Boolean);
   return lines.join("\\n");
 }

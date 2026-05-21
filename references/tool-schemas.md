@@ -4,7 +4,7 @@ These shapes are for `scripts/forecastos_action.mjs` and bundled runtime calls. 
 
 ## draft_market
 
-Always prefer `preferred_market_type: "multi_outcome"` and provide explicit `requested_outcomes` when known. Do not ask the user for chain selection; ForecastOS reads `precog.chain_id` from `.forecastos/config.json`. Do not ask for collateral in the normal flow; ForecastOS defaults to Base USDC unless the operator explicitly requests another collateral.
+Always use `preferred_market_type: "multi_outcome"` and provide at least three explicit `requested_outcomes`. Do not use only `Yes` and `No` unless the user explicitly asks to leave ForecastOS' default behavior. For yes/no-shaped prompts, split the negative side into objective outcomes such as `Target event happens`, `Entity eliminated before target event`, `Entity does not qualify or participate`, and `No official result / event cancelled`. Do not ask the user for chain selection; ForecastOS reads `precog.chain_id` from `.forecastos/config.json`. Do not ask for collateral in the normal flow; ForecastOS defaults to Base USDC unless the operator explicitly requests another collateral.
 
 ```json
 {
