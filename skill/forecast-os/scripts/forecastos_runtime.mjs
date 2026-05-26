@@ -119,6 +119,60 @@ class ForecastOSLocalRuntime {
     return normalizeCreateResponse(response, draft, createInput);
   }
 
+  async prepareCreateIntent(input) {
+    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const createInput = {
+      ...input,
+      chain_id: config.chain_id,
+      collateral_address: input.collateral_address ?? requireDefaultCollateralAddress(config),
+      collateral_symbol: input.collateral_symbol ?? config.default_collateral_symbol,
+    };
+    requireFields(createInput, ["image_url"], "prepare_create_intent");
+    const approvalContext = await resolveApprovalContext(this.store, createInput);
+    const draftId = createInput.draft_id ?? approvalContext?.draft_id ?? approvalContext?.approved_draft_id;
+    const draft = await this.store.get(draftId);
+    if (!draft) fail(`Draft not found: ${draftId}`);
+    if (draft.quality.blocking_issues.length) {
+      fail(`Draft has blocking issues: ${draft.quality.blocking_issues.join(", ")}`);
+    }
+    validateDraftApproval(draft, createInput, approvalContext);
+    const payloadTemplate = buildCreatePayload(
+      draft,
+      {
+        ...createInput,
+        creator_address: "<wallet_address>",
+        creator_signature: "<wallet_signature>",
+      },
+      this.now,
+    );
+    return withoutUndefined({
+      intent_type: "forecastos.create_market",
+      wallet_tool_hint: "Use any configured wallet/action tool. If none is configured, use the Precog launchpad instead of asking the user for raw signatures.",
+      launchpad_fallback_url: "https://core.precog.markets/launchpad/",
+      wallet_runtime_candidates: ["codex", "claude_code", "openclaw"],
+      wallet_policy_required: ["eip712_typed_data_signing"],
+      chain_id: config.chain_id,
+      collateral_symbol: createInput.collateral_symbol,
+      collateral_address: createInput.collateral_address,
+      signature_method: "eip712_typed_data",
+      eip712_typed_data_template: buildPrecogAuthorizationTypedDataTemplate({
+        config,
+        action: config.signature_actions.create_market,
+        account: "<creator_address>",
+        nonce: "<next_pending_nonce>",
+      }),
+      wallet_resolution_required: ["creator_address", "creator_signature"],
+      resolved_action: "create_market",
+      precog_payload_template: payloadTemplate,
+      notes: [
+        "ForecastOS does not fetch nonces, sign EIP-712 typed data, custody wallets, or ask users to paste raw signatures in normal chat.",
+        "Use a configured wallet/action tool with policy permission for EIP-712 typed-data signing.",
+        "The wallet/action tool resolves this intent into creator_address and creator_signature.",
+        "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/.",
+      ],
+    });
+  }
+
   async runSkillStep(state = {}, event = {}) {
     const current = ensureState(state, event);
 

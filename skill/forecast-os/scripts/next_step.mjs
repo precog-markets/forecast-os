@@ -29,6 +29,7 @@ function guidanceFor(step, workflow) {
 
   const commands = {
     runSkillStep: "node scripts/forecastos_action.mjs run_skill_step --input <json-file>",
+    prepareCreateIntent: "node scripts/forecastos_action.mjs prepare_create_intent --input <json-file>",
     createMarket: "node scripts/forecastos_action.mjs create_market --input <json-file>",
     awaitPrecog:
       "node scripts/forecastos_action.mjs await_precog_approval --input <json-file>",
@@ -76,18 +77,19 @@ function guidanceFor(step, workflow) {
 
   if (step === "create_market") {
     return {
-      next_action: "create_market",
+      next_action: "prepare_create_intent",
       needs_human_input: true,
       required_fields: [
         "image_url",
         "wallet_or_action_tool availability",
       ],
-      suggested_command: commands.createMarket,
+      suggested_command: commands.prepareCreateIntent,
       notes: [
         "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this?",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/ to create the market.",
-        "Before creation, any wallet/action tool must allow EIP-712 typed-data signing.",
+        "Before creation, any wallet/action tool must allow EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
+        "After the wallet/action tool resolves creator_address and creator_signature, call create_market.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
       ],

@@ -20,6 +20,7 @@ Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled ac
 - Do not require MCP for normal drafting or creation. Use MCP only when extra read-only docs, templates, examples, capability metadata, or workflow inspection would help.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - For live creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. If no tooling is available, send them to https://core.precog.markets/launchpad/.
+- For creation, first generate a wallet-agnostic `prepare_create_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
 - For funding, first generate a wallet-agnostic `prepare_funding_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing, token approval if needed, and the final signed payload.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.

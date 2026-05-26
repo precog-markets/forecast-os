@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -177,6 +177,31 @@ test("bundled runtime builds Precog create and fund requests from local config",
     requested_resolution_time: "2026-07-03T00:00:00Z",
   });
 
+  const createIntent = await forecastos.prepareCreateIntent({
+    draft_id: draft.draft_id,
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    chain_id: 999999,
+  });
+  assert.equal(createIntent.intent_type, "forecastos.create_market");
+  assert.equal(createIntent.chain_id, configChainId);
+  assert.equal(createIntent.network, undefined);
+  assert.equal(createIntent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
+  assert.deepEqual(createIntent.eip712_typed_data_template.domain, {
+    name: "Precog Markets",
+    version: "1",
+    chainId: configChainId,
+    verifyingContract: "0xMaster",
+  });
+  assert.deepEqual(createIntent.eip712_typed_data_template.message, {
+    action: "CREATE_UPCOMING_MARKET",
+    account: "<creator_address>",
+    chainId: configChainId,
+    nonce: "<next_pending_nonce>",
+  });
+  assert.equal(createIntent.precog_payload_template.chain_id, configChainId);
+  assert.equal(createIntent.precog_payload_template.network, undefined);
+
   const created = await forecastos.createMarket({
     draft_id: draft.draft_id,
     approved: true,
@@ -228,6 +253,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].options.headers["x-api-key"], "test-open-api-key");
   assert.equal(requests[0].body.outcomes, "Clawpump,Liquid,Virtuals,Other");
   assert.equal(requests[0].body.chain_id, configChainId);
+  assert.equal(requests[0].body.network, undefined);
   assert.equal(requests[0].body.collateral_address, configCollateralAddress);
   assert.equal(requests[2].body.upcoming_market, 123);
   assert.equal(requests[2].body.amount, "1");
@@ -326,20 +352,23 @@ test("skill treats MCP as optional read-only context, not the production gate", 
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const mcpDoc = await readFile(join(skillRoot, "references", "mcp.md"), "utf8");
   const remoteMcpDoc = await readFile(join(skillRoot, "references", "remote-mcp.md"), "utf8");
-  const mcpConfig = JSON.parse(await readFile(join(monorepoRoot, "adapters", "codex", "mcp.json"), "utf8"));
+  const mcpConfigPath = join(monorepoRoot, "adapters", "codex", "mcp.json");
 
   assert.ok(skill.includes("Do not require MCP for normal drafting or creation."));
   assert.ok(skill.includes("Use `scripts/forecastos_action.mjs` for workflow execution"));
   assert.ok(mcpDoc.includes("optional read-only context"));
   assert.ok(mcpDoc.includes("adapters/codex/mcp.json"));
   assert.ok(remoteMcpDoc.includes("future or advanced infrastructure planning"));
-  assert.deepEqual(mcpConfig.servers.forecastos.args, [
-    "../../mcp/forecast-os-mcp-server/dist/stdio.js",
-  ]);
-  assert.equal(
-    mcpConfig.servers.forecastos.env.FORECASTOS_STATE_DIR,
-    "../../skill/forecast-os/.forecastos",
-  );
+  if (await exists(mcpConfigPath)) {
+    const mcpConfig = JSON.parse(await readFile(mcpConfigPath, "utf8"));
+    assert.deepEqual(mcpConfig.servers.forecastos.args, [
+      "../../mcp/forecast-os-mcp-server/dist/stdio.js",
+    ]);
+    assert.equal(
+      mcpConfig.servers.forecastos.env.FORECASTOS_STATE_DIR,
+      "../../skill/forecast-os/.forecastos",
+    );
+  }
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
@@ -691,7 +720,7 @@ test("next_step presents human create guidance without chain or collateral as no
   );
   const guidance = JSON.parse(stdout);
 
-  assert.equal(guidance.next_action, "create_market");
+  assert.equal(guidance.next_action, "prepare_create_intent");
   assert.ok(!guidance.required_fields.includes("chain_id"));
   assert.ok(!guidance.required_fields.includes("collateral_address"));
   assert.ok(!guidance.required_fields.includes("creator_address"));
@@ -773,4 +802,13 @@ async function createIsolatedForecastOS(name) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -66,6 +66,10 @@ assert(
   precogConfig.precog?.signature_actions?.create_market && precogConfig.precog?.signature_actions?.fund_market,
   ".forecastos/config.json needs precog.signature_actions.create_market and fund_market",
 );
+assert(
+  precogConfig.precog.signature_actions.create_market === "CREATE_UPCOMING_MARKET",
+  ".forecastos/config.json precog.signature_actions.create_market must match backend CREATE_UPCOMING_MARKET",
+);
 await assertMissing(join(root, "mcp.json"), "mcp.json belongs in adapters/, not inside the portable skill");
 await assertMissing(join(root, "mcp"), "MCP package belongs in repo mcp/, not inside the portable skill");
 await assertMissing(join(root, "scripts", "sign_precog_message.mjs"), "sign_precog_message.mjs should not exist");

@@ -9,6 +9,7 @@ const ACTIONS = new Set([
   "draft_market",
   "run_skill_step",
   "create_market",
+  "prepare_create_intent",
   "await_precog_approval",
   "prepare_funding_intent",
   "fund_market",
@@ -137,6 +138,7 @@ async function dispatch(forecastos, actionName, input) {
     return forecastos.runSkillStep(input.state, input.event ?? {});
   }
   if (actionName === "create_market") return forecastos.createMarket(input);
+  if (actionName === "prepare_create_intent") return forecastos.prepareCreateIntent(input);
   if (actionName === "await_precog_approval") {
     return forecastos.awaitPrecogApproval(input.state, input.event ?? {});
   }
