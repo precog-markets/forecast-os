@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forecastos.local/schemas/actions.json",
+  "title": "ForecastOS Action Inputs",
+  "type": "object",
+  "definitions": {
+    "draft_market": {
+      "type": "object",
+      "required": [
+        "prompt"
+      ],
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_context": {
+          "type": "string"
+        },
+        "preferred_category": {
+          "type": "string",
+          "enum": [
+            "agent_launch",
+            "revenue",
+            "integration",
+            "strategy",
+            "sentiment",
+            "other"
+          ]
+        },
+        "preferred_market_type": {
+          "type": "string",
+          "const": "multi_outcome"
+        },
+        "requested_outcomes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "source_hints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested_close_time": {
+          "type": "string"
+        },
+        "requested_resolution_time": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "create_market": {
+      "type": "object",
+      "required": [
+        "approved",
+        "approved_by",
+        "image_url",
+        "creator_address",
+        "creator_signature"
+      ],
+      "properties": {
+        "draft_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workflow_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved": {
+          "type": "boolean",
+          "const": true
+        },
+        "approved_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_draft_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_draft_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "object"
+        },
+        "operator_wallet_reference": {
+          "type": "string"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_timestamp": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "end_timestamp": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "collateral_address": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional advanced override. Defaults to Base USDC from .forecastos/config.json."
+        },
+        "creator_address": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
+        },
+        "creator_signature": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
+        },
+        "creator_email": {
+          "type": "string"
+        },
+        "collateral_symbol": {
+          "type": "string",
+          "description": "Optional context label for a collateral override; defaults to config default_collateral_symbol."
+        }
+      },
+      "additionalProperties": true
+    },
+    "prepare_funding_intent": {
+      "type": "object",
+      "required": [
+        "state",
+        "amount"
+      ],
+      "properties": {
+        "state": {
+          "type": "object"
+        },
+        "provider": {
+          "type": "string",
+          "description": "Optional label for a configured wallet/action tool. ForecastOS does not provide built-in support for any specific provider."
+        },
+        "wallet_provider": {
+          "type": "string",
+          "description": "Optional label for a configured wallet/action tool. ForecastOS does not provide built-in support for any specific provider."
+        },
+        "upcoming_market": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+          "description": "Precog display-unit amount as a plain positive decimal string; wallet resolves token-specific execution."
+        },
+        "funding_asset": {
+          "type": "string"
+        },
+        "collateral_symbol": {
+          "type": "string"
+        },
+        "collateral_address": {
+          "type": "string"
+        },
+        "event": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "fund_market": {
+      "type": "object",
+      "required": [
+        "approved",
+        "state",
+        "amount",
+        "tx_hash",
+        "funder_address",
+        "funder_signature"
+      ],
+      "properties": {
+        "approved": {
+          "type": "boolean",
+          "const": true
+        },
+        "upcoming_market": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+          "description": "Precog display-unit amount as a plain positive decimal string; do not use base units, token symbols, commas, spaces, or exponent notation."
+        },
+        "tx_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "funder_address": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
+        },
+        "funder_signature": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt."
+        },
+        "state": {
+          "type": "object"
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "funding_request": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "description": "Optional label for a configured wallet/action tool."
+                },
+                "amount": {
+                  "type": "string",
+                  "pattern": "^(?:0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$"
+                },
+                "funding_asset": {
+                  "type": "string"
+                },
+                "collateral_symbol": {
+                  "type": "string"
+                },
+                "asset": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "await_precog_approval": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object",
+          "required": [
+            "market_id"
+          ],
+          "properties": {
+            "workflow_id": {
+              "type": "string"
+            },
+            "step": {
+              "type": "string",
+              "const": "await_precog_approval"
+            },
+            "market_id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "upcoming_market": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "upcoming_market": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "consume_prediction": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object",
+          "required": [
+            "market_id"
+          ],
+          "properties": {
+            "workflow_id": {
+              "type": "string"
+            },
+            "step": {
+              "type": "string",
+              "const": "consume_prediction"
+            },
+            "market_id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "upcoming_market": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "deployed_market_id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "master_market_id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "deployed_market_id": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "upcoming_market": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            },
+            "prediction_request": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "market_id": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                },
+                "master_market_id": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                },
+                "deployed_market_id": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                },
+                "upcoming_market": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

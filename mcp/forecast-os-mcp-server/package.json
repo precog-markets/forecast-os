@@ -1,0 +1,33 @@
+{
+  "name": "forecast-os-mcp-server",
+  "version": "0.1.0",
+  "description": "Read-only ForecastOS MCP server for remote context, templates, schemas, and workflow inspection.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "forecast-os-mcp-server": "./dist/stdio.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run build && npm run typecheck && npm test",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "start": "node dist/stdio.js",
+    "start:http": "node dist/http.js",
+    "docker:build": "docker build -t forecast-os-mcp:latest .",
+    "docker:run": "docker run --rm -p 3001:3001 --name forecast-os-mcp forecast-os-mcp:latest",
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "sync:resources": "node scripts/sync-resources.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,8 @@
+**/.git
+**/node_modules
+**/test-output
+**/api-test-output
+**/.forecastos/config.local.json
+**/*.log
+coverage
+dist
