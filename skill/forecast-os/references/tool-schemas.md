@@ -54,6 +54,8 @@ Use this after the draft is approved and before wallet-specific creation. Foreca
 
 The returned typed data uses `message.action = CREATE_UPCOMING_MARKET`, config chain ID, and config verifying contract. The wallet/action tool resolves the current pending nonce, selected creator account, and final EIP-712 signature.
 
+Supply a square `image_url` when one is readily available, especially for official/social images that are already square-cropped. The bundled runtime validates only that `image_url` is an HTTP(S) URL; it does not inspect dimensions, crop, resize, or reject non-square images.
+
 ## create_market
 
 ```json
@@ -74,7 +76,7 @@ For normal chat flows, the user can approve by replying `yes`; the workflow stor
 
 `creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. Ask which wallet or wallet/action tool the user wants to use; if none is available, send them to https://core.precog.markets/launchpad/. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = CREATE_UPCOMING_MARKET`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
 
-`image_url` is required for the live Precog create endpoint. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral. ForecastOS sends config chain ID as create payload `chain_id`, not as a chat-facing chain choice.
+`image_url` is required for the live Precog create endpoint. Prefer a square `image_url` when one is readily available, but keep non-square images valid when they are the most relevant trusted source. The bundled runtime validates only that `image_url` is an HTTP(S) URL; it does not inspect dimensions, crop, resize, or reject non-square images. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral. ForecastOS sends config chain ID as create payload `chain_id`, not as a chat-facing chain choice.
 
 ## await_precog_approval
 

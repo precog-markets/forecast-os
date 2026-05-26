@@ -94,6 +94,7 @@ Creation payload hygiene:
 - `question` is normalized to end with `?`.
 - `start_timestamp` and `end_timestamp` are derived from UTC times.
 - `image_url` must be an `http` or `https` URL.
+- `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
