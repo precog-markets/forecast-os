@@ -34,6 +34,7 @@ test("resources include remote-ready ForecastOS context", async () => {
   assert.ok(uris.includes("forecastos://docs/install"));
   assert.ok(uris.includes("forecastos://docs/wallet-adapters"));
   assert.ok(uris.includes("forecastos://docs/external-markets"));
+  assert.ok(uris.includes("forecastos://docs/precog-liquidity"));
   assert.ok(uris.includes("forecastos://docs/providers/polymarket-read"));
   assert.ok(uris.includes("forecastos://docs/providers/kalshi-read"));
   assert.ok(uris.includes("forecastos://templates/multi-outcome-market"));

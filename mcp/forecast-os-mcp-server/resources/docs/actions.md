@@ -112,6 +112,8 @@ For concrete wallet providers, use the matching top-level adapter under `adapter
 
 Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 
+For user-facing explanations of funding economics, read `references/precog-liquidity.md`. In short: winning outcome traders are paid first, remaining funds become the profit pool, and the profit pool is split 90% to LPs, 5% to the market creator, and 5% to the protocol. Current creator boost behavior means the protocol's 5% currently also goes to market creators through the creator boost program. Funding still requires explicit approval and must not be presented as guaranteed profit.
+
 After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/` with:
 
 ```json

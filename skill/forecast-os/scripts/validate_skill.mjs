@@ -176,6 +176,7 @@ assert(
 const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8");
 const actionPolicyDoc = await readFile(join(root, "references", "action-policy.md"), "utf8");
 const externalMarketsDoc = await readFile(join(root, "references", "external-markets.md"), "utf8");
+const precogLiquidityDoc = await readFile(join(root, "references", "precog-liquidity.md"), "utf8");
 assert(
   actionsDoc.includes("prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent"),
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
@@ -211,6 +212,43 @@ assert(
 assert(
   externalMarketsDoc.includes("avoid presenting a guessed probability as market-implied"),
   "references/external-markets.md must distinguish no-market findings from guessed probabilities",
+);
+const liquidityDocs = [skill, actionsDoc, actionPolicyDoc, precogLiquidityDoc].join("\n");
+assert(
+  skill.includes("Liquidity And Creator Economics") && skill.includes("references/precog-liquidity.md"),
+  "SKILL.md must route liquidity and creator economics questions to the Precog liquidity reference",
+);
+assert(
+  liquidityDocs.includes("profit pool"),
+  "skill docs must explain the Precog profit pool",
+);
+assert(
+  liquidityDocs.includes("90% to LPs"),
+  "skill docs must document 90% to LPs",
+);
+assert(
+  liquidityDocs.includes("5% to the market creator"),
+  "skill docs must document 5% to the market creator",
+);
+assert(
+  liquidityDocs.includes("creator boost"),
+  "skill docs must document current creator boost behavior",
+);
+assert(
+  liquidityDocs.includes("LP positions are locked until market resolution"),
+  "skill docs must state LP positions are locked until market resolution",
+);
+assert(
+  liquidityDocs.toLowerCase().includes("funding still requires explicit approval"),
+  "skill docs must state funding still requires explicit approval",
+);
+assert(
+  precogLiquidityDoc.includes("Virtual liquidity") && precogLiquidityDoc.includes("Max Loss"),
+  "references/precog-liquidity.md must explain virtual liquidity and Max Loss",
+);
+assert(
+  precogLiquidityDoc.includes("not a permanent guarantee") && precogLiquidityDoc.includes("not guaranteed"),
+  "references/precog-liquidity.md must avoid treating creator boost or earnings as guaranteed",
 );
 
 const forbidden = /(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve|bridge)/;

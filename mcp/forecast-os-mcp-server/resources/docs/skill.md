@@ -25,6 +25,10 @@ search, not as a replacement for prediction-market discovery. If no market is
 found, say that clearly and do not present qualitative reasoning as
 market-implied probability.
 
+## Liquidity And Creator Economics
+
+When users ask how creators earn, how LPs earn, how funding works, or whether creating/funding has upside or risk, explain the Precog resolution waterfall: winning outcome traders are paid first, remaining funds become the profit pool, and the profit pool is split 90% to LPs, 5% to the market creator, and 5% to the protocol. Current creator boost behavior means the protocol's 5% currently also goes to market creators through the creator boost program. Treat earnings as possible, not guaranteed; funding still requires explicit operator approval and the wallet/action safeguards below.
+
 ## Core Rules
 
 - Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
@@ -62,6 +66,7 @@ Present a friendly draft summary before Precog creation. Do not expose raw JSON,
 - Read `references/workflow.md` for the workflow graph and `.forecastos/` status folders.
 - Read `references/actions.md` before running `scripts/forecastos_action.mjs`.
 - Read `references/action-policy.md` before create, fund, approval, wallet, or prediction actions.
+- Read `references/precog-liquidity.md` when a user asks how Precog creator earnings, LP returns, profit pools, funding risk, or virtual liquidity work.
 - Read `references/safety.md` when a task touches live API calls, funding, signing, or secrets.
 - Read `references/wallet-adapters.md` when the operator chooses a concrete wallet/action provider for creation or funding.
 - Read `references/mcp.md` only when configuring or inspecting optional read-only MCP context.

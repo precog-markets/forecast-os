@@ -21,6 +21,7 @@ const copies = [
   ["references/remote-mcp.md", "docs/remote-mcp.md"],
   ["references/actions.md", "docs/actions.md"],
   ["references/action-policy.md", "docs/action-policy.md"],
+  ["references/precog-liquidity.md", "docs/precog-liquidity.md"],
   ["references/tool-schemas.md", "docs/tool-schemas.md"],
   ["references/wallet-adapters.md", "docs/wallet-adapters.md"],
   ["references/external-markets.md", "docs/external-markets.md"],

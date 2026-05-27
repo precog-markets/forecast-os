@@ -25,6 +25,8 @@ intake
 - `consume_prediction`: wait for the upcoming market to become `DEPLOYED`, then check the upcoming market using config `precog.chain_id` and `id`, then fetch the deployed market from `/api/v1/markets/` using config `deployed_master_address`.
 - `done`: workflow has fetched the deployed market and stored a compact planning signal.
 
+Funding is both a workflow step and a liquidity action. Read `references/precog-liquidity.md` before explaining creator earnings, LP returns, profit pools, funding risk, or virtual liquidity. Funding still requires explicit operator approval and the `VALIDATED` Precog approval state.
+
 ## Local State Layout
 
 ```txt

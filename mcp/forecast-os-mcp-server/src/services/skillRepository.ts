@@ -65,6 +65,12 @@ export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
     path: "docs/action-policy.md",
     mimeType: "text/markdown",
   },
+  "forecastos://docs/precog-liquidity": {
+    uri: "forecastos://docs/precog-liquidity",
+    name: "ForecastOS Precog liquidity and creator economics",
+    path: "docs/precog-liquidity.md",
+    mimeType: "text/markdown",
+  },
   "forecastos://docs/tool-schemas": {
     uri: "forecastos://docs/tool-schemas",
     name: "ForecastOS action input schemas",

@@ -481,6 +481,30 @@ test("skill triggers for prediction-market discovery before probability guesses"
   assert.ok(agentMetadata.includes("avoid guessing future-event probabilities"));
 });
 
+test("skill documents Precog liquidity and creator economics", async () => {
+  const files = [
+    "SKILL.md",
+    "references/actions.md",
+    "references/action-policy.md",
+    "references/tool-schemas.md",
+    "references/workflow.md",
+    "references/precog-liquidity.md",
+  ];
+  const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n");
+  const liquidity = await readFile(join(skillRoot, "references", "precog-liquidity.md"), "utf8");
+
+  assert.ok(combined.includes("Liquidity And Creator Economics"));
+  assert.ok(combined.includes("profit pool"));
+  assert.ok(combined.includes("90% to LPs"));
+  assert.ok(combined.includes("5% to the market creator"));
+  assert.ok(combined.includes("creator boost"));
+  assert.ok(combined.includes("LP positions are locked until market resolution"));
+  assert.ok(combined.toLowerCase().includes("funding still requires explicit approval"));
+  assert.ok(liquidity.includes("Virtual liquidity"));
+  assert.ok(liquidity.includes("Max Loss"));
+  assert.ok(liquidity.includes("not guaranteed"));
+});
+
 test("skill treats MCP as optional read-only context, not the production gate", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const mcpDoc = await readFile(join(skillRoot, "references", "mcp.md"), "utf8");

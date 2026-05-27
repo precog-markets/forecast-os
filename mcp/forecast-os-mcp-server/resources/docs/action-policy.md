@@ -52,6 +52,8 @@ Configured wallet/action tooling resolves a ForecastOS funding intent into token
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
+Explaining Precog liquidity is informational and does not relax funding policy. LPs supply market liquidity and carry liquidity risk; LP positions are locked until market resolution. The post-payout profit pool is split 90% to LPs, 5% to the market creator, and 5% to the protocol, with the protocol's 5% currently also going to market creators through the creator boost program. Never frame creator or LP earnings as guaranteed profit.
+
 ## Prediction Consumption Policy
 
 An agent may attempt `consume_prediction` only when:
