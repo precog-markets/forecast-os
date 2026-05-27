@@ -17,6 +17,10 @@ const optionalReadOnlyMcpTools = [
   "forecastos_get_template",
   "forecastos_validate_market_shape",
   "forecastos_explain_next_step",
+  "forecastos_search_markets",
+  "forecastos_get_market",
+  "forecastos_get_market_prices",
+  "forecastos_get_market_orderbook",
   "forecastos_get_precog_capabilities",
   "forecastos_get_config_defaults",
 ];
@@ -100,8 +104,16 @@ await assertMissing(join(root, "agents", "analyzer.md"), "analyzer should not ex
 await assertMissing(join(root, "agents", "comparator.md"), "comparator should not exist");
 assert(skill.includes("Do not require MCP for normal drafting or creation."), "SKILL.md must frame MCP as optional");
 assert(skill.includes("Use `scripts/forecastos_action.mjs` for workflow execution"), "SKILL.md must keep action bridge as execution path");
+assert(
+  skill.includes("Use read-only external market MCP tools"),
+  "SKILL.md must route external market data through read-only MCP tools",
+);
+assert(
+  skill.includes("External market reads must never trade"),
+  "SKILL.md must forbid trading through external market reads",
+);
 
-const forbidden = /(create|fund|draft_market|run_skill_step|wallet|sign|swap)/;
+const forbidden = /(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve|bridge)/;
 for (const toolName of optionalReadOnlyMcpTools) {
   assert(!forbidden.test(toolName), `MCP tool is not read-only enough: ${toolName}`);
 }

@@ -23,6 +23,8 @@ const copies = [
   ["references/action-policy.md", "docs/action-policy.md"],
   ["references/tool-schemas.md", "docs/tool-schemas.md"],
   ["references/wallet-adapters.md", "docs/wallet-adapters.md"],
+  ["references/external-markets.md", "docs/external-markets.md"],
+  ["references/providers/polymarket-read.md", "docs/providers/polymarket-read.md"],
   ["assets/templates/multi-outcome-market.md", "templates/multi-outcome-market.md"],
   ["assets/schemas/actions.json", "schemas/actions.json"],
   ["references/examples/agent-launch.md", "examples/agent-launch.md"],

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RESOURCE_ROOT } from "../constants.js";
 import type { ForecastOSResource } from "../types.js";
+import { polymarketCapabilities } from "../tools/externalMarkets.js";
 
 export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
   "forecastos://docs/skill": {
@@ -76,6 +77,18 @@ export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
     path: "docs/wallet-adapters.md",
     mimeType: "text/markdown",
   },
+  "forecastos://docs/external-markets": {
+    uri: "forecastos://docs/external-markets",
+    name: "ForecastOS external market reads",
+    path: "docs/external-markets.md",
+    mimeType: "text/markdown",
+  },
+  "forecastos://docs/providers/polymarket-read": {
+    uri: "forecastos://docs/providers/polymarket-read",
+    name: "ForecastOS Polymarket read-only provider",
+    path: "docs/providers/polymarket-read.md",
+    mimeType: "text/markdown",
+  },
   "forecastos://templates/multi-outcome-market": {
     uri: "forecastos://templates/multi-outcome-market",
     name: "Multi-outcome market template",
@@ -121,6 +134,11 @@ export function listForecastOSResources(): ForecastOSResource[] {
       name: "ForecastOS public Precog config defaults",
       mimeType: "application/json",
     },
+    {
+      uri: "forecastos://providers/polymarket/capabilities",
+      name: "ForecastOS Polymarket read-only capability metadata",
+      mimeType: "application/json",
+    },
   ];
 }
 
@@ -142,6 +160,9 @@ export async function readForecastOSResource(uri: string): Promise<{
   }
   if (uri === "forecastos://precog/config-defaults") {
     return jsonResource(uri, await precogConfigDefaults());
+  }
+  if (uri === "forecastos://providers/polymarket/capabilities") {
+    return jsonResource(uri, polymarketCapabilities());
   }
   throw new Error(
     `Unknown ForecastOS MCP resource '${uri}'. Use forecastos_list_resources to discover valid read-only resources.`,

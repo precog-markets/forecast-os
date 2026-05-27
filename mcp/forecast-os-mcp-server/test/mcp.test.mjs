@@ -16,6 +16,13 @@ const { READ_ONLY_TOOL_NAMES } = await import("../dist/tools/registerTools.js");
 const { truncate } = await import("../dist/services/format.js");
 const { formatMarketShapeValidation, validateMarketShape } = await import("../dist/tools/marketShape.js");
 const { explainNextStep, formatNextStepExplanation } = await import("../dist/tools/nextStep.js");
+const {
+  getExternalMarket,
+  getExternalMarketOrderbook,
+  getExternalMarketPrices,
+  searchExternalMarkets,
+} = await import("../dist/tools/externalMarkets.js");
+const { createPolymarketFixtureFetch } = await import("./fixtures/polymarket.mjs");
 
 test("resources include remote-ready ForecastOS context", async () => {
   const uris = listForecastOSResources().map((resource) => resource.uri);
@@ -23,11 +30,14 @@ test("resources include remote-ready ForecastOS context", async () => {
   assert.ok(uris.includes("forecastos://docs/remote-mcp"));
   assert.ok(uris.includes("forecastos://docs/install"));
   assert.ok(uris.includes("forecastos://docs/wallet-adapters"));
+  assert.ok(uris.includes("forecastos://docs/external-markets"));
+  assert.ok(uris.includes("forecastos://docs/providers/polymarket-read"));
   assert.ok(uris.includes("forecastos://templates/multi-outcome-market"));
   assert.ok(uris.includes("forecastos://schemas/actions"));
   assert.ok(uris.includes("forecastos://examples/full-workflow"));
   assert.ok(uris.includes("forecastos://precog/capabilities"));
   assert.ok(uris.includes("forecastos://precog/config-defaults"));
+  assert.ok(uris.includes("forecastos://providers/polymarket/capabilities"));
 });
 
 test("config defaults redact open_api_key", async () => {
@@ -50,10 +60,101 @@ test("readiness verifies bundled skill resources", async () => {
 
 test("tool names stay read-only", async () => {
   for (const name of READ_ONLY_TOOL_NAMES) {
-    assert.ok(!/(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve)/.test(name));
+    assert.ok(!/(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve|bridge)/.test(name));
   }
   assert.ok(!READ_ONLY_TOOL_NAMES.includes("forecastos_list_workflows"));
   assert.ok(!READ_ONLY_TOOL_NAMES.includes("forecastos_list_drafts"));
+  assert.ok(READ_ONLY_TOOL_NAMES.includes("forecastos_search_markets"));
+  assert.ok(READ_ONLY_TOOL_NAMES.includes("forecastos_get_market"));
+  assert.ok(READ_ONLY_TOOL_NAMES.includes("forecastos_get_market_prices"));
+  assert.ok(READ_ONLY_TOOL_NAMES.includes("forecastos_get_market_orderbook"));
+});
+
+test("Polymarket provider searches and normalizes fixture-backed public markets", async () => {
+  const fetcher = createPolymarketFixtureFetch();
+  const result = await searchExternalMarkets(
+    {
+      provider: "polymarket",
+      query: "Fed",
+      limit: 5,
+      offset: 0,
+    },
+    fetcher,
+  );
+
+  assert.equal(result.provider, "polymarket");
+  assert.equal(result.read_only, true);
+  assert.equal(result.normalized.markets.length, 1);
+  assert.equal(result.normalized.markets[0].slug, "fed-decision-in-october");
+  assert.equal(result.normalized.markets[0].outcomes.length, 3);
+  assert.ok(result.source.includes("gamma-api.polymarket.com/events"));
+});
+
+test("Polymarket provider reads market, prices, and orderbook from fixtures", async () => {
+  const fetcher = createPolymarketFixtureFetch();
+
+  const market = await getExternalMarket(
+    {
+      provider: "polymarket",
+      identifier: { polymarket: { slug: "fed-decision-in-october" } },
+    },
+    fetcher,
+  );
+  assert.equal(market.normalized.condition_id, undefined);
+  assert.equal(market.normalized.markets[0].condition_id, "0xcondition");
+
+  const prices = await getExternalMarketPrices(
+    {
+      provider: "polymarket",
+      identifier: { polymarket: { token_id: "token-hold" } },
+    },
+    fetcher,
+  );
+  assert.equal(prices.read_only, true);
+  assert.equal(prices.normalized.prices[0].token_id, "token-hold");
+  assert.equal(prices.normalized.prices[0].midpoint, "0.60");
+
+  const book = await getExternalMarketOrderbook(
+    {
+      provider: "polymarket",
+      identifier: { polymarket: { token_id: "token-hold" } },
+      depth: 1,
+    },
+    fetcher,
+  );
+  assert.equal(book.normalized.bids.length, 1);
+  assert.equal(book.normalized.asks.length, 1);
+  assert.equal(book.normalized.tick_size, "0.01");
+});
+
+test("Kalshi provider envelope is reserved but not implemented", async () => {
+  const result = await searchExternalMarkets({ provider: "kalshi", query: "fed" });
+
+  assert.equal(result.provider, "kalshi");
+  assert.equal(result.read_only, true);
+  assert.equal(result.implemented, false);
+  assert.ok(result.next_step.includes("not implemented"));
+});
+
+test("optional live Polymarket smoke test", { skip: process.env.FORECASTOS_LIVE_POLYMARKET_TEST !== "1" }, async () => {
+  const search = await searchExternalMarkets({
+    provider: "polymarket",
+    query: "Fed",
+    limit: 1,
+  });
+  assert.equal(search.provider, "polymarket");
+  assert.equal(search.read_only, true);
+  assert.ok(search.normalized.markets.length >= 1);
+
+  const tokenId = search.normalized.markets[0].outcomes?.find((outcome) => outcome.token_id)?.token_id;
+  if (tokenId) {
+    const book = await getExternalMarketOrderbook({
+      provider: "polymarket",
+      identifier: { polymarket: { token_id: tokenId } },
+      depth: 1,
+    });
+    assert.equal(book.read_only, true);
+  }
 });
 
 test("market shape validation rejects raw Yes/No and missing fields", () => {
@@ -133,6 +234,8 @@ test("stdio protocol initializes and lists resources/tools", async (t) => {
   const toolNames = tools.result.tools.map((tool) => tool.name);
   assert.ok(toolNames.includes("forecastos_validate_market_shape"));
   assert.ok(toolNames.includes("forecastos_get_config_defaults"));
+  assert.ok(toolNames.includes("forecastos_search_markets"));
+  assert.ok(toolNames.includes("forecastos_get_market_prices"));
   for (const tool of tools.result.tools) {
     assert.equal(tool.annotations.readOnlyHint, true);
     assert.equal(tool.annotations.destructiveHint, false);

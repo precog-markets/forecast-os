@@ -2,8 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   EmptyInputSchema,
   ExplainNextStepInputSchema,
+  GetExternalMarketInputSchema,
+  GetMarketOrderbookInputSchema,
+  GetMarketPricesInputSchema,
   GetResourceInputSchema,
   NamedResourceInputSchema,
+  SearchMarketsInputSchema,
   ValidateMarketShapeInputSchema,
 } from "../schemas/toolSchemas.js";
 import { jsonResult, markdownOrJsonResult, textResult } from "../services/format.js";
@@ -13,6 +17,13 @@ import {
   precogConfigDefaults,
   readForecastOSResource,
 } from "../services/skillRepository.js";
+import {
+  formatExternalMarketResult,
+  getExternalMarket,
+  getExternalMarketOrderbook,
+  getExternalMarketPrices,
+  searchExternalMarkets,
+} from "./externalMarkets.js";
 import { formatMarketShapeValidation, validateMarketShape } from "./marketShape.js";
 import { explainNextStep, formatNextStepExplanation } from "./nextStep.js";
 
@@ -30,6 +41,10 @@ export const READ_ONLY_TOOL_NAMES = Object.freeze([
   "forecastos_get_template",
   "forecastos_validate_market_shape",
   "forecastos_explain_next_step",
+  "forecastos_search_markets",
+  "forecastos_get_market",
+  "forecastos_get_market_prices",
+  "forecastos_get_market_orderbook",
   "forecastos_get_precog_capabilities",
   "forecastos_get_config_defaults",
 ]);
@@ -129,6 +144,62 @@ export function registerForecastOSTools(server: McpServer): void {
         input.response_format,
         formatNextStepExplanation(guidance),
       );
+    },
+  );
+
+  server.registerTool(
+    "forecastos_search_markets",
+    {
+      title: "Search External Prediction Markets",
+      description: "Read-only search across external prediction-market providers. Polymarket is implemented; Kalshi is reserved for the same provider envelope.",
+      inputSchema: SearchMarketsInputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async (input) => {
+      const result = await searchExternalMarkets(input);
+      return markdownOrJsonResult(result, input.response_format, formatExternalMarketResult(result));
+    },
+  );
+
+  server.registerTool(
+    "forecastos_get_market",
+    {
+      title: "Get External Prediction Market",
+      description: "Read one external prediction-market event or market by provider-neutral identifier. This is read-only context and never mutates ForecastOS workflow state.",
+      inputSchema: GetExternalMarketInputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async (input) => {
+      const result = await getExternalMarket(input);
+      return markdownOrJsonResult(result, input.response_format, formatExternalMarketResult(result));
+    },
+  );
+
+  server.registerTool(
+    "forecastos_get_market_prices",
+    {
+      title: "Get External Market Prices",
+      description: "Read public external market prices. For Polymarket this uses unauthenticated CLOB token price endpoints only.",
+      inputSchema: GetMarketPricesInputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async (input) => {
+      const result = await getExternalMarketPrices(input);
+      return markdownOrJsonResult(result, input.response_format, formatExternalMarketResult(result));
+    },
+  );
+
+  server.registerTool(
+    "forecastos_get_market_orderbook",
+    {
+      title: "Get External Market Orderbook",
+      description: "Read a public external market orderbook. For Polymarket this requires an outcome token_id and uses unauthenticated CLOB reads only.",
+      inputSchema: GetMarketOrderbookInputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async (input) => {
+      const result = await getExternalMarketOrderbook(input);
+      return markdownOrJsonResult(result, input.response_format, formatExternalMarketResult(result));
     },
   );
 

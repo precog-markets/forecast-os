@@ -18,6 +18,7 @@ Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled ac
 - Default to Base USDC collateral from `.forecastos/config.json`; only use another `collateral_address` when the operator explicitly asks for it.
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Do not require MCP for normal drafting or creation. Use MCP only when extra read-only docs, templates, examples, capability metadata, or workflow inspection would help.
+- Use read-only external market MCP tools for market discovery, comparable market context, public prices, or public orderbook context. External market reads must never trade, place/cancel orders, authenticate users, sign, bridge, custody wallets, or mutate ForecastOS workflow state.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - For live creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. If no tooling is available, send them to https://core.precog.markets/launchpad/.
 - For creation, first generate a wallet-agnostic `prepare_create_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
@@ -47,6 +48,7 @@ Present a friendly draft summary before creation. Do not expose raw JSON, workfl
 - Read `references/wallet-adapters.md` when the operator chooses a concrete wallet/action provider for creation or funding.
 - Read `references/mcp.md` only when configuring or inspecting optional read-only MCP context.
 - Read `references/remote-mcp.md` only for future/advanced hosted MCP planning.
+- Read `references/external-markets.md` before using external prediction-market read tools; read `references/providers/polymarket-read.md` for Polymarket-specific public reads.
 - Read `references/tool-schemas.md` or `assets/schemas/actions.json` for action input shapes.
 - Use `assets/templates/multi-outcome-market.md` when drafting a market structure.
 - Use `references/examples/` only when an example is directly relevant.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const ResponseFormatSchema = z.enum(["markdown", "json"]).default("markdown");
+export const ExternalMarketProviderSchema = z.enum(["polymarket", "kalshi"]).default("polymarket");
 
 export const EmptyInputSchema = z.object({}).strict();
 
@@ -52,6 +53,70 @@ export const ExplainNextStepInputSchema = z
       })
       .passthrough()
       .optional(),
+    response_format: ResponseFormatSchema.optional(),
+  })
+  .strict();
+
+export const PolymarketIdentifierSchema = z
+  .object({
+    slug: z.string().min(1).optional(),
+    event_id: z.union([z.string().min(1), z.number()]).optional(),
+    market_id: z.union([z.string().min(1), z.number()]).optional(),
+    condition_id: z.string().min(1).optional(),
+    token_id: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const KalshiIdentifierSchema = z
+  .object({
+    ticker: z.string().min(1).optional(),
+    event_ticker: z.string().min(1).optional(),
+    series_ticker: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const ExternalMarketIdentifierSchema = z
+  .object({
+    polymarket: PolymarketIdentifierSchema.optional(),
+    kalshi: KalshiIdentifierSchema.optional(),
+  })
+  .strict();
+
+export const SearchMarketsInputSchema = z
+  .object({
+    provider: ExternalMarketProviderSchema.optional(),
+    query: z.string().min(1).optional(),
+    slug: z.string().min(1).optional(),
+    tag_id: z.union([z.string().min(1), z.number()]).optional(),
+    status: z.enum(["active", "closed", "all"]).default("active").optional(),
+    limit: z.number().int().min(1).max(100).default(20).optional(),
+    offset: z.number().int().min(0).default(0).optional(),
+    response_format: ResponseFormatSchema.optional(),
+  })
+  .strict();
+
+export const GetExternalMarketInputSchema = z
+  .object({
+    provider: ExternalMarketProviderSchema.optional(),
+    identifier: ExternalMarketIdentifierSchema,
+    response_format: ResponseFormatSchema.optional(),
+  })
+  .strict();
+
+export const GetMarketPricesInputSchema = z
+  .object({
+    provider: ExternalMarketProviderSchema.optional(),
+    identifier: ExternalMarketIdentifierSchema,
+    side: z.enum(["BUY", "SELL"]).optional(),
+    response_format: ResponseFormatSchema.optional(),
+  })
+  .strict();
+
+export const GetMarketOrderbookInputSchema = z
+  .object({
+    provider: ExternalMarketProviderSchema.optional(),
+    identifier: ExternalMarketIdentifierSchema,
+    depth: z.number().int().min(1).max(100).default(25).optional(),
     response_format: ResponseFormatSchema.optional(),
   })
   .strict();

@@ -45,6 +45,8 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos://docs/action-policy`
 - `forecastos://docs/tool-schemas`
 - `forecastos://docs/remote-mcp`
+- `forecastos://docs/external-markets`
+- `forecastos://docs/providers/polymarket-read`
 - `forecastos://templates/multi-outcome-market`
 - `forecastos://schemas/actions`
 - `forecastos://examples/agent-launch`
@@ -52,6 +54,7 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos://examples/full-workflow`
 - `forecastos://precog/capabilities`
 - `forecastos://precog/config-defaults`
+- `forecastos://providers/polymarket/capabilities`
 
 ## Tools
 
@@ -63,6 +66,10 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos_explain_next_step`
 - `forecastos_get_precog_capabilities`
 - `forecastos_get_config_defaults`
+- `forecastos_search_markets`
+- `forecastos_get_market`
+- `forecastos_get_market_prices`
+- `forecastos_get_market_orderbook`
 
 These are read-only inspection tools. If an agent needs to execute, route through `scripts/forecastos_action.mjs`.
 
