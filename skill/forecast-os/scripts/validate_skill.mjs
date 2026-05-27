@@ -288,10 +288,13 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "adapters", "hosts"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
+  await assertDir(join(monorepoRoot, "adapters", "wallets", "base-mcp"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "privy"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "test"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "contract.md"));
+  await assertFile(join(monorepoRoot, "adapters", "wallets", "base-mcp", "resolve_funding.mjs"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
+  await assertBaseMcpWalletAdapter(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
@@ -309,6 +312,37 @@ async function assertMonorepoShape(monorepoRoot) {
   assert(
     codexConfig.servers.forecastos.env?.FORECASTOS_STATE_DIR === "../../../skill/forecast-os/.forecastos",
     "adapters/hosts/codex/mcp.json must point FORECASTOS_STATE_DIR at ../../../skill/forecast-os/.forecastos",
+  );
+}
+
+async function assertBaseMcpWalletAdapter(monorepoRoot) {
+  const basePlugin = await readFile(
+    join(monorepoRoot, "adapters", "wallets", "base-mcp", "plugins", "forecast-os.md"),
+    "utf8",
+  );
+  assert(
+    basePlugin.includes("STOP - COMPLETE BASE MCP ONBOARDING BEFORE WALLET ACTIONS"),
+    "Base plugin spec must include the Base MCP onboarding gate",
+  );
+  assert(
+    basePlugin.includes("complementary to that") && basePlugin.includes("host adapter"),
+    "Base MCP plugin spec must describe Base as complementary to host adapters",
+  );
+  assert(
+    basePlugin.includes("get_wallets") && basePlugin.includes("send_calls") && basePlugin.includes('"chain": "base"'),
+    "Base plugin spec must document get_wallets and send_calls chain mapping",
+  );
+  assert(
+    basePlugin.includes("resolve_funding.mjs") && basePlugin.includes("unsigned calldata envelope"),
+    "Base MCP plugin spec must document the funding resolver and prepared calldata requirement",
+  );
+  assert(
+    basePlugin.includes("Creation is not a `send_calls` flow"),
+    "Base plugin spec must not misrepresent ForecastOS creation as send_calls calldata",
+  );
+  assert(
+    basePlugin.includes("If no unsigned calldata envelope or ordered transaction batch is available, do not invent calldata"),
+    "Base plugin spec must guard funding calldata availability",
   );
 }
 

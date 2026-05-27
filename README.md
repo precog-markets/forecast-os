@@ -1,6 +1,6 @@
 # ForecastOS
 
-ForecastOS is an agent kit for human-approved multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
+ForecastOS is an agent kit for multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
 
 The skill is the agent behavior contract. MCP is context infrastructure. Live execution stays in the ForecastOS action bridge and trusted wallet/action tooling.
 
@@ -21,13 +21,28 @@ The portable skill lives in:
 skill/forecast-os
 ```
 
-To install it for Codex, copy or sync that folder to:
+To install from this repo into Codex, copy or symlink the skill folder into your
+Codex skills directory.
+
+macOS / Linux:
 
 ```txt
-C:\Users\<you>\.codex\skills\forecast-os
+mkdir -p ~/.codex/skills
+ln -s /path/to/forecast-os/skill/forecast-os ~/.codex/skills/forecast-os
 ```
 
-After installing or updating the skill, restart Codex so it reloads skill metadata.
+Windows PowerShell:
+
+```txt
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.codex\skills"
+New-Item -ItemType SymbolicLink `
+  -Path "$env:USERPROFILE\.codex\skills\forecast-os" `
+  -Target "C:\path\to\forecast-os\skill\forecast-os"
+```
+
+For a fixed install instead of live repo development, copy `skill/forecast-os`
+to the same destination. After installing or updating the skill, restart Codex
+so it reloads skill metadata.
 
 The skill also works without MCP. Agents can use `SKILL.md`, `references/`, `scripts/`, `assets/`, and `.forecastos/config.json` directly from the skill folder.
 

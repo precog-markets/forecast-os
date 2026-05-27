@@ -8,6 +8,20 @@ Provider-specific wallet code lives outside the portable skill:
 adapters/wallets/<provider>/
 ```
 
+Base MCP integration is complementary to host
+adapters such as Codex, Claude, Hermes, or OpenClaw. See:
+
+```txt
+adapters/wallets/base-mcp/
+```
+
+The Base MCP adapter includes a funding resolver that maps an explicit unsigned
+calldata envelope or ordered transaction batch into Base MCP `send_calls`, then
+returns the standard `fund_market` adapter output after Base MCP supplies the
+transaction hash and EIP-712 funding signature. It must not invent funding
+calldata; a Precog funding transaction builder or another trusted resolver must
+provide the unsigned call data first.
+
 The shared adapter contract lives at:
 
 ```txt
