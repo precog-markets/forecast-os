@@ -1,6 +1,6 @@
 # Wallet Adapters
 
-Use wallet adapters when an operator chooses a concrete wallet/action provider for a ForecastOS create or funding handoff.
+Use wallet adapters when an operator chooses a concrete wallet/action provider for a ForecastOS Precog create or funding handoff. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
 Provider-specific wallet code lives outside the portable skill:
 
@@ -17,7 +17,7 @@ adapters/wallets/contract.md
 ## Create Flow
 
 1. Draft and approve the market normally.
-2. Run `prepare_create_intent` to generate the wallet-agnostic create payload and EIP-712 typed-data template.
+2. Run `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 3. Run the selected provider adapter under `adapters/wallets/<provider>/`.
 4. Pass the adapter's `event` object to `run_skill_step` with the stored `create_market` workflow state.
 

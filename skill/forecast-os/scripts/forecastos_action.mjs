@@ -18,7 +18,6 @@ const ACTIONS = new Set([
 
 const action = process.argv[2];
 const inputPath = argValue("--input");
-const sdkModule = process.env.FORECASTOS_SDK_MODULE;
 const stateDir = process.env.FORECASTOS_STATE_DIR ?? ".forecastos";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -29,13 +28,13 @@ if (!ACTIONS.has(action)) {
 const input = normalizeInput(action, inputPath ? parseJsonInput(await readFile(inputPath, "utf8")) : {});
 enforceApproval(action, input);
 
-const forecastos = await loadForecastOS(sdkModule);
+const forecastos = await loadForecastOS();
 try {
   const result = await dispatch(forecastos, action, input);
   print({
     action,
     status: "ok",
-    runtime: sdkModule ? "external" : "bundled",
+    runtime: "bundled",
     result,
   });
 } catch (error) {
@@ -44,7 +43,7 @@ try {
       {
         action,
         status: "error",
-        runtime: sdkModule ? "external" : "bundled",
+        runtime: "bundled",
         error: serializeError(error),
       },
       null,
@@ -102,12 +101,8 @@ function normalizeInput(actionName, input) {
   return input;
 }
 
-async function loadForecastOS(specifier) {
-  const imported = await import(
-    specifier
-      ? toImportSpecifier(specifier)
-      : pathToFileURL(resolve(scriptDir, "forecastos_runtime.mjs")).href
-  );
+async function loadForecastOS() {
+  const imported = await import(pathToFileURL(resolve(scriptDir, "forecastos_runtime.mjs")).href);
   if (typeof imported.createForecastOS === "function") {
     return imported.createForecastOS(buildForecastOSOptions(imported));
   }
@@ -123,17 +118,6 @@ function buildForecastOSOptions(imported) {
     options.store = new imported.DirectoryDraftStateStore(stateDir);
   }
   return options;
-}
-
-function toImportSpecifier(specifier) {
-  if (
-    specifier.startsWith(".") ||
-    specifier.startsWith("/") ||
-    /^[A-Za-z]:[\\/]/.test(specifier)
-  ) {
-    return pathToFileURL(resolve(specifier)).href;
-  }
-  return specifier;
 }
 
 async function dispatch(forecastos, actionName, input) {

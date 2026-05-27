@@ -42,7 +42,7 @@ FORECASTOS_STATE_DIR=/path/to/.forecastos
 
 - MCP reads memory.
 - `inspect_state.mjs`, `render_review.mjs`, and `next_step.mjs` read memory.
-- `forecastos_action.mjs` is the only script in this skill that should advance or create state, using the bundled runtime or a trusted replacement module.
+- `forecastos_action.mjs` is the only script in this skill that should advance or create state, using the bundled runtime.
 
 Do not add mutating MCP tools for memory updates.
 

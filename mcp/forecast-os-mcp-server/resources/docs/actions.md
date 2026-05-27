@@ -13,14 +13,13 @@ node scripts/render_review.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs <action> --input <json-file>
 ```
 
-Optional:
+Optional state directory override:
 
 ```txt
-FORECASTOS_SDK_MODULE=<module-or-path>
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. `FORECASTOS_SDK_MODULE` is optional and should only point to a trusted replacement runtime when real Precog, wallet/action, or prediction adapters are ready.
+`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
 
 ## Precog Config
 
@@ -59,14 +58,14 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 ## Approval Rules
 
 - Chat-facing draft approval can be a simple `yes`, `approved`, or `looks good`.
-- `prepare_create_intent` creates the wallet-agnostic create intent after approval.
-- `create_market` requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
+- `prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent after approval.
+- `create_market` submits to the configured Precog API root and requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
-- The bundled runtime asks which wallet or wallet/action tool should publish or fund the market. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
+- The bundled runtime asks which wallet or wallet/action tool should sign the Precog create/fund payload. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
 
 ## Precog Endpoints
 
@@ -101,15 +100,15 @@ Creation payload hygiene:
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
 
-Normal chat creation flow after approval:
+Normal chat Precog creation flow after approval:
 
-1. Call `prepare_create_intent` to generate the wallet-agnostic payload and EIP-712 typed-data template.
+1. Call `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
-3. Call `run_skill_step` with the current `create_market` workflow state and the resolved event fields. This advances `.forecastos` to `await_precog_approval`.
+3. Call `run_skill_step` with the current `create_market` workflow state and the resolved event fields. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
 
 Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
 
-For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
+For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 
 Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 

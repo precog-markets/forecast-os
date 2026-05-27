@@ -10,6 +10,7 @@ const skill = await readFile(join(root, "SKILL.md"), "utf8");
 const precogConfig = JSON.parse(await readFile(join(root, ".forecastos", "config.json"), "utf8"));
 const agentMetadata = await readFile(join(root, "agents", "openai.yaml"), "utf8");
 const actionSchema = JSON.parse(await readFile(join(root, "assets", "schemas", "actions.json"), "utf8"));
+const forbiddenSdkModuleEnv = "FORECASTOS" + "_SDK_MODULE";
 const optionalReadOnlyMcpTools = [
   "forecastos_list_resources",
   "forecastos_get_resource",
@@ -90,6 +91,17 @@ for (const scriptName of scriptNames.filter((name) => name.endsWith(".mjs"))) {
   const script = await readFile(join(root, "scripts", scriptName), "utf8");
   const forbiddenChainConstant = "DEFAULT" + "_CHAIN_ID";
   assert(!script.includes(forbiddenChainConstant), `${scriptName} must not contain ${forbiddenChainConstant}`);
+  assert(!script.includes(forbiddenSdkModuleEnv), `${scriptName} must use the bundled runtime`);
+}
+for (const docPath of [
+  join(root, "SKILL.md"),
+  join(root, "references", "actions.md"),
+  join(root, "references", "install.md"),
+  join(root, "references", "action-policy.md"),
+  join(root, "references", "memory.md"),
+]) {
+  const doc = await readFile(docPath, "utf8");
+  assert(!doc.includes(forbiddenSdkModuleEnv), `${docPath} must not document the SDK module override`);
 }
 assert(!schemaContainsKey(actionSchema.definitions, "chain_id"), "actions schema must not expose chain_id inputs");
 await assertMissing(join(root, "agents", "metadata.yaml"), "agents/metadata.yaml should not exist");
@@ -111,6 +123,29 @@ assert(
 assert(
   skill.includes("External market reads must never trade"),
   "SKILL.md must forbid trading through external market reads",
+);
+assert(
+  skill.includes("Creation defaults to Precog"),
+  "SKILL.md must state that creation defaults to Precog",
+);
+assert(
+  skill.includes("External markets are read-only"),
+  "SKILL.md must state that external markets are read-only",
+);
+assert(
+  skill.includes("Wallet adapters do not choose the market venue"),
+  "SKILL.md must state that wallet adapters do not choose the market venue",
+);
+
+const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8");
+const actionPolicyDoc = await readFile(join(root, "references", "action-policy.md"), "utf8");
+assert(
+  actionsDoc.includes("prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent"),
+  "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
+);
+assert(
+  actionPolicyDoc.includes("create_market` always submits to the configured Precog API root"),
+  "references/action-policy.md must lock create_market to the configured Precog API root",
 );
 
 const forbidden = /(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve|bridge)/;

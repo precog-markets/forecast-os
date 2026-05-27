@@ -2,7 +2,8 @@
 
 ForecastOS can use external prediction-market data as read-only context for drafting,
 research, comparison, and public price checks. These tools live in the MCP server and
-must not advance ForecastOS workflow state.
+must not advance ForecastOS workflow state. Creation defaults to Precog; external
+markets are read-only and cannot receive ForecastOS creation or funding actions.
 
 ## Provider Envelope
 
@@ -57,6 +58,9 @@ Responses include:
 - Do not use external market tools for trading, order placement, cancellation, user
   account reads, authentication, wallet activity, bridges, relayers, token operations,
   signing, or swaps.
+- Do not use external market providers such as Polymarket or Kalshi as creation
+  venues. They can inform a draft, but ForecastOS live creation and funding flow
+  targets Precog only.
 - Do not write external market results into `.forecastos/` as workflow state unless
   a ForecastOS action explicitly stores them as ordinary read-only context.
 - Do not treat external prices as ForecastOS market prices unless the source field

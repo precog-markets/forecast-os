@@ -137,10 +137,8 @@ Execution is outside MCP. From `skill/forecast-os`, use:
 node scripts/forecastos_action.mjs <action> --input <json-file>
 ```
 
-The action bridge uses the bundled local runtime by default:
+The action bridge uses the bundled local runtime:
 
 ```txt
 scripts/forecastos_runtime.mjs
 ```
-
-Set `FORECASTOS_SDK_MODULE` only when replacing the bundled runtime with a trusted production module that includes real Precog, funding, or prediction adapters.

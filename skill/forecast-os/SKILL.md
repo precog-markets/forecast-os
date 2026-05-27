@@ -5,7 +5,7 @@ description: "Use ForecastOS for multi-outcome prediction-market workflows acros
 
 # ForecastOS
 
-Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled action bridge for the normal draft, approval, create, fund, and consume flow. Treat MCP as optional read-only context only.
+Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled action bridge for the normal draft, approval, create, fund, and consume flow. Creation defaults to Precog: when a user asks to create, publish, or launch a market, assume the target is a Precog upcoming market unless they explicitly ask for draft-only work. Treat MCP as optional read-only context only.
 
 ## Core Rules
 
@@ -18,12 +18,12 @@ Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled ac
 - Default to Base USDC collateral from `.forecastos/config.json`; only use another `collateral_address` when the operator explicitly asks for it.
 - Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
 - Do not require MCP for normal drafting or creation. Use MCP only when extra read-only docs, templates, examples, capability metadata, or workflow inspection would help.
-- Use read-only external market MCP tools for market discovery, comparable market context, public prices, or public orderbook context. External market reads must never trade, place/cancel orders, authenticate users, sign, bridge, custody wallets, or mutate ForecastOS workflow state.
+- Use read-only external market MCP tools for market discovery, comparable market context, public prices, or public orderbook context. External markets are read-only; Polymarket, Kalshi, and similar providers can inform drafts but are never ForecastOS creation or funding targets. External market reads must never trade, place/cancel orders, authenticate users, sign, bridge, custody wallets, or mutate ForecastOS workflow state.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
-- For live creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. If no tooling is available, send them to https://core.precog.markets/launchpad/.
-- For creation, first generate a wallet-agnostic `prepare_create_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
+- For live Precog creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. Do not ask which creation venue to use unless the user explicitly introduces a non-Precog venue; explain that ForecastOS can create through Precog and can only read external venues such as Polymarket or Kalshi. If no tooling is available, send them to https://core.precog.markets/launchpad/.
+- For creation, first generate a wallet-agnostic `prepare_create_intent`; it always prepares a Precog `CREATE_UPCOMING_MARKET` intent. The configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
 - After wallet creation fields are resolved, use `run_skill_step` with the current `create_market` workflow state so `.forecastos` advances to `await_precog_approval`; reserve direct `create_market` for low-level calls that do not need workflow memory updates.
-- For concrete wallet providers, read `references/wallet-adapters.md` and use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`.
+- For concrete wallet providers, read `references/wallet-adapters.md` and use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 - When choosing a creation `image_url`, prefer a square image or square-cropped official/social image when one is readily available. Prioritize relevance and trusted sourcing over aspect ratio, and do not delay live creation if the best reliable image is not square.
 - For funding, first generate a wallet-agnostic `prepare_funding_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing, token approval if needed, and the final signed payload.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
@@ -37,7 +37,7 @@ intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
 ```
 
-Present a friendly draft summary before creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. After approval, ask what wallet or wallet/action tool the user wants to use. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
+Present a friendly draft summary before Precog creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. After approval, ask what wallet or wallet/action tool the user wants to use for the Precog submission. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
 
 ## Read Next
 

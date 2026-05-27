@@ -1,6 +1,6 @@
 # Action Policy
 
-ForecastOS actions are bounded by human approval and adapter configuration.
+ForecastOS actions are bounded by human approval and adapter configuration. Creation defaults to Precog: create/publish/launch requests target a Precog upcoming market unless the user explicitly asks for draft-only work.
 
 ## MCP Boundary
 
@@ -24,14 +24,16 @@ An agent may attempt `create_market` only when:
 - the draft has no blocking issues
 - the human has provided explicit approval, such as `yes`, `approved`, or `looks good`
 - the stored approved draft hash matches the current draft hash
-- the bundled ForecastOS runtime or a trusted replacement module is configured
+- the bundled ForecastOS runtime is available
 - `.forecastos/config.json` includes `precog.open_api_key`
 - `image_url` is present
 - `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
 - the wallet policy allows EIP-712 typed-data signing
 - collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
 
-If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used, or send them to https://core.precog.markets/launchpad/.
+`create_market` always submits to the configured Precog API root. Polymarket, Kalshi, and similar external market providers are read-only context providers; they cannot receive ForecastOS creation or funding actions. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
+
+If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission, or send them to https://core.precog.markets/launchpad/.
 
 ## Funding Policy
 

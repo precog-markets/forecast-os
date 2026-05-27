@@ -28,7 +28,7 @@ Create a ForecastOS market for which launchpad gets the most new agents in June:
 4. Do not paste raw JSON, draft IDs, workflow IDs, hashes, file paths, or quality scores unless the user asks for technical detail.
 5. End with a clear next step: "Reply yes to approve, or tell me what you want changed."
 6. Wait for explicit human approval.
-7. Attempt creation only through the bundled CLI/runtime action bridge.
+7. Attempt Precog creation only through the bundled CLI/runtime action bridge.
 8. If Precog is not configured, return a clear config error.
 9. Move to Precog approval, funding, and deployed-market consumption only when the workflow state allows it.
 
