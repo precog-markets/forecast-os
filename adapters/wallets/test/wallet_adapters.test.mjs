@@ -7,6 +7,11 @@ import {
   buildCreateTypedData,
   resolveCreate,
 } from "../privy/resolve_create.mjs";
+import {
+  buildSendCallsRequest,
+  normalizePreparedTransactions,
+  resolveFunding,
+} from "../base-mcp/resolve_funding.mjs";
 
 const walletAdaptersRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(walletAdaptersRoot));
@@ -18,6 +23,7 @@ test("wallet adapter contract documents create and funding outputs", async () =>
   assert.ok(contract.includes('"next_action": "fund_market"'));
   assert.ok(contract.includes("wallet_audit"));
   assert.ok(contract.includes("Adapters must not print secrets"));
+  assert.ok(!contract.includes("Funding adapters are not implemented yet"));
 });
 
 test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed data", async () => {
@@ -233,6 +239,93 @@ test("portable skill points to wallet adapters without embedding provider implem
   assert.ok(!shim.includes("PRIVY_API_ROOT"));
 });
 
+test("Base MCP funding resolver maps a single calldata envelope to send_calls", () => {
+  const transactions = normalizePreparedTransactions({
+    ok: true,
+    data: {
+      to: "0x3333333333333333333333333333333333333333",
+      data: "0xabcdef",
+      chainId: 8453,
+    },
+  });
+
+  assert.deepEqual(buildSendCallsRequest(transactions), {
+    chain: "base",
+    calls: [
+      {
+        to: "0x3333333333333333333333333333333333333333",
+        value: "0x0",
+        data: "0xabcdef",
+      },
+    ],
+  });
+});
+
+test("Base MCP funding resolver returns required wallet actions before tx hash", () => {
+  const resolved = resolveFunding({
+    intent: buildFundingIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    walletId: "base_wallet",
+    nonce: "9",
+    prepareResponse: {
+      transactions: [
+        {
+          step: "approve",
+          to: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          value: "0",
+          data: "0x095ea7b3",
+          chainId: "0x2105",
+        },
+        {
+          step: "fund",
+          to: "0x4444444444444444444444444444444444444444",
+          value: "0x0",
+          data: "0xfeedface",
+          chainId: 8453,
+        },
+      ],
+    },
+  });
+
+  assert.equal(resolved.status, "base_mcp_actions_required");
+  assert.equal(resolved.base_mcp.send_calls.chain, "base");
+  assert.equal(resolved.base_mcp.send_calls.calls.length, 2);
+  assert.equal(resolved.base_mcp.sign.typed_data.message.account, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.base_mcp.sign.typed_data.message.nonce, 9);
+  assert.equal(resolved.wallet_audit.provider, "base-mcp");
+  assert.equal(resolved.next_action, "base_mcp_sign_and_send_calls");
+});
+
+test("Base MCP funding resolver returns ForecastOS fund_market output after Base MCP completion", () => {
+  const resolved = resolveFunding({
+    intent: buildFundingIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    nonce: 10,
+    funderSignature: "0xabcdef",
+    txHash: "0x1234",
+    prepareResponse: {
+      transactions: [
+        {
+          step: "fund",
+          to: "0x4444444444444444444444444444444444444444",
+          data: "0xfeedface",
+          chain: "base",
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(resolved.funding_request, {
+    upcoming_market: 123,
+    amount: "1.5",
+    tx_hash: "0x1234",
+    funder_address: "0x2222222222222222222222222222222222222222",
+    funder_signature: "0xabcdef",
+  });
+  assert.equal(resolved.wallet_audit.method, "base_mcp_sign_and_send_calls");
+  assert.equal(resolved.next_action, "fund_market");
+});
+
 function buildCreateIntentFixture() {
   return {
     intent_type: "forecastos.create_market",
@@ -269,6 +362,47 @@ function buildCreateIntentFixture() {
     precog_payload_template: {
       image_url: "https://example.com/image.png",
       category: "culture",
+    },
+  };
+}
+
+function buildFundingIntentFixture() {
+  return {
+    intent_type: "forecastos.fund_market",
+    wallet_provider: "base-mcp",
+    upcoming_market: 123,
+    chain_id: 8453,
+    amount: "1.5",
+    collateral_symbol: "USDC",
+    collateral_address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    eip712_typed_data_template: {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        PrecogMarketAuthorization: [
+          { name: "action", type: "string" },
+          { name: "account", type: "address" },
+          { name: "chainId", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      primaryType: "PrecogMarketAuthorization",
+      domain: {
+        name: "Precog Markets",
+        version: "1",
+        chainId: 8453,
+        verifyingContract: "0x00000000000c109080dfa976923384b97165a57a",
+      },
+      message: {
+        action: "FUND_UPCOMING_MARKET",
+        account: "<funder_address>",
+        chainId: 8453,
+        nonce: "<next_pending_nonce>",
+      },
     },
   };
 }

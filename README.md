@@ -1,6 +1,6 @@
 # ForecastOS
 
-ForecastOS is an agent kit for human-approved multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
+ForecastOS is an agent kit for multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
 
 The skill is the agent behavior contract. MCP is context infrastructure. Live execution stays in the ForecastOS action bridge and trusted wallet/action tooling.
 

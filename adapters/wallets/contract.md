@@ -40,7 +40,7 @@ Pass `event` back to `scripts/forecastos_action.mjs run_skill_step` with the sto
 
 ## Funding Intent Output
 
-Funding adapters are not implemented yet, but they should consume `prepare_funding_intent` output and return:
+Funding adapters consume `prepare_funding_intent` output and return:
 
 ```json
 {
