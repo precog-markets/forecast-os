@@ -22,6 +22,7 @@ test("resources include remote-ready ForecastOS context", async () => {
 
   assert.ok(uris.includes("forecastos://docs/remote-mcp"));
   assert.ok(uris.includes("forecastos://docs/install"));
+  assert.ok(uris.includes("forecastos://docs/wallet-adapters"));
   assert.ok(uris.includes("forecastos://templates/multi-outcome-market"));
   assert.ok(uris.includes("forecastos://schemas/actions"));
   assert.ok(uris.includes("forecastos://examples/full-workflow"));

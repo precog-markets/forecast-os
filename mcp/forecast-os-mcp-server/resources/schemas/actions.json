@@ -55,6 +55,67 @@
       },
       "additionalProperties": true
     },
+    "prepare_create_intent": {
+      "type": "object",
+      "required": [
+        "image_url"
+      ],
+      "properties": {
+        "draft_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workflow_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_draft_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approved_draft_hash": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "object"
+        },
+        "image_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_timestamp": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "end_timestamp": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "collateral_address": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional advanced override. Defaults to Base USDC from .forecastos/config.json."
+        },
+        "collateral_symbol": {
+          "type": "string",
+          "description": "Optional context label for a collateral override; defaults to config default_collateral_symbol."
+        }
+      },
+      "additionalProperties": true
+    },
     "create_market": {
       "type": "object",
       "required": [

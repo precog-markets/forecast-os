@@ -39,6 +39,25 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
 }
 ```
 
+## prepare_create_intent
+
+Use this after the draft is approved and before wallet-specific creation. ForecastOS returns a wallet-agnostic create intent with the Precog payload template and the EIP-712 typed-data template the configured wallet/action tool must resolve.
+
+```json
+{
+  "draft_id": "draft-id",
+  "approved_draft_hash": "hash-from-workflow-state",
+  "image_url": "https://example.com/image.png",
+  "category": "AI"
+}
+```
+
+The returned typed data uses `message.action = CREATE_UPCOMING_MARKET`, config chain ID, and config verifying contract. The wallet/action tool resolves the current pending nonce, selected creator account, and final EIP-712 signature.
+
+Supply a square `image_url` when one is readily available, especially for official/social images that are already square-cropped. The bundled runtime validates only that `image_url` is an HTTP(S) URL; it does not inspect dimensions, crop, resize, or reject non-square images.
+
+For concrete wallet providers, pass this intent to the matching top-level adapter under `adapters/wallets/<provider>/`. Adapters return event fields for `run_skill_step`; see `references/wallet-adapters.md`.
+
 ## create_market
 
 ```json
@@ -57,9 +76,11 @@ Times should be UTC ISO strings with `Z`. If a timezone-less time is provided, t
 
 For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
-`creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. Ask which wallet or wallet/action tool the user wants to use; if none is available, send them to https://core.precog.markets/launchpad/. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = config.precog.signature_actions.create_market`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
+`creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. Ask which wallet or wallet/action tool the user wants to use; if none is available, send them to https://core.precog.markets/launchpad/. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = CREATE_UPCOMING_MARKET`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
 
-`image_url` is required for the live Precog create endpoint. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral.
+Normal chat flow should feed the resolved fields back through `run_skill_step` with the stored `create_market` workflow state, so `.forecastos` advances to `await_precog_approval`. Use the direct `create_market` action only as a low-level API call when workflow persistence is not needed.
+
+`image_url` is required for the live Precog create endpoint. Prefer a square `image_url` when one is readily available, but keep non-square images valid when they are the most relevant trusted source. The bundled runtime validates only that `image_url` is an HTTP(S) URL; it does not inspect dimensions, crop, resize, or reject non-square images. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category; non-AI draft categories pass through unchanged. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral. ForecastOS sends config chain ID as create payload `chain_id`, not as a chat-facing chain choice. The create payload `end_timestamp` is the market close time, not the resolution time.
 
 ## await_precog_approval
 

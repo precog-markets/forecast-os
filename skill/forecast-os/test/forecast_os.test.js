@@ -116,6 +116,35 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
   );
 });
 
+test("forecastos_action accepts UTF-8 BOM input JSON", async () => {
+  const rootDir = join(skillRoot, "test-output", "bom-input");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+
+  const inputPath = join(rootDir, "input.json");
+  await writeFile(
+    inputPath,
+    `\uFEFF${JSON.stringify({
+      state: { step: "intake", prompt: "Which team wins the event?" },
+      event: {
+        input: {
+          prompt: "Which team wins the event?",
+          requested_outcomes: ["Team A", "Team B", "Other"],
+          source_hints: ["Official event results"],
+          requested_close_time: "2026-10-15T00:00:00Z",
+          requested_resolution_time: "2026-11-15T12:00:00Z",
+        },
+      },
+    })}`,
+  );
+
+  const result = await runActionBridge("run_skill_step", inputPath, stateDir);
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.result.state.step, "await_approval");
+});
+
 test("bundled runtime builds Precog create and fund requests from local config", async () => {
   const rootDir = join(skillRoot, "api-test-output");
   const stateDir = join(rootDir, ".forecastos");
@@ -255,8 +284,83 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].body.chain_id, configChainId);
   assert.equal(requests[0].body.network, undefined);
   assert.equal(requests[0].body.collateral_address, configCollateralAddress);
+  assert.equal(requests[0].body.start_timestamp, Date.parse("2026-06-01T12:00:00Z") / 1000);
+  assert.equal(requests[0].body.end_timestamp, Date.parse("2026-06-30T23:59:59Z") / 1000);
+  assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
   assert.equal(requests[2].body.upcoming_market, 123);
   assert.equal(requests[2].body.amount, "1");
+});
+
+test("wallet-resolved create through run_skill_step persists await_precog_approval", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "wallet-resolved-create-step");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ upcoming_market: 456, status: "CREATED" });
+      },
+    }),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launcher gets the most new agents in June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  const workflowId = "workflow_wallet_resolved_create";
+  const result = await forecastos.runSkillStep(
+    {
+      workflow_id: workflowId,
+      step: "create_market",
+      draft_id: draft.draft_id,
+      draft_hash: draft.draft_hash,
+      approval_text: draft.approval_text,
+      approved_by: "operator",
+      approved_draft_id: draft.draft_id,
+      approved_draft_hash: draft.draft_hash,
+    },
+    {
+      image_url: "https://example.com/image.png",
+      creator_address: "0xCreator",
+      creator_signature: "0xCreatorSignature",
+    },
+  );
+
+  assert.equal(result.state.step, "await_precog_approval");
+  assert.equal(result.state.market_id, 456);
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
+    "await_precog_approval",
+  );
+  assert.equal(
+    (
+      await readJson(
+        join(stateDir, "workflows", "await_precog_approval", `${workflowId}.json`),
+      )
+    ).market_id,
+    456,
+  );
 });
 
 test("draft_market blocks binary yes/no drafts under multi-outcome default", async () => {
@@ -427,6 +531,61 @@ test("create_market allows explicit collateral override while keeping config cha
 
   assert.equal(requests[0].body.chain_id, configChainId);
   assert.equal(requests[0].body.collateral_address, "0xCustomCollateral");
+});
+
+test("non-AI draft categories are not silently overwritten", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "non-ai-category");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 123, status: "PENDING" });
+        },
+      };
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which licensed toy brand gets announced next?",
+    preferred_category: "culture",
+    requested_outcomes: ["Brand A", "Brand B", "Other"],
+    source_hints: ["Official announcements"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+
+  assert.equal(requests[0].body.category, "culture");
 });
 
 test("create_market fails clearly without config default collateral or override", async () => {
@@ -655,7 +814,20 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
   }
 });
 
-test("skill guidance does not advertise named wallet provider support", async () => {
+test("legacy Privy skill shim delegates to top-level wallet adapter", async () => {
+  const shim = await import("../scripts/wallets/privy_resolve_create.mjs");
+  const template = buildCreateIntentFixture().eip712_typed_data_template;
+  const typedData = await shim.buildPrivyTypedData(template, "0xCreator", 12);
+
+  assert.equal(template.primaryType, "PrecogMarketAuthorization");
+  assert.equal(template.primary_type, undefined);
+  assert.equal(typedData.primaryType, undefined);
+  assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
+  assert.equal(typedData.message.account, "0xCreator");
+  assert.equal(typedData.message.nonce, 12);
+});
+
+test("skill guidance does not advertise unrelated named wallet provider support", async () => {
   const files = [
     "SKILL.md",
     "references/actions.md",
@@ -669,7 +841,7 @@ test("skill guidance does not advertise named wallet provider support", async ()
     "assets/schemas/actions.json",
   ];
   const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n").toLowerCase();
-  for (const provider of ["bank" + "r", "pri" + "vy", "turn" + "key"]) {
+  for (const provider of ["bank" + "r", "turn" + "key"]) {
     assert.ok(!combined.includes(provider), `provider-specific guidance leaked: ${provider}`);
   }
 });
@@ -788,6 +960,46 @@ async function runActionBridge(action, inputPath, stateDir) {
     },
   );
   return JSON.parse(stdout);
+}
+
+function buildCreateIntentFixture() {
+  return {
+    intent_type: "forecastos.create_market",
+    chain_id: 8453,
+    eip712_typed_data_template: {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        PrecogMarketAuthorization: [
+          { name: "action", type: "string" },
+          { name: "account", type: "address" },
+          { name: "chainId", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      primaryType: "PrecogMarketAuthorization",
+      domain: {
+        name: "Precog Markets",
+        version: "1",
+        chainId: 8453,
+        verifyingContract: "0x00000000000c109080dfa976923384b97165a57a",
+      },
+      message: {
+        action: "CREATE_UPCOMING_MARKET",
+        account: "<creator_address>",
+        chainId: 8453,
+        nonce: "<next_pending_nonce>",
+      },
+    },
+    precog_payload_template: {
+      image_url: "https://example.com/image.png",
+      category: "culture",
+    },
+  };
 }
 
 async function createIsolatedForecastOS(name) {

@@ -92,14 +92,24 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
 Creation payload hygiene:
 
 - `question` is normalized to end with `?`.
-- `start_timestamp` and `end_timestamp` are derived from UTC times.
+- `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
 - `image_url` must be an `http` or `https` URL.
 - `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
-- ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
+- ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
+
+Normal chat creation flow after approval:
+
+1. Call `prepare_create_intent` to generate the wallet-agnostic payload and EIP-712 typed-data template.
+2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
+3. Call `run_skill_step` with the current `create_market` workflow state and the resolved event fields. This advances `.forecastos` to `await_precog_approval`.
+
+Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
+
+For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 
 Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 

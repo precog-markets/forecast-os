@@ -74,6 +74,13 @@ await assertMissing(join(root, "mcp.json"), "mcp.json belongs in adapters/, not 
 await assertMissing(join(root, "mcp"), "MCP package belongs in repo mcp/, not inside the portable skill");
 await assertMissing(join(root, "scripts", "sign_precog_message.mjs"), "sign_precog_message.mjs should not exist");
 await assertMissing(join(root, "scripts", "sign_precog_ethers.mjs"), "sign_precog_ethers.mjs should not exist");
+const walletShimPath = join(root, "scripts", "wallets", "privy_resolve_create.mjs");
+const walletShim = await readFile(walletShimPath, "utf8");
+assert(
+  walletShim.includes("adapters/wallets/privy/resolve_create.mjs"),
+  "Privy skill script must be a compatibility shim to adapters/wallets/privy/resolve_create.mjs",
+);
+assert(!walletShim.includes("PRIVY_API_ROOT"), "Portable skill shim must not contain provider implementation details");
 const scriptNames = await readdir(join(root, "scripts"));
 for (const scriptName of scriptNames.filter((name) => name.endsWith(".mjs"))) {
   const script = await readFile(join(root, "scripts", scriptName), "utf8");
@@ -120,6 +127,11 @@ process.stdout.write(
 async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "mcp", "forecast-os-mcp-server"));
   await assertDir(join(monorepoRoot, "adapters", "codex"));
+  await assertDir(join(monorepoRoot, "adapters", "wallets"));
+  await assertDir(join(monorepoRoot, "adapters", "wallets", "privy"));
+  await assertDir(join(monorepoRoot, "adapters", "wallets", "test"));
+  await assertFile(join(monorepoRoot, "adapters", "wallets", "contract.md"));
+  await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
@@ -166,6 +178,10 @@ async function exists(path) {
 
 async function assertDir(path) {
   assert((await stat(path)).isDirectory(), `${path} must be a directory`);
+}
+
+async function assertFile(path) {
+  assert((await stat(path)).isFile(), `${path} must be a file`);
 }
 
 async function assertMissing(path, message) {

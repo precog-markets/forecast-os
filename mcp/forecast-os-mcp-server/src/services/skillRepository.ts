@@ -70,6 +70,12 @@ export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
     path: "docs/tool-schemas.md",
     mimeType: "text/markdown",
   },
+  "forecastos://docs/wallet-adapters": {
+    uri: "forecastos://docs/wallet-adapters",
+    name: "ForecastOS wallet adapters",
+    path: "docs/wallet-adapters.md",
+    mimeType: "text/markdown",
+  },
   "forecastos://templates/multi-outcome-market": {
     uri: "forecastos://templates/multi-outcome-market",
     name: "Multi-outcome market template",

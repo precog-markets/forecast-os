@@ -32,7 +32,11 @@ Live Precog calls read config from `.forecastos/config.json`, with optional loca
     "api_root": "https://tracker.precog.market/",
     "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
     "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
-    "chain_id": 8453
+    "chain_id": 8453,
+    "signature_actions": {
+      "create_market": "CREATE_UPCOMING_MARKET",
+      "fund_market": "FUND_UPCOMING_MARKET"
+    }
   }
 }
 ```
@@ -43,6 +47,7 @@ The shipped `config.json` contains public defaults so users can run the skill wi
 
 - `draft_market`
 - `run_skill_step`
+- `prepare_create_intent`
 - `create_market`
 - `await_precog_approval`
 - `prepare_funding_intent`
@@ -54,7 +59,8 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 ## Approval Rules
 
 - Chat-facing draft approval can be a simple `yes`, `approved`, or `looks good`.
-- `create_market` requires `approved: true` plus a matching `approved_draft_hash` from workflow state. Legacy hash-bearing `approval_text` remains supported.
+- `prepare_create_intent` creates the wallet-agnostic create intent after approval.
+- `create_market` requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
@@ -75,6 +81,8 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
   "outcomes": "YES,NO",
   "start_timestamp": 1717000000,
   "end_timestamp": 1719700000,
+  "collateral_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "chain_id": 8453,
   "creator_address": "<resolved_by_wallet_tool>",
   "creator_signature": "<resolved_by_wallet_tool>",
   "creator_email": "optional@email.com"
@@ -84,12 +92,24 @@ Create uses `POST /api/v1/create-upcoming-market/` with `x-api-key` and JSON:
 Creation payload hygiene:
 
 - `question` is normalized to end with `?`.
-- `start_timestamp` and `end_timestamp` are derived from UTC times.
+- `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
 - `image_url` must be an `http` or `https` URL.
+- `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
+- `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
-- ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI` unless the action input provides an explicit Precog category.
+- ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
+
+Normal chat creation flow after approval:
+
+1. Call `prepare_create_intent` to generate the wallet-agnostic payload and EIP-712 typed-data template.
+2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
+3. Call `run_skill_step` with the current `create_market` workflow state and the resolved event fields. This advances `.forecastos` to `await_precog_approval`.
+
+Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
+
+For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 
 Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
 
@@ -107,7 +127,7 @@ After wallet resolution, `fund_market` uses `POST /api/v1/fund-upcoming-market/`
 
 Funding `amount` is the Precog API amount in collateral display units. Send a plain positive decimal string like `"1"`, `"10"`, or `"100.5"`. Do not send wei/base units, commas, exponent notation, token symbols, or strings like `"1 MATE"`; keep the asset symbol as context only.
 
-The wallet/action tooling owns address selection, nonce lookup, EIP-712 signing, and transaction execution. For creation, the wallet policy must allow EIP-712 typed-data signatures. For funding, the wallet policy must allow EIP-712 signatures plus transaction signing/sending, and the wallet/action tool must approve collateral token allowance if needed. ForecastOS only provides the typed-data shape the tooling must resolve:
+The wallet/action tooling owns address selection, nonce lookup, EIP-712 signing, and transaction execution. For creation, the wallet policy must allow EIP-712 typed-data signatures for `CREATE_UPCOMING_MARKET`. For funding, the wallet policy must allow EIP-712 signatures for the configured funding action plus transaction signing/sending, and the wallet/action tool must approve collateral token allowance if needed. ForecastOS only provides the typed-data shape the tooling must resolve:
 
 ```json
 {

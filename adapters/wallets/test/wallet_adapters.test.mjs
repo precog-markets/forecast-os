@@ -1,0 +1,233 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import {
+  buildCreateTypedData,
+  resolveCreate,
+} from "../privy/resolve_create.mjs";
+
+const walletAdaptersRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const repoRoot = dirname(dirname(walletAdaptersRoot));
+
+test("wallet adapter contract documents create and funding outputs", async () => {
+  const contract = await readFile(join(walletAdaptersRoot, "contract.md"), "utf8");
+
+  assert.ok(contract.includes('"next_action": "run_skill_step"'));
+  assert.ok(contract.includes('"next_action": "fund_market"'));
+  assert.ok(contract.includes("wallet_audit"));
+  assert.ok(contract.includes("Adapters must not print secrets"));
+});
+
+test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed data", async () => {
+  const requests = [];
+  const intent = buildCreateIntentFixture();
+  const fetch = async (url, options = {}) => {
+    requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_a",
+            address: "0x1111111111111111111111111111111111111111",
+            chain_type: "ethereum",
+            policy_ids: ["policy_a"],
+          },
+          {
+            id: "wallet_b",
+            address: "0x2222222222222222222222222222222222222222",
+            chain_type: "ethereum",
+            policy_ids: ["policy_b"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_a")) {
+      return jsonResponse({ id: "policy_a", rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+    }
+    if (String(url).includes("/policies/policy_b")) {
+      return jsonResponse({ id: "policy_b", rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+    }
+    if (String(url) === "https://rpc.example") {
+      return jsonResponse({ jsonrpc: "2.0", id: 1, result: "0x7" });
+    }
+    if (String(url).endsWith("/wallets/wallet_b/rpc")) {
+      assert.equal(requests.at(-1).body.method, "eth_signTypedData_v4");
+      assert.equal(requests.at(-1).body.caip2, undefined);
+      assert.equal(requests.at(-1).body.params.typed_data.primaryType, undefined);
+      assert.equal(requests.at(-1).body.params.typed_data.primary_type, "PrecogMarketAuthorization");
+      assert.equal(requests.at(-1).body.params.typed_data.message.account, "0x2222222222222222222222222222222222222222");
+      assert.equal(requests.at(-1).body.params.typed_data.message.nonce, 7);
+      return jsonResponse({ method: "eth_signTypedData_v4", data: { signature: "0xSignature" } });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  const resolved = await resolveCreate({
+    intent,
+    walletId: "wallet_b",
+    rpcUrl: "https://rpc.example",
+    env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+    fetch,
+  });
+
+  assert.equal(resolved.event.creator_address, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.event.creator_signature, "0xSignature");
+  assert.equal(resolved.event.image_url, "https://example.com/image.png");
+  assert.equal(resolved.event.wallet_audit.provider, "privy");
+  assert.equal(resolved.event.wallet_audit.nonce, 7);
+  assert.equal(resolved.next_action, "run_skill_step");
+  assert.ok(requests.some((request) => String(request.url).includes("/wallets?chain_type=ethereum")));
+});
+
+test("Privy create resolver refuses ambiguous typed-data-capable wallets", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_a",
+            address: "0x1111111111111111111111111111111111111111",
+            chain_type: "ethereum",
+            policy_ids: ["policy_a"],
+          },
+          {
+            id: "wallet_b",
+            address: "0x2222222222222222222222222222222222222222",
+            chain_type: "ethereum",
+            policy_ids: ["policy_b"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/")) {
+      return jsonResponse({ rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_WALLET_SELECTION_REQUIRED");
+      assert.equal(error.wallets.length, 2);
+      assert.equal(error.wallets[0].wallet_id, "wallet_a");
+      assert.ok(!JSON.stringify(error).includes("secret"));
+      return true;
+    },
+  );
+});
+
+test("Privy create resolver ignores DENY typed-data policy rules", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_denied",
+            address: "0x1111111111111111111111111111111111111111",
+            chain_type: "ethereum",
+            policy_ids: ["policy_denied"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_denied")) {
+      return jsonResponse({
+        id: "policy_denied",
+        rules: [{ method: "eth_signTypedData_v4", action: "DENY" }],
+      });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      walletId: "wallet_denied",
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    /ALLOW eth_signTypedData_v4/,
+  );
+});
+
+test("Privy typed-data conversion keeps canonical intent immutable", () => {
+  const template = buildCreateIntentFixture().eip712_typed_data_template;
+  const typedData = buildCreateTypedData(template, "0xCreator", 12);
+
+  assert.equal(template.primaryType, "PrecogMarketAuthorization");
+  assert.equal(template.primary_type, undefined);
+  assert.equal(typedData.primaryType, undefined);
+  assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
+  assert.equal(typedData.message.account, "0xCreator");
+  assert.equal(typedData.message.nonce, 12);
+});
+
+test("portable skill points to wallet adapters without embedding provider implementation", async () => {
+  const skill = await readFile(join(repoRoot, "skill", "forecast-os", "SKILL.md"), "utf8");
+  const shim = await readFile(
+    join(repoRoot, "skill", "forecast-os", "scripts", "wallets", "privy_resolve_create.mjs"),
+    "utf8",
+  );
+
+  assert.ok(skill.includes("adapters/wallets/<provider>"));
+  assert.ok(skill.includes("references/wallet-adapters.md"));
+  assert.ok(shim.includes("adapters/wallets/privy/resolve_create.mjs"));
+  assert.ok(!shim.includes("PRIVY_API_ROOT"));
+});
+
+function buildCreateIntentFixture() {
+  return {
+    intent_type: "forecastos.create_market",
+    chain_id: 8453,
+    eip712_typed_data_template: {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        PrecogMarketAuthorization: [
+          { name: "action", type: "string" },
+          { name: "account", type: "address" },
+          { name: "chainId", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      primaryType: "PrecogMarketAuthorization",
+      domain: {
+        name: "Precog Markets",
+        version: "1",
+        chainId: 8453,
+        verifyingContract: "0x00000000000c109080dfa976923384b97165a57a",
+      },
+      message: {
+        action: "CREATE_UPCOMING_MARKET",
+        account: "<creator_address>",
+        chainId: 8453,
+        nonce: "<next_pending_nonce>",
+      },
+    },
+    precog_payload_template: {
+      image_url: "https://example.com/image.png",
+      category: "culture",
+    },
+  };
+}
+
+function jsonResponse(value, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async text() {
+      return JSON.stringify(value);
+    },
+  };
+}

@@ -26,7 +26,7 @@ if (!ACTIONS.has(action)) {
   fail(`Unsupported action '${action ?? ""}'. Supported actions: ${[...ACTIONS].join(", ")}`);
 }
 
-const input = normalizeInput(action, inputPath ? JSON.parse(await readFile(inputPath, "utf8")) : {});
+const input = normalizeInput(action, inputPath ? parseJsonInput(await readFile(inputPath, "utf8")) : {});
 enforceApproval(action, input);
 
 const forecastos = await loadForecastOS(sdkModule);
@@ -57,6 +57,10 @@ try {
 function argValue(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function parseJsonInput(text) {
+  return JSON.parse(text.replace(/^\uFEFF/, ""));
 }
 
 function enforceApproval(actionName, input) {

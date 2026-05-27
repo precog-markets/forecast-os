@@ -684,9 +684,14 @@ function ensureState(state, event) {
 
 function buildCreatePayload(draft, input, now) {
   const startTimestamp = toUnixTimestamp(input.start_timestamp ?? now());
-  const endTimestamp = toUnixTimestamp(
-    input.end_timestamp ?? input.resolution_time ?? draft.market.resolution_time,
-  );
+  const endTimestampSource =
+    input.end_timestamp ??
+    input.close_time ??
+    draft.market.close_time;
+  if (endTimestampSource === undefined || endTimestampSource === null || endTimestampSource === "") {
+    fail("create_market requires end_timestamp or draft close_time.");
+  }
+  const endTimestamp = toUnixTimestamp(endTimestampSource);
   if (startTimestamp >= endTimestamp) {
     fail("create_market requires start_timestamp to be before end_timestamp.");
   }

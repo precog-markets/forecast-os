@@ -20,6 +20,10 @@ Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled ac
 - Do not require MCP for normal drafting or creation. Use MCP only when extra read-only docs, templates, examples, capability metadata, or workflow inspection would help.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - For live creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. If no tooling is available, send them to https://core.precog.markets/launchpad/.
+- For creation, first generate a wallet-agnostic `prepare_create_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
+- After wallet creation fields are resolved, use `run_skill_step` with the current `create_market` workflow state so `.forecastos` advances to `await_precog_approval`; reserve direct `create_market` for low-level calls that do not need workflow memory updates.
+- For concrete wallet providers, read `references/wallet-adapters.md` and use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`.
+- When choosing a creation `image_url`, prefer a square image or square-cropped official/social image when one is readily available. Prioritize relevance and trusted sourcing over aspect ratio, and do not delay live creation if the best reliable image is not square.
 - For funding, first generate a wallet-agnostic `prepare_funding_intent`; the configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing, token approval if needed, and the final signed payload.
 - For `fund_market`, send `amount` as a plain Precog display-unit decimal string like `"1"`; never use wei/base units or token symbols.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
@@ -40,6 +44,7 @@ Present a friendly draft summary before creation. Do not expose raw JSON, workfl
 - Read `references/actions.md` before running `scripts/forecastos_action.mjs`.
 - Read `references/action-policy.md` before create, fund, approval, wallet, or prediction actions.
 - Read `references/safety.md` when a task touches live API calls, funding, signing, or secrets.
+- Read `references/wallet-adapters.md` when the operator chooses a concrete wallet/action provider for creation or funding.
 - Read `references/mcp.md` only when configuring or inspecting optional read-only MCP context.
 - Read `references/remote-mcp.md` only for future/advanced hosted MCP planning.
 - Read `references/tool-schemas.md` or `assets/schemas/actions.json` for action input shapes.

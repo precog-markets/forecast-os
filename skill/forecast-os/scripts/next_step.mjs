@@ -89,9 +89,11 @@ function guidanceFor(step, workflow) {
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/ to create the market.",
         "Before creation, any wallet/action tool must allow EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
-        "After the wallet/action tool resolves creator_address and creator_signature, call create_market.",
+        "After the wallet/action tool resolves creator_address and creator_signature, call run_skill_step with the current create_market state and the resolved event fields so workflow memory advances.",
+        "Use the direct create_market action only as a low-level API call when you intentionally do not need workflow state advancement.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
+        "For concrete wallet providers, read references/wallet-adapters.md and use the matching top-level adapter under adapters/wallets/<provider>/ after prepare_create_intent.",
       ],
     };
   }
