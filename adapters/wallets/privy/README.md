@@ -14,8 +14,17 @@ Use `--wallet-address <address>` instead of `--wallet-id` when the operator pref
 
 - `PRIVY_APP_ID`
 - `PRIVY_APP_SECRET`
-- A Privy Ethereum wallet policy allowing `eth_signTypedData_v4`
+- A Privy Ethereum wallet policy allowing both `eth_signTypedData_v4` and `eth_sendTransaction`
 - Base RPC via `FORECASTOS_BASE_RPC_URL`, `BASE_RPC_URL`, `--rpc-url`, or the default `https://mainnet.base.org`
+
+## Policy Shape
+
+For now, ForecastOS expects the selected Privy wallet to be usable for create and later funding. Attach constrained `ALLOW` rules for:
+
+- `eth_signTypedData_v4` for Precog authorization signatures.
+- `eth_sendTransaction` for future funding, token approval, and submit transactions.
+
+Keep the transaction-send rule Base-only (`chain_id = 8453`) and prefer contract/amount constraints for USDC and Precog funding paths when those addresses are known. Avoid broad `method: "*"` policies unless the wallet is otherwise tightly governed.
 
 ## Output
 

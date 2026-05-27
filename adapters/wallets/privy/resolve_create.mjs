@@ -145,7 +145,7 @@ async function walletsWithPolicyCapabilities(fetch, auth, wallets) {
       .flatMap((policy) => policy.rules ?? [])
       .filter((rule) => String(rule.action ?? "").toUpperCase() === "ALLOW")
       .map((rule) => rule.method);
-    if (methods.includes("eth_signTypedData_v4") || methods.includes("*")) {
+    if (allowsMethod(methods, "eth_signTypedData_v4") && allowsMethod(methods, "eth_sendTransaction")) {
       result.push({ ...wallet, policies });
     }
   }
@@ -169,7 +169,7 @@ function selectWallet(wallets, { walletId, walletAddress } = {}) {
   }
   if (filtered.length === 1) return filtered[0];
   if (filtered.length === 0) {
-    fail("No Privy Ethereum wallet with ALLOW eth_signTypedData_v4 policy permission matched the selector.");
+    fail("No Privy Ethereum wallet with ALLOW eth_signTypedData_v4 and eth_sendTransaction policy permissions matched the selector.");
   }
   const choices = filtered.map((wallet) => ({
     wallet_id: wallet.id,
@@ -223,6 +223,10 @@ async function readJsonResponse(response) {
 
 function sameAddress(left, right) {
   return String(left ?? "").toLowerCase() === String(right ?? "").toLowerCase();
+}
+
+function allowsMethod(methods, method) {
+  return methods.includes(method) || methods.includes("*");
 }
 
 function withoutUndefined(value) {

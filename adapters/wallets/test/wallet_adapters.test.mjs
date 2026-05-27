@@ -44,10 +44,22 @@ test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed
       });
     }
     if (String(url).includes("/policies/policy_a")) {
-      return jsonResponse({ id: "policy_a", rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+      return jsonResponse({
+        id: "policy_a",
+        rules: [
+          { method: "eth_signTypedData_v4", action: "ALLOW" },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
     }
     if (String(url).includes("/policies/policy_b")) {
-      return jsonResponse({ id: "policy_b", rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+      return jsonResponse({
+        id: "policy_b",
+        rules: [
+          { method: "eth_signTypedData_v4", action: "ALLOW" },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
     }
     if (String(url) === "https://rpc.example") {
       return jsonResponse({ jsonrpc: "2.0", id: 1, result: "0x7" });
@@ -102,7 +114,12 @@ test("Privy create resolver refuses ambiguous typed-data-capable wallets", async
       });
     }
     if (String(url).includes("/policies/")) {
-      return jsonResponse({ rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }] });
+      return jsonResponse({
+        rules: [
+          { method: "eth_signTypedData_v4", action: "ALLOW" },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
     }
     throw new Error(`Unexpected URL ${url}`);
   };
@@ -153,7 +170,41 @@ test("Privy create resolver ignores DENY typed-data policy rules", async () => {
       env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
       fetch,
     }),
-    /ALLOW eth_signTypedData_v4/,
+    /ALLOW eth_signTypedData_v4 and eth_sendTransaction/,
+  );
+});
+
+test("Privy create resolver requires transaction-send policy for future funding", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_sign_only",
+            address: "0x1111111111111111111111111111111111111111",
+            chain_type: "ethereum",
+            policy_ids: ["policy_sign_only"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_sign_only")) {
+      return jsonResponse({
+        id: "policy_sign_only",
+        rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }],
+      });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      walletId: "wallet_sign_only",
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    /eth_sendTransaction/,
   );
 });
 

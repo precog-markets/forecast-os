@@ -8,6 +8,7 @@ Wallet adapters resolve ForecastOS wallet-agnostic intents into the signed field
 - Adapters must not print secrets, private keys, seed phrases, raw credential values, or unlimited approvals.
 - Adapters must return only non-secret audit metadata: provider, wallet id/address, chain id, nonce, method, and policy ids.
 - ForecastOS remains the workflow owner: adapters do not mutate `.forecastos` state directly.
+- EVM wallet policies should allow both typed-data signing and transaction sending when the same wallet is expected to create now and fund later. Prefer constrained `ALLOW` rules for `eth_signTypedData_v4` and `eth_sendTransaction` over broad `*` rules.
 
 ## Create Intent Output
 

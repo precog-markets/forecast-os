@@ -23,6 +23,8 @@ adapters/wallets/contract.md
 
 The adapter output must contain `creator_address` and `creator_signature`, plus non-secret audit metadata. Do not ask users to paste raw signatures in chat.
 
+When the same EVM wallet will create now and fund later, its policy should allow both `eth_signTypedData_v4` and `eth_sendTransaction` with tight chain, contract, and amount constraints. Provider adapters may refuse wallets missing either capability.
+
 ## Funding Flow
 
 Funding adapters should consume `prepare_funding_intent` output and return a `funding_request` with `tx_hash`, `funder_address`, `funder_signature`, and the display-unit `amount`. Funding adapters must handle token approval outside ForecastOS when needed.
