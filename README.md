@@ -10,7 +10,7 @@ The skill is the agent behavior contract. MCP is context infrastructure. Live ex
 forecast-os/
   skill/forecast-os/          # Installable skill artifact
   mcp/forecast-os-mcp-server/ # Optional read-only MCP server package
-  adapters/                   # Host-specific MCP config examples
+  adapters/                   # Host and wallet adapter examples
 ```
 
 ## Install The Skill
@@ -50,7 +50,7 @@ npm run build
 Codex can use:
 
 ```txt
-adapters/codex/mcp.json
+adapters/hosts/codex/mcp.json
 ```
 
 Claude, OpenClaw, and other MCP-capable runtimes can use the same command/args pattern shown in their adapter folders. Adapter paths are relative to the adapter folder.

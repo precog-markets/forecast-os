@@ -456,21 +456,21 @@ test("skill treats MCP as optional read-only context, not the production gate", 
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const mcpDoc = await readFile(join(skillRoot, "references", "mcp.md"), "utf8");
   const remoteMcpDoc = await readFile(join(skillRoot, "references", "remote-mcp.md"), "utf8");
-  const mcpConfigPath = join(monorepoRoot, "adapters", "codex", "mcp.json");
+  const mcpConfigPath = join(monorepoRoot, "adapters", "hosts", "codex", "mcp.json");
 
   assert.ok(skill.includes("Do not require MCP for normal drafting or creation."));
   assert.ok(skill.includes("Use `scripts/forecastos_action.mjs` for workflow execution"));
   assert.ok(mcpDoc.includes("optional read-only context"));
-  assert.ok(mcpDoc.includes("adapters/codex/mcp.json"));
+  assert.ok(mcpDoc.includes("adapters/hosts/codex/mcp.json"));
   assert.ok(remoteMcpDoc.includes("future or advanced infrastructure planning"));
   if (await exists(mcpConfigPath)) {
     const mcpConfig = JSON.parse(await readFile(mcpConfigPath, "utf8"));
     assert.deepEqual(mcpConfig.servers.forecastos.args, [
-      "../../mcp/forecast-os-mcp-server/dist/stdio.js",
+      "../../../mcp/forecast-os-mcp-server/dist/stdio.js",
     ]);
     assert.equal(
       mcpConfig.servers.forecastos.env.FORECASTOS_STATE_DIR,
-      "../../skill/forecast-os/.forecastos",
+      "../../../skill/forecast-os/.forecastos",
     );
   }
 });

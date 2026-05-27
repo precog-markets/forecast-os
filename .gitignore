@@ -5,3 +5,6 @@ skill/forecast-os/api-test-output/
 # Optional local overrides and generated workflow memory.
 skill/forecast-os/.forecastos/drafts/
 skill/forecast-os/.forecastos/workflows/
+
+# Python adapter runtime caches.
+__pycache__/

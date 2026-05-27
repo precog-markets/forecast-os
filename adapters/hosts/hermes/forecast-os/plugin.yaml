@@ -1,0 +1,5 @@
+name: forecast-os
+version: 0.1.0
+description: ForecastOS multi-outcome prediction-market workflow adapter
+provides_tools:
+  - forecastos_action

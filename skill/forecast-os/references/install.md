@@ -45,14 +45,14 @@ npm install
 npm run build
 ```
 
-Codex can use `adapters/codex/mcp.json`. Claude, OpenClaw, or another MCP-capable agent should use the same command and args pattern from its adapter folder:
+Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, or another MCP-capable agent should use the same command and args pattern from its adapter folder:
 
 ```json
 {
   "command": "node",
-  "args": ["../../mcp/forecast-os-mcp-server/dist/stdio.js"],
+  "args": ["../../../mcp/forecast-os-mcp-server/dist/stdio.js"],
   "env": {
-    "FORECASTOS_STATE_DIR": "../../skill/forecast-os/.forecastos"
+    "FORECASTOS_STATE_DIR": "../../../skill/forecast-os/.forecastos"
   }
 }
 ```

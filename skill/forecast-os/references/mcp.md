@@ -2,20 +2,20 @@
 
 The ForecastOS MCP server is optional read-only context and inspection infrastructure. It is intentionally not the action surface, and the ForecastOS skill must still work when MCP is ignored or not built.
 
-In the full ForecastOS repo, MCP is bundled at `mcp/forecast-os-mcp-server` and host-specific config examples live under `adapters/`. The skill remains the agent onboarding layer; MCP remains read-only; execution stays in `scripts/forecastos_action.mjs`, a future ForecastOS SDK/API, or trusted wallet/action tooling.
+In the full ForecastOS repo, MCP is bundled at `mcp/forecast-os-mcp-server` and host-specific config examples live under `adapters/hosts/`. The skill remains the agent onboarding layer; MCP remains read-only; execution stays in `scripts/forecastos_action.mjs`, a future ForecastOS SDK/API, or trusted wallet/action tooling.
 
 ## Local Config
 
-From an adapter folder such as `adapters/codex`, use:
+From an adapter folder such as `adapters/hosts/codex`, use:
 
 ```json
 {
   "servers": {
     "forecastos": {
       "command": "node",
-      "args": ["../../mcp/forecast-os-mcp-server/dist/stdio.js"],
+      "args": ["../../../mcp/forecast-os-mcp-server/dist/stdio.js"],
       "env": {
-        "FORECASTOS_STATE_DIR": "../../skill/forecast-os/.forecastos"
+        "FORECASTOS_STATE_DIR": "../../../skill/forecast-os/.forecastos"
       }
     }
   }
@@ -30,7 +30,7 @@ npm install
 npm run build
 ```
 
-Codex can use `adapters/codex/mcp.json`. Claude, OpenClaw, and other MCP-capable agents should use the same command and args pattern from their adapter folder.
+Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-capable agents should use the same command and args pattern from their adapter folder.
 
 ## Resources
 

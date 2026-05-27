@@ -126,14 +126,15 @@ process.stdout.write(
 
 async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "mcp", "forecast-os-mcp-server"));
-  await assertDir(join(monorepoRoot, "adapters", "codex"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "privy"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "test"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "contract.md"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
-  await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/codex/mcp.json");
+  await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "references"), "root references/ should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "scripts"), "root scripts/ should move to skill/forecast-os");
@@ -141,14 +142,14 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertMissing(join(monorepoRoot, "test"), "root test/ should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, ".forecastos"), "root .forecastos/ should move to skill/forecast-os");
 
-  const codexConfig = JSON.parse(await readFile(join(monorepoRoot, "adapters", "codex", "mcp.json"), "utf8"));
+  const codexConfig = JSON.parse(await readFile(join(monorepoRoot, "adapters", "hosts", "codex", "mcp.json"), "utf8"));
   assert(
-    JSON.stringify(codexConfig.servers.forecastos.args) === JSON.stringify(["../../mcp/forecast-os-mcp-server/dist/stdio.js"]),
-    "adapters/codex/mcp.json must point at ../../mcp/forecast-os-mcp-server/dist/stdio.js",
+    JSON.stringify(codexConfig.servers.forecastos.args) === JSON.stringify(["../../../mcp/forecast-os-mcp-server/dist/stdio.js"]),
+    "adapters/hosts/codex/mcp.json must point at ../../../mcp/forecast-os-mcp-server/dist/stdio.js",
   );
   assert(
-    codexConfig.servers.forecastos.env?.FORECASTOS_STATE_DIR === "../../skill/forecast-os/.forecastos",
-    "adapters/codex/mcp.json must point FORECASTOS_STATE_DIR at ../../skill/forecast-os/.forecastos",
+    codexConfig.servers.forecastos.env?.FORECASTOS_STATE_DIR === "../../../skill/forecast-os/.forecastos",
+    "adapters/hosts/codex/mcp.json must point FORECASTOS_STATE_DIR at ../../../skill/forecast-os/.forecastos",
   );
 }
 
