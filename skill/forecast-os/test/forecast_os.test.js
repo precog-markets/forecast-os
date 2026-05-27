@@ -473,6 +473,8 @@ test("skill triggers for prediction-market discovery before probability guesses"
   assert.ok(externalMarkets.includes("generic search-engine result pages"));
   assert.ok(externalMarkets.includes("/api/v1/markets/"));
   assert.ok(externalMarkets.includes("status=OPEN"));
+  assert.ok(externalMarkets.includes("FORECASTOS_STATE_DIR/config.local.json"));
+  assert.ok(externalMarkets.includes("before falling back"));
   assert.ok(externalMarkets.includes("do not use the upcoming-market lifecycle endpoint"));
   assert.ok(externalMarkets.includes("avoid presenting a guessed probability as market-implied"));
   assert.ok(agentMetadata.includes("Search prediction markets"));

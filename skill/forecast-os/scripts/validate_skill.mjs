@@ -201,6 +201,10 @@ assert(
   "references/external-markets.md must document Precog discovery through /api/v1/markets/?status=OPEN",
 );
 assert(
+  externalMarketsDoc.includes("FORECASTOS_STATE_DIR/config.local.json") && externalMarketsDoc.includes("before falling back"),
+  "references/external-markets.md must document current ForecastOS config precedence for Precog reads",
+);
+assert(
   externalMarketsDoc.includes("do not use the upcoming-market lifecycle endpoint for ordinary market discovery"),
   "references/external-markets.md must keep upcoming-market lifecycle separate from Precog discovery",
 );

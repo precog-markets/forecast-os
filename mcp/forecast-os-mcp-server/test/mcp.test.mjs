@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,7 +82,7 @@ test("Polymarket provider searches and normalizes fixture-backed public markets"
     {
       provider: "polymarket",
       query: "Fed",
-      limit: 5,
+      limit: 1,
       offset: 0,
     },
     fetcher,
@@ -158,7 +158,7 @@ test("default market search checks Precog first, then Kalshi, then Polymarket", 
   const result = await searchExternalMarkets(
     {
       query: "Brazil",
-      limit: 5,
+      limit: 1,
       status: "active",
     },
     fetcher,
@@ -177,6 +177,7 @@ test("default market search checks Precog first, then Kalshi, then Polymarket", 
   assert.equal(result.normalized.markets[0].provider, "precog");
   assert.ok(precog.calls[0].includes("/api/v1/markets/"));
   assert.ok(precog.calls[0].includes("status=OPEN"));
+  assert.ok(precog.calls[0].includes("limit=1000"));
   assert.ok(!precog.calls[0].includes("upcoming-markets"));
 });
 
@@ -185,8 +186,8 @@ test("Precog provider searches markets and returns outcome prices", async () => 
   const result = await searchExternalMarkets(
     {
       provider: "precog",
-      query: "Brazil",
-      limit: 5,
+      query: "Who is more liekly to win Brazil's Presidential election first round?",
+      limit: 1,
       status: "active",
     },
     fetcher,
@@ -196,10 +197,28 @@ test("Precog provider searches markets and returns outcome prices", async () => 
   assert.equal(result.read_only, true);
   assert.equal(result.normalized.markets.length, 1);
   assert.equal(result.normalized.markets[0].provider_market_id, "503");
+  assert.equal(result.normalized.markets[0].title, "Who wins Brazil's Presidential election first round?");
   assert.equal(result.normalized.markets[0].outcomes[0].price, "0.62");
+  assert.equal(result.raw.market_count, 2);
+  assert.equal(result.raw.matched_count, 2);
+  assert.equal(result.raw.markets.length, 1);
+  assert.equal(result.raw.markets[0].name, "Who wins Brazil's Presidential election first round?");
   assert.ok(result.source.includes("service.precog.markets/api/v1/markets"));
   assert.ok(result.source.includes("status=OPEN"));
+  assert.ok(result.source.includes("limit=1000"));
+  assert.equal(result.normalized.scan_limit, 1000);
   assert.ok(!result.source.includes("upcoming-markets"));
+
+  const market = await getExternalMarket(
+    {
+      provider: "precog",
+      identifier: { precog: { master_market_id: 503 } },
+    },
+    fetcher,
+  );
+  assert.equal(market.normalized.provider_market_id, "503");
+  assert.equal(market.normalized.title, "Who wins Brazil's Presidential election first round?");
+  assert.equal(market.normalized.status, "active");
 
   const prices = await getExternalMarketPrices(
     {
@@ -210,6 +229,54 @@ test("Precog provider searches markets and returns outcome prices", async () => 
   );
   assert.equal(prices.normalized.prices[0].outcomes[0].name, "Lula");
   assert.equal(prices.normalized.prices[0].outcomes[0].price, "0.62");
+});
+
+test("Precog provider reads current state config before resource defaults", async (t) => {
+  const previousStateDir = process.env.FORECASTOS_STATE_DIR;
+  const stateDir = await mkdtemp(join(tmpdir(), "forecastos-state-"));
+  process.env.FORECASTOS_STATE_DIR = stateDir;
+  t.after(async () => {
+    if (previousStateDir === undefined) delete process.env.FORECASTOS_STATE_DIR;
+    else process.env.FORECASTOS_STATE_DIR = previousStateDir;
+    await rm(stateDir, { recursive: true, force: true });
+  });
+
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: "https://service.precog.markets/",
+        open_api_key: "new-test-open-api-key",
+        chain_id: 8453,
+        deployed_master_address: "0x00000000000c109080dfa976923384b97165a57a",
+      },
+    }),
+  );
+
+  const fetcher = async (input, init) => {
+    assert.equal(init.headers["x-api-key"], "new-test-open-api-key");
+    return new Response(JSON.stringify([{
+      master_market_id: 700,
+      question: "Brazil first round winner",
+      outcomes: "Lula,Other",
+      outcomes_prices: "0.7,0.3",
+      status: "OPEN",
+    }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const result = await searchExternalMarkets(
+    {
+      provider: "precog",
+      query: "Brazil",
+      limit: 5,
+    },
+    fetcher,
+  );
+
+  assert.equal(result.normalized.markets[0].provider_market_id, "700");
 });
 
 test("Kalshi provider searches and normalizes fixture-backed public markets", async () => {

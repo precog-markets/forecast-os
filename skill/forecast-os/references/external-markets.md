@@ -58,6 +58,10 @@ generic search-engine result pages. If ForecastOS MCP tools are unavailable, say
 that clearly and use only direct read-only provider API paths when available.
 For Precog discovery, use the deployed market endpoint `/api/v1/markets/` with
 status filters such as `status=OPEN`; do not use the upcoming-market lifecycle endpoint for ordinary market discovery.
+Precog market reads must use the current ForecastOS config from
+`FORECASTOS_STATE_DIR/config.local.json` or `FORECASTOS_STATE_DIR/config.json`
+before falling back to bundled MCP resource defaults, so updated API keys are
+picked up without relying on stale synced resources.
 
 Use Kalshi keyword search through the persistent cache by default. If the cache
 needs a manual refresh, set `cache_mode: "refresh"`; if a live bounded scan is

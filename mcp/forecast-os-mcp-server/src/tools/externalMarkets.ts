@@ -457,16 +457,24 @@ export function kalshiCapabilities() {
 async function searchPrecogMarkets(input: SearchMarketsInput, fetcher: FetchLike) {
   const limit = clamp(input.limit ?? 20, 1, 100);
   const offset = Math.max(0, input.offset ?? 0);
-  const query = input.query?.toLowerCase();
+  const query = input.query;
   const config = await readPrecogMarketConfig();
   const headers = precogHeaders(config);
+  const scanLimit = query ? 1000 : Math.min(offset + limit, 1000);
   const marketsUrl = buildUrl(config.api_root, "/api/v1/markets/", {
     status: precogStatus(input.status ?? "active"),
+    limit: scanLimit,
   });
   const raw = await fetchJson(marketsUrl, fetcher, { method: "GET", headers });
-  const candidates = precogCollection(raw).map((market) => ({ ...asRecord(market), precog_market_kind: "market" }));
+  const candidates = precogCollection(raw)
+    .map((market) => ({ ...asRecord(market), precog_market_kind: "market" }))
+    .filter((market) => isConfiguredPrecogMarket(market, config));
   const filtered = query
-    ? candidates.filter((market) => JSON.stringify(pickPrecogSearchFields(market)).toLowerCase().includes(query))
+    ? candidates
+      .map((market) => ({ market, score: scoreSearchQuery(pickPrecogSearchFields(market), query) }))
+      .filter((entry) => entry.score.matched)
+      .sort((left, right) => right.score.value - left.score.value)
+      .map((entry) => entry.market)
     : candidates;
   const limited = filtered.slice(offset, offset + limit);
 
@@ -480,8 +488,14 @@ async function searchPrecogMarkets(input: SearchMarketsInput, fetcher: FetchLike
       has_more: filtered.length > offset + limit,
       search_mode: "precog_markets_status_filter",
       checked: ["markets"],
+      scan_limit: scanLimit,
     },
-    raw,
+    {
+      market_count: candidates.length,
+      matched_count: filtered.length,
+      scan_limit: scanLimit,
+      markets: limited,
+    },
   );
 }
 
@@ -494,7 +508,8 @@ async function fetchPrecogMarket(id: NonNullable<ExternalMarketIdentifier["preco
     deployed_market_id: id.deployed_market_id,
   });
   const raw = await fetchJson(url, fetcher, { method: "GET", headers });
-  const market = precogCollection(raw)[0] ?? raw;
+  const collection = precogCollection(raw).map((market) => asRecord(market));
+  const market = pickPrecogMarket(collection, id, config) ?? raw;
   return { source: url.toString(), normalized: normalizePrecogMarket({ ...asRecord(market), precog_market_kind: "market" }), raw };
 }
 
@@ -783,14 +798,19 @@ function polymarketIdentifier(identifier: ExternalMarketIdentifier): PolymarketI
 }
 
 async function readPrecogMarketConfig() {
-  const config = JSON.parse(await readFile(join(RESOURCE_ROOT, "precog", "config-defaults.json"), "utf8"));
+  const config = await readFirstJson([
+    process.env.FORECASTOS_PRECOG_CONFIG_PATH,
+    process.env.FORECASTOS_STATE_DIR ? join(process.env.FORECASTOS_STATE_DIR, "config.local.json") : undefined,
+    process.env.FORECASTOS_STATE_DIR ? join(process.env.FORECASTOS_STATE_DIR, "config.json") : undefined,
+    join(RESOURCE_ROOT, "precog", "config-defaults.json"),
+  ]);
   const precog = asRecord(config.precog);
   const apiRoot = stringValue(precog.api_root);
   const openApiKey = stringValue(precog.open_api_key);
   const deployedMasterAddress = stringValue(precog.deployed_master_address);
   const chainId = Number(precog.chain_id);
   if (!apiRoot || !openApiKey || !deployedMasterAddress || !Number.isInteger(chainId)) {
-    throw new Error("Precog market reads require api_root, open_api_key, chain_id, and deployed_master_address in config defaults.");
+    throw new Error("Precog market reads require api_root, open_api_key, chain_id, and deployed_master_address in ForecastOS config.");
   }
   return {
     api_root: apiRoot,
@@ -798,6 +818,18 @@ async function readPrecogMarketConfig() {
     chain_id: chainId,
     deployed_master_address: deployedMasterAddress,
   };
+}
+
+async function readFirstJson(paths: Array<string | undefined>) {
+  for (const path of paths.filter(Boolean) as string[]) {
+    try {
+      return JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      if (asRecord(error).code === "ENOENT") continue;
+      throw error;
+    }
+  }
+  throw new Error("Missing Precog config for market reads.");
 }
 
 function precogHeaders(config: Awaited<ReturnType<typeof readPrecogMarketConfig>>) {
@@ -817,10 +849,40 @@ function precogCollection(raw: unknown): unknown[] {
   return Object.keys(record).length > 0 && !record.error ? [record] : [];
 }
 
+function pickPrecogMarket(
+  markets: Record<string, any>[],
+  id: NonNullable<ExternalMarketIdentifier["precog"]>,
+  config: Awaited<ReturnType<typeof readPrecogMarketConfig>>,
+) {
+  const idMatches = markets.filter((market) =>
+    matchesId(market.id, id.id)
+    || matchesId(market.master_market_id, id.master_market_id)
+    || matchesId(market.deployed_market_id, id.deployed_market_id)
+    || matchesId(market.contract_address, id.deployed_market_id),
+  );
+  const candidates = idMatches.length > 0 ? idMatches : markets;
+  const configured = candidates.filter((market) => isConfiguredPrecogMarket(market, config));
+  const scoped = configured.length > 0 ? configured : candidates;
+  return scoped.find((market) => normalizePrecogStatus(market.status) === "active") ?? scoped[0];
+}
+
+function isConfiguredPrecogMarket(
+  market: Record<string, any>,
+  config: Awaited<ReturnType<typeof readPrecogMarketConfig>>,
+) {
+  const masterAddress = stringValue(market.master_address);
+  if (!masterAddress) return true;
+  return masterAddress.toLowerCase() === config.deployed_master_address.toLowerCase();
+}
+
+function matchesId(value: unknown, expected: unknown) {
+  return expected !== undefined && expected !== "" && stringValue(value) === stringValue(expected);
+}
+
 function normalizePrecogMarket(value: unknown): NormalizedMarket {
   const market = asRecord(value);
   const id = stringValue(market.master_market_id ?? market.deployed_market_id ?? market.id);
-  const question = stringValue(market.question ?? market.title ?? market.description) ?? id;
+  const question = stringValue(market.name ?? market.question ?? market.title ?? market.description) ?? id;
   const outcomes = parsePrecogOutcomes(market.outcomes, market.outcomes_prices ?? market.outcome_prices);
   return {
     provider: "precog",
@@ -850,6 +912,7 @@ function pickPrecogSearchFields(value: unknown) {
     id: market.id,
     master_market_id: market.master_market_id,
     deployed_market_id: market.deployed_market_id,
+    name: market.name,
     question: market.question,
     title: market.title,
     description: market.description,
@@ -857,6 +920,55 @@ function pickPrecogSearchFields(value: unknown) {
     outcomes: market.outcomes,
     status: market.status,
   };
+}
+
+const SEARCH_STOPWORDS = new Set([
+  "about",
+  "after",
+  "before",
+  "does",
+  "from",
+  "have",
+  "market",
+  "markets",
+  "more",
+  "most",
+  "less",
+  "likely",
+  "there",
+  "this",
+  "that",
+  "what",
+  "when",
+  "where",
+  "which",
+  "will",
+  "with",
+  "would",
+]);
+
+function scoreSearchQuery(fields: unknown, query: string): { matched: boolean; value: number } {
+  const haystack = normalizeSearchText(JSON.stringify(fields));
+  const needle = normalizeSearchText(query);
+  if (!needle) return { matched: true, value: 0 };
+
+  const tokens = searchTokens(needle);
+  if (tokens.length === 0) return { matched: true, value: 0 };
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  const threshold = tokens.length <= 3 ? tokens.length : Math.max(2, Math.ceil(tokens.length * 0.5));
+  const phraseBoost = haystack.includes(needle) ? tokens.length + 2 : 0;
+  const value = matches + phraseBoost;
+  return { matched: matches >= threshold || phraseBoost > 0, value };
+}
+
+function searchTokens(value: string): string[] {
+  return [...new Set(value.split(" ").filter((token) =>
+    token.length >= 3 && !SEARCH_STOPWORDS.has(token),
+  ))];
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function precogStatus(status: "active" | "closed" | "all"): string | undefined {
