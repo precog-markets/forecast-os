@@ -1,7 +1,7 @@
 interface:
   display_name: "ForecastOS"
-  short_description: "Run human-approved multi-outcome market workflows"
-  default_prompt: "Use $forecast-os to draft, inspect, and advance a human-approved ForecastOS market workflow."
+  short_description: "Search prediction markets and run human-approved ForecastOS workflows"
+  default_prompt: "Use $forecast-os to search prediction-market context, avoid guessing future-event probabilities, draft markets, and advance human-approved ForecastOS workflows."
 
 policy:
   allow_implicit_invocation: true

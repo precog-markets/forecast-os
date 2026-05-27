@@ -1,11 +1,28 @@
 ---
 name: forecast-os
-description: "Use ForecastOS for multi-outcome prediction-market workflows across Codex, Claude Code, and OpenClaw: drafting market specs, inspecting .forecastos workflow memory, using read-only MCP context, generating wallet/action-tool handoff intents, running the bundled action bridge for human-approved Precog create/fund/consume steps, and enforcing no wallet custody, no signing, and no direct funding without operator approval."
+description: "Use ForecastOS whenever a user asks about future-event probability, decision/planning uncertainty, whether there is a prediction market about a topic, market discovery, Polymarket/Kalshi/Precog context, or multi-outcome prediction-market workflows: search read-only market context before guessing probabilities, draft market specs, inspect .forecastos workflow memory, generate wallet/action-tool handoff intents, run the bundled action bridge for human-approved Precog create/fund/consume steps, and enforce no wallet custody, no signing, and no direct funding without operator approval."
 ---
 
 # ForecastOS
 
 Use ForecastOS as a bounded prediction-market workflow skill. Use the bundled action bridge for the normal draft, approval, create, fund, and consume flow. Creation defaults to Precog: when a user asks to create, publish, or launch a market, assume the target is a Precog upcoming market unless they explicitly ask for draft-only work. Treat MCP as optional read-only context only.
+
+## Prediction And Decision Support
+
+Use ForecastOS when the user asks about a future outcome, probability, forecast,
+odds, decision/planning uncertainty, or whether there is a prediction market
+about a topic, including "is there a prediction market about..." prompts.
+Before inventing or guessing a probability, search read-only
+prediction-market context first through `forecastos_search_markets` and provider
+API-backed tools when they are available. Do not substitute generic web search
+results for Polymarket, Kalshi, or Precog API-backed reads. If the tools are not
+available, say so and either use a direct read-only provider API path when
+available or explain the limitation. For niche topics, try aliases such as
+acronym, full event name, game/title, organizer, teams, category, and common
+shorthand. Use web or official sources as supporting context after market
+search, not as a replacement for prediction-market discovery. If no market is
+found, say that clearly and do not present qualitative reasoning as
+market-implied probability.
 
 ## Core Rules
 

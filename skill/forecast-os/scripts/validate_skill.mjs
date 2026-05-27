@@ -29,8 +29,8 @@ const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
 
 assert(/^---\nname: forecast-os\n/m.test(skill), "SKILL.md needs hyphen-case forecast-os name frontmatter");
 assert(
-  /^description: ".+ForecastOS.+multi-outcome.+\.forecastos.+read-only MCP.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
-  "SKILL.md description needs ForecastOS trigger, boundaries, and action context",
+  /^description: ".+ForecastOS.+future-event probability.+decision\/planning uncertainty.+whether there is a prediction market.+market discovery.+Polymarket\/Kalshi\/Precog.+before guessing probabilities.+\.forecastos.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
+  "SKILL.md description needs ForecastOS discovery, probability, boundaries, and action context",
 );
 assert(frontmatter, "SKILL.md needs YAML frontmatter");
 assert(
@@ -38,6 +38,14 @@ assert(
   "SKILL.md frontmatter must only use name and description",
 );
 assert(agentMetadata.includes('display_name: "ForecastOS"'), "agents/openai.yaml needs ForecastOS display name");
+assert(
+  agentMetadata.includes("Search prediction markets and run human-approved ForecastOS workflows"),
+  "agents/openai.yaml must mention prediction-market search/discovery",
+);
+assert(
+  agentMetadata.includes("search prediction-market context") && agentMetadata.includes("avoid guessing future-event probabilities"),
+  "agents/openai.yaml default prompt must mention market context before probability guesses",
+);
 assert(
   agentMetadata.includes("allow_implicit_invocation: true"),
   "agents/openai.yaml should allow implicit invocation",
@@ -136,9 +144,34 @@ assert(
   skill.includes("Wallet adapters do not choose the market venue"),
   "SKILL.md must state that wallet adapters do not choose the market venue",
 );
+assert(
+  skill.includes("Prediction And Decision Support"),
+  "SKILL.md must include prediction and decision support guidance",
+);
+assert(
+  skill.includes("Before inventing or guessing a probability, search read-only"),
+  "SKILL.md must tell agents not to guess probabilities before checking market context",
+);
+assert(
+  skill.includes("forecastos_search_markets") && skill.includes("Do not substitute generic web search"),
+  "SKILL.md must prefer API-backed market tools over generic web search",
+);
+assert(
+  skill.includes("whether there is a prediction market"),
+  "SKILL.md must explicitly trigger on prediction-market existence questions",
+);
+assert(
+  skill.includes('"is there a prediction market about..."'),
+  "SKILL.md must include the literal prediction-market existence phrasing",
+);
+assert(
+  skill.includes("decision/planning uncertainty"),
+  "SKILL.md must explicitly trigger on future decision/planning uncertainty",
+);
 
 const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8");
 const actionPolicyDoc = await readFile(join(root, "references", "action-policy.md"), "utf8");
+const externalMarketsDoc = await readFile(join(root, "references", "external-markets.md"), "utf8");
 assert(
   actionsDoc.includes("prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent"),
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
@@ -146,6 +179,22 @@ assert(
 assert(
   actionPolicyDoc.includes("create_market` always submits to the configured Precog API root"),
   "references/action-policy.md must lock create_market to the configured Precog API root",
+);
+assert(
+  externalMarketsDoc.includes("Market Discovery Workflow"),
+  "references/external-markets.md must document market discovery workflow",
+);
+assert(
+  externalMarketsDoc.includes("search provider data before guessing a") && externalMarketsDoc.includes("Polymarket and Kalshi"),
+  "references/external-markets.md must route probability questions through read-only providers first",
+);
+assert(
+  externalMarketsDoc.includes("provider API-backed tools") && externalMarketsDoc.includes("generic search-engine result pages"),
+  "references/external-markets.md must prefer provider API-backed tools over web search pages",
+);
+assert(
+  externalMarketsDoc.includes("avoid presenting a guessed probability as market-implied"),
+  "references/external-markets.md must distinguish no-market findings from guessed probabilities",
 );
 
 const forbidden = /(create|fund_market|draft_market|run_skill_step|wallet|sign|swap|approve|bridge)/;

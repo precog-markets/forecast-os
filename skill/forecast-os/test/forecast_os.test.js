@@ -452,6 +452,28 @@ test("skill docs forbid raw JSON as normal chat output and require next step pro
   assert.ok(workflow.includes("not raw JSON"));
 });
 
+test("skill triggers for prediction-market discovery before probability guesses", async () => {
+  const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+  const externalMarkets = await readFile(join(skillRoot, "references", "external-markets.md"), "utf8");
+  const agentMetadata = await readFile(join(skillRoot, "agents", "openai.yaml"), "utf8");
+
+  assert.ok(skill.includes("future-event probability"));
+  assert.ok(skill.includes("decision/planning uncertainty"));
+  assert.ok(skill.includes("whether there is a prediction market"));
+  assert.ok(skill.includes('"is there a prediction market about..."'));
+  assert.ok(skill.includes("Before inventing or guessing a probability, search read-only"));
+  assert.ok(skill.includes("forecastos_search_markets"));
+  assert.ok(skill.includes("Do not substitute generic web search"));
+  assert.ok(externalMarkets.includes("Market Discovery Workflow"));
+  assert.ok(externalMarkets.includes("search provider data before guessing a"));
+  assert.ok(externalMarkets.includes("Polymarket and Kalshi"));
+  assert.ok(externalMarkets.includes("provider API-backed tools"));
+  assert.ok(externalMarkets.includes("generic search-engine result pages"));
+  assert.ok(externalMarkets.includes("avoid presenting a guessed probability as market-implied"));
+  assert.ok(agentMetadata.includes("Search prediction markets"));
+  assert.ok(agentMetadata.includes("avoid guessing future-event probabilities"));
+});
+
 test("skill treats MCP as optional read-only context, not the production gate", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const mcpDoc = await readFile(join(skillRoot, "references", "mcp.md"), "utf8");

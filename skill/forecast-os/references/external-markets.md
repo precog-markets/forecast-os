@@ -4,6 +4,9 @@ ForecastOS can use external prediction-market data as read-only context for draf
 research, comparison, and public price checks. These tools live in the MCP server and
 must not advance ForecastOS workflow state. Creation defaults to Precog; external
 markets are read-only and cannot receive ForecastOS creation or funding actions.
+Use this workflow whenever an agent needs market-implied context for a future
+event, decision/planning uncertainty, odds/probability, or the question "is there
+a prediction market about this?"
 
 ## Provider Envelope
 
@@ -42,6 +45,26 @@ bounded live page scan with local filtering.
 - `forecastos_get_market_prices`: read public outcome/token prices.
 - `forecastos_get_market_orderbook`: read public orderbook depth when the provider
   supports it.
+
+## Market Discovery Workflow
+
+For prediction-market questions, search provider data before guessing a
+probability. Start with Polymarket and Kalshi as read-only providers. For niche
+topics, search multiple aliases: acronym, full event name, product/game/title,
+organizer, teams/entities, category, and common shorthand.
+Use `forecastos_search_markets` and the provider API-backed tools rather than
+generic search-engine result pages. If ForecastOS MCP tools are unavailable, say
+that clearly and use only direct read-only provider API paths when available.
+
+Use Kalshi keyword search through the persistent cache by default. If the cache
+needs a manual refresh, set `cache_mode: "refresh"`; if a live bounded scan is
+needed, set `cache_mode: "bypass"`. Use official web sources only to verify the
+event, schedule, teams, or resolution context after market discovery.
+
+If no external market is found, report that no matching market was found and
+avoid presenting a guessed probability as market-implied. External market prices
+can inform decisions and drafts, but Polymarket, Kalshi, and similar providers
+remain read-only and are never ForecastOS creation or funding venues.
 
 Responses include:
 
