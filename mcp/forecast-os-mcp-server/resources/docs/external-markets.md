@@ -28,13 +28,16 @@ added without changing the top-level tool surface:
 }
 ```
 
-`polymarket` is implemented first. `kalshi` is reserved for the same shape and should
-return a clear not-implemented result until a Kalshi provider is added.
+`polymarket` and `kalshi` are implemented as read-only providers. Kalshi keyword
+search uses a persistent Aeon-style open-market cache by default because Kalshi
+does not expose a Polymarket-style native free-text query endpoint. Use
+`cache_mode: "refresh"` to rebuild the cache, or `cache_mode: "bypass"` to use a
+bounded live page scan with local filtering.
 
 ## Read-Only Tools
 
 - `forecastos_search_markets`: discover external markets by provider, query, slug,
-  tag, status, limit, and offset.
+  tag, status, limit, offset, and Kalshi `cache_mode` when needed.
 - `forecastos_get_market`: read one event or market by provider-specific identifier.
 - `forecastos_get_market_prices`: read public outcome/token prices.
 - `forecastos_get_market_orderbook`: read public orderbook depth when the provider

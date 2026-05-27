@@ -1,8 +1,15 @@
 import {
   EXTERNAL_MARKET_REQUEST_TIMEOUT_MS,
+  KALSHI_API_ROOT,
   POLYMARKET_CLOB_API_ROOT,
   POLYMARKET_GAMMA_API_ROOT,
 } from "../constants.js";
+import {
+  kalshiCacheDir,
+  kalshiCacheTtlMs,
+  searchKalshiMarketCache,
+  type KalshiCacheMode,
+} from "../services/kalshiCache.js";
 import type { ResponseFormat } from "../types.js";
 
 export type ExternalMarketProvider = "polymarket" | "kalshi";
@@ -34,7 +41,11 @@ export interface SearchMarketsInput extends ExternalMarketEnvelope {
   query?: string;
   slug?: string;
   tag_id?: string | number;
+  ticker?: string;
+  event_ticker?: string;
+  series_ticker?: string;
   status?: "active" | "closed" | "all";
+  cache_mode?: KalshiCacheMode;
   limit?: number;
   offset?: number;
 }
@@ -52,19 +63,29 @@ export interface GetMarketOrderbookInput extends GetMarketInput {
 }
 
 interface NormalizedMarket {
+  provider?: ExternalMarketProvider;
   provider_market_id?: string;
   condition_id?: string;
   slug?: string;
+  event_ticker?: string;
+  series_ticker?: string;
   title?: string;
   question?: string;
+  subtitle?: string;
   status?: string;
   outcomes?: Array<{
     name?: string;
     token_id?: string;
     price?: number | string;
+    bid?: number | string;
+    ask?: number | string;
+    last_price?: number | string;
+    price_scale?: string;
   }>;
   volume?: number | string;
+  volume_24h?: number | string;
   liquidity?: number | string;
+  open_interest?: number | string;
   close_time?: string;
   resolution_time?: string;
   source_url?: string;
@@ -91,6 +112,7 @@ export async function searchExternalMarkets(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "kalshi") return searchKalshiMarkets(input, fetcher);
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
   const limit = clamp(input.limit ?? 20, 1, 100);
@@ -132,6 +154,11 @@ export async function getExternalMarket(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "kalshi") {
+    const id = kalshiIdentifier(input.identifier);
+    const result = await fetchKalshiMarket(id, fetcher);
+    return readOnlyEnvelope("kalshi", result.source, result.normalized, result.raw);
+  }
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
   const id = polymarketIdentifier(input.identifier);
@@ -144,6 +171,27 @@ export async function getExternalMarketPrices(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "kalshi") {
+    const id = kalshiIdentifier(input.identifier);
+    const result = await fetchKalshiMarket(id, fetcher);
+    const markets = normalizedKalshiMarkets(result.normalized);
+    if (markets.length === 0) {
+      throw new Error("Kalshi prices require identifier.kalshi.ticker, event_ticker, or series_ticker with markets.");
+    }
+    return readOnlyEnvelope(
+      "kalshi",
+      result.source,
+      {
+        prices: markets.map((market) => ({
+          ticker: market.provider_market_id,
+          event_ticker: market.event_ticker,
+          series_ticker: market.series_ticker,
+          outcomes: market.outcomes,
+        })),
+      },
+      result.raw,
+    );
+  }
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
   const id = polymarketIdentifier(input.identifier);
@@ -172,6 +220,7 @@ export async function getExternalMarketOrderbook(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "kalshi") return getKalshiOrderbook(input, fetcher);
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
   const id = polymarketIdentifier(input.identifier);
@@ -203,7 +252,7 @@ export async function getExternalMarketOrderbook(
 }
 
 export function formatExternalMarketResult(value: any): string {
-  if (value.provider !== "polymarket") {
+  if (value.provider !== "polymarket" && value.provider !== "kalshi") {
     return `Provider ${value.provider} is not implemented yet.\n\n${value.next_step ?? ""}`.trim();
   }
   const normalized = value.normalized ?? {};
@@ -211,23 +260,27 @@ export function formatExternalMarketResult(value: any): string {
     const lines = normalized.markets.map((market: NormalizedMarket) =>
       `- ${market.title ?? market.question ?? market.slug ?? market.provider_market_id ?? "Untitled"}${market.source_url ? ` (${market.source_url})` : ""}`,
     );
-    return [`Polymarket markets (${normalized.markets.length})`, ...lines, "", `Source: ${value.source}`].join("\n");
+    return [`${providerLabel(value.provider)} markets (${normalized.markets.length})`, ...lines, "", `Source: ${value.source}`].join("\n");
   }
   if (Array.isArray(normalized.prices)) {
     const lines = normalized.prices.map((price: any) =>
-      `- ${price.token_id}: midpoint ${price.midpoint ?? "n/a"}, spread ${price.spread ?? "n/a"}, last ${price.last_trade_price ?? "n/a"}`,
+      price.outcomes
+        ? `- ${price.ticker}: ${price.outcomes.map((outcome: any) => `${outcome.name} bid ${outcome.bid ?? "n/a"} ask ${outcome.ask ?? "n/a"} last ${outcome.last_price ?? "n/a"}`).join("; ")}`
+        : `- ${price.token_id}: midpoint ${price.midpoint ?? "n/a"}, spread ${price.spread ?? "n/a"}, last ${price.last_trade_price ?? "n/a"}`,
     );
-    return [`Polymarket prices (${normalized.prices.length})`, ...lines, "", `Source: ${value.source}`].join("\n");
+    return [`${providerLabel(value.provider)} prices (${normalized.prices.length})`, ...lines, "", `Source: ${value.source}`].join("\n");
   }
-  if (normalized.bids || normalized.asks) {
+  if (normalized.bids || normalized.asks || normalized.yes_bids || normalized.no_bids) {
     return [
-      `Polymarket orderbook for ${normalized.token_id}`,
-      `Bids: ${normalized.bids?.length ?? 0}`,
-      `Asks: ${normalized.asks?.length ?? 0}`,
+      `${providerLabel(value.provider)} orderbook for ${normalized.token_id ?? normalized.ticker}`,
+      normalized.yes_bids || normalized.no_bids
+        ? `YES bids: ${normalized.yes_bids?.length ?? 0}; NO bids: ${normalized.no_bids?.length ?? 0}`
+        : `Bids: ${normalized.bids?.length ?? 0}`,
+      normalized.asks ? `Asks: ${normalized.asks?.length ?? 0}` : undefined,
       `Source: ${value.source}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
-  const title = normalized.title ?? normalized.question ?? normalized.slug ?? normalized.provider_market_id ?? "Polymarket market";
+  const title = normalized.title ?? normalized.question ?? normalized.slug ?? normalized.provider_market_id ?? `${providerLabel(value.provider)} market`;
   return [
     `${title}`,
     normalized.source_url ? `URL: ${normalized.source_url}` : undefined,
@@ -260,6 +313,172 @@ export function polymarketCapabilities() {
     ],
     future_providers: ["kalshi"],
   };
+}
+
+export function kalshiCapabilities() {
+  return {
+    provider: "kalshi",
+    read_only: true,
+    implemented: true,
+    endpoints: {
+      trade_api: KALSHI_API_ROOT,
+    },
+    supported_reads: [
+      "Public markets by ticker, event_ticker, series_ticker, and status",
+      "Persistent cached keyword search over open markets with Aeon-style series enrichment",
+      "Public event details with nested markets",
+      "Public market prices from market fields",
+      "Public single-market orderbook depth",
+    ],
+    unsupported_actions: [
+      "authentication",
+      "order placement",
+      "order cancellation",
+      "portfolio reads",
+      "wallet operations",
+      "WebSocket subscriptions",
+    ],
+    search_mode: "persistent cache for keyword search; native live filters for ticker, event_ticker, and series_ticker",
+    cache: {
+      default_mode: "auto",
+      ttl_ms: kalshiCacheTtlMs(),
+      directory: kalshiCacheDir(),
+      override_env: "FORECASTOS_KALSHI_CACHE_DIR",
+      modes: ["auto", "refresh", "bypass"],
+    },
+  };
+}
+
+async function searchKalshiMarkets(input: SearchMarketsInput, fetcher: FetchLike) {
+  const limit = clamp(input.limit ?? 20, 1, 100);
+  const offset = Math.max(0, input.offset ?? 0);
+  const query = input.query?.toLowerCase();
+  const cacheMode = input.cache_mode ?? "auto";
+  const canUseCache = Boolean(query)
+    && cacheMode !== "bypass"
+    && (input.status ?? "active") === "active"
+    && !input.ticker
+    && !input.event_ticker
+    && !input.series_ticker;
+
+  if (query && canUseCache) {
+    const cached = await searchKalshiMarketCache({
+      query,
+      limit,
+      offset,
+      mode: cacheMode,
+      fetcher,
+    });
+    return readOnlyEnvelope(
+      "kalshi",
+      cached.source,
+      {
+        markets: cached.markets.map((market) => normalizeKalshiMarket(market)),
+        limit,
+        offset,
+        has_more: cached.total_matches > offset + limit,
+        search_mode: "persistent_cache",
+        cache: cached.cache,
+      },
+      cached.raw,
+    );
+  }
+
+  const scanLimit = query ? Math.max(limit + offset, 1000) : limit + offset;
+  const params: Record<string, string | number | undefined> = {
+    limit: Math.min(scanLimit, 1000),
+    status: kalshiStatus(input.status ?? "active"),
+    series_ticker: input.series_ticker,
+    event_ticker: input.event_ticker,
+    tickers: input.ticker,
+  };
+
+  const url = buildUrl(KALSHI_API_ROOT, "/markets", params);
+  const raw = await fetchJson(url, fetcher);
+  const markets = ensureArray(asRecord(raw).markets);
+  const filtered = query
+    ? markets.filter((market) => JSON.stringify(pickKalshiSearchFields(market)).toLowerCase().includes(query))
+    : markets;
+  const limited = filtered.slice(offset, offset + limit);
+
+  return readOnlyEnvelope(
+    "kalshi",
+    url.toString(),
+    {
+      markets: limited.map((market) => normalizeKalshiMarket(market)),
+      limit,
+      offset,
+      has_more: filtered.length > offset + limit || Boolean(asRecord(raw).cursor),
+      search_mode: query ? "live_scan_local_filter" : "native_filters",
+      cache: query ? { enabled: false, mode: cacheMode, reason: "bypass_or_native_filter" } : undefined,
+    },
+    raw,
+  );
+}
+
+async function fetchKalshiMarket(id: NonNullable<ExternalMarketIdentifier["kalshi"]>, fetcher: FetchLike) {
+  if (id.event_ticker && !id.ticker) {
+    const eventUrl = buildUrl(KALSHI_API_ROOT, `/events/${encodeURIComponent(id.event_ticker)}`, {
+      with_nested_markets: true,
+    });
+    const eventRaw = await fetchJson(eventUrl, fetcher);
+    return {
+      source: eventUrl.toString(),
+      normalized: normalizeKalshiEvent(eventRaw),
+      raw: eventRaw,
+    };
+  }
+
+  const params: Record<string, string | number | undefined> = {
+    limit: 100,
+    status: "open",
+    tickers: id.ticker,
+    event_ticker: id.event_ticker,
+    series_ticker: id.series_ticker,
+  };
+  const marketUrl = buildUrl(KALSHI_API_ROOT, "/markets", params);
+  const marketRaw = await fetchJson(marketUrl, fetcher);
+  const markets = ensureArray(asRecord(marketRaw).markets);
+  const normalized = id.ticker
+    ? normalizeKalshiMarket(markets.find((market) => asRecord(market).ticker === id.ticker) ?? markets[0] ?? marketRaw)
+    : {
+        provider: "kalshi" as const,
+        provider_market_id: id.series_ticker ?? id.event_ticker,
+        title: id.series_ticker ?? id.event_ticker,
+        status: "active",
+        markets: markets.map((market) => normalizeKalshiMarket(market)),
+      };
+  return {
+    source: marketUrl.toString(),
+    normalized,
+    raw: marketRaw,
+  };
+}
+
+async function getKalshiOrderbook(input: GetMarketOrderbookInput, fetcher: FetchLike) {
+  const id = kalshiIdentifier(input.identifier);
+  if (!id.ticker) {
+    throw new Error("Kalshi orderbook reads require identifier.kalshi.ticker.");
+  }
+  const depth = clamp(input.depth ?? 25, 1, 100);
+  const url = buildUrl(KALSHI_API_ROOT, `/markets/${encodeURIComponent(id.ticker)}/orderbook`, { depth });
+  const raw = await fetchJson(url, fetcher);
+  const orderbook = asRecord(asRecord(raw).orderbook ?? raw);
+  const yesBids = kalshiOrderbookLevels(orderbook.yes ?? asRecord(orderbook.orderbook_fp).yes_dollars, depth);
+  const noBids = kalshiOrderbookLevels(orderbook.no ?? asRecord(orderbook.orderbook_fp).no_dollars, depth);
+
+  return readOnlyEnvelope(
+    "kalshi",
+    url.toString(),
+    {
+      ticker: id.ticker,
+      yes_bids: yesBids,
+      no_bids: noBids,
+      depth,
+      note: "Kalshi orderbooks expose active bid levels for YES and NO sides.",
+    },
+    raw,
+  );
 }
 
 async function fetchPolymarketMarket(id: PolymarketIdentifier, fetcher: FetchLike) {
@@ -354,7 +573,11 @@ async function fetchJson(url: URL, fetcher: FetchLike): Promise<unknown> {
 }
 
 function buildUrl(base: string, path: string, params: Record<string, string | number | boolean | undefined>) {
-  const url = new URL(path, base.endsWith("/") ? base : `${base}/`);
+  const baseUrl = new URL(base.endsWith("/") ? base : `${base}/`);
+  const basePath = baseUrl.pathname.replace(/\/$/, "");
+  const targetPath = path.startsWith("/") ? path : `/${path}`;
+  const url = new URL(baseUrl.origin);
+  url.pathname = basePath && basePath !== "/" ? `${basePath}${targetPath}` : targetPath;
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
   }
@@ -386,12 +609,148 @@ function unsupportedProvider(provider: ExternalMarketProvider) {
   };
 }
 
+function kalshiIdentifier(identifier: ExternalMarketIdentifier): NonNullable<ExternalMarketIdentifier["kalshi"]> {
+  const kalshi = identifier.kalshi ?? {};
+  if (!Object.values(kalshi).some((value) => value !== undefined && value !== "")) {
+    throw new Error("Provide identifier.kalshi with ticker, event_ticker, or series_ticker.");
+  }
+  return kalshi;
+}
+
 function polymarketIdentifier(identifier: ExternalMarketIdentifier): PolymarketIdentifier {
   const polymarket = identifier.polymarket ?? {};
   if (!Object.values(polymarket).some((value) => value !== undefined && value !== "")) {
     throw new Error("Provide identifier.polymarket with slug, event_id, market_id, condition_id, or token_id.");
   }
   return polymarket;
+}
+
+function normalizeKalshiEvent(value: unknown): NormalizedMarket {
+  const payload = asRecord(value);
+  const event = asRecord(payload.event ?? value);
+  const markets = ensureArray(payload.markets ?? event.markets).map((market) => normalizeKalshiMarket(market));
+  const eventTicker = stringValue(event.event_ticker ?? event.ticker);
+  return {
+    provider: "kalshi",
+    provider_market_id: eventTicker,
+    event_ticker: eventTicker,
+    series_ticker: stringValue(event.series_ticker),
+    title: stringValue(event.title),
+    question: stringValue(event.title),
+    subtitle: stringValue(event.sub_title ?? event.subtitle),
+    status: normalizeKalshiStatus(event.status),
+    outcomes: markets.flatMap((market) => market.outcomes ?? []),
+    volume: event.volume,
+    volume_24h: event.volume_24h,
+    liquidity: event.liquidity,
+    close_time: stringValue(event.close_time),
+    source_url: eventTicker ? `https://kalshi.com/markets/${eventTicker}` : undefined,
+    markets,
+  };
+}
+
+function normalizeKalshiMarket(value: unknown): NormalizedMarket {
+  const market = asRecord(value);
+  const ticker = stringValue(market.ticker);
+  const eventTicker = stringValue(market.event_ticker);
+  const title = stringValue(market.title) ?? stringValue(market.subtitle) ?? ticker;
+  return {
+    provider: "kalshi",
+    provider_market_id: ticker,
+    event_ticker: eventTicker,
+    series_ticker: stringValue(market.series_ticker),
+    title,
+    question: title,
+    subtitle: stringValue(market.subtitle ?? market.sub_title),
+    status: normalizeKalshiStatus(market.status),
+    outcomes: [
+      {
+        name: stringValue(market.yes_sub_title) ?? "Yes",
+        price: centsToProbability(market.last_price ?? market.last_price_dollars),
+        bid: centsToProbability(market.yes_bid ?? market.yes_bid_dollars),
+        ask: centsToProbability(market.yes_ask ?? market.yes_ask_dollars),
+        last_price: centsToProbability(market.last_price ?? market.last_price_dollars),
+        price_scale: "0-1",
+      },
+      {
+        name: stringValue(market.no_sub_title) ?? "No",
+        bid: centsToProbability(market.no_bid ?? market.no_bid_dollars),
+        ask: centsToProbability(market.no_ask ?? market.no_ask_dollars),
+        last_price: inverseProbability(market.last_price ?? market.last_price_dollars),
+        price_scale: "0-1",
+      },
+    ],
+    volume: market.volume,
+    volume_24h: market.volume_24h,
+    liquidity: market.liquidity,
+    open_interest: market.open_interest,
+    close_time: stringValue(market.close_time),
+    resolution_time: stringValue(market.expiration_time ?? market.settlement_timer_seconds),
+    source_url: eventTicker ? `https://kalshi.com/markets/${eventTicker}` : undefined,
+  };
+}
+
+function normalizedKalshiMarkets(normalized: unknown): NormalizedMarket[] {
+  const market = asRecord(normalized) as NormalizedMarket;
+  if (Array.isArray(market.markets)) return market.markets;
+  return market.provider_market_id ? [market] : [];
+}
+
+function pickKalshiSearchFields(value: unknown) {
+  const market = asRecord(value);
+  return {
+    ticker: market.ticker,
+    event_ticker: market.event_ticker,
+    series_ticker: market.series_ticker,
+    title: market.title,
+    subtitle: market.subtitle ?? market.sub_title,
+    yes_sub_title: market.yes_sub_title,
+    no_sub_title: market.no_sub_title,
+    rules_primary: market.rules_primary,
+    rules_secondary: market.rules_secondary,
+  };
+}
+
+function kalshiStatus(status: "active" | "closed" | "all"): string | undefined {
+  if (status === "active") return "open";
+  if (status === "closed") return "closed";
+  return undefined;
+}
+
+function normalizeKalshiStatus(value: unknown): string {
+  const status = String(value ?? "").toLowerCase();
+  if (status === "open" || status === "active") return "active";
+  if (status === "closed" || status === "settled" || status === "expired") return "closed";
+  return stringValue(value) ?? "unknown";
+}
+
+function centsToProbability(value: unknown): number | string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return stringValue(value);
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function inverseProbability(value: unknown): number | string | undefined {
+  const probability = centsToProbability(value);
+  if (typeof probability !== "number") return probability;
+  return Number((1 - probability).toFixed(4));
+}
+
+function kalshiOrderbookLevels(value: unknown, depth: number) {
+  return ensureArray(value).slice(0, depth).map((level) => {
+    if (Array.isArray(level)) {
+      return {
+        price: centsToProbability(level[0]),
+        size: level[1],
+      };
+    }
+    const entry = asRecord(level);
+    return {
+      price: centsToProbability(entry.price ?? entry[0]),
+      size: entry.size ?? entry.quantity ?? entry[1],
+    };
+  });
 }
 
 function normalizePolymarketEvent(value: unknown): NormalizedMarket {
@@ -517,4 +876,8 @@ function stringValue(value: unknown): string | undefined {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function providerLabel(provider: ExternalMarketProvider): string {
+  return provider === "kalshi" ? "Kalshi" : "Polymarket";
 }

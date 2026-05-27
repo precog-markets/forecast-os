@@ -21,6 +21,8 @@ export const POLYMARKET_GAMMA_API_ROOT =
   process.env.FORECASTOS_POLYMARKET_GAMMA_API_ROOT ?? "https://gamma-api.polymarket.com";
 export const POLYMARKET_CLOB_API_ROOT =
   process.env.FORECASTOS_POLYMARKET_CLOB_API_ROOT ?? "https://clob.polymarket.com";
+export const KALSHI_API_ROOT =
+  process.env.FORECASTOS_KALSHI_API_ROOT ?? "https://external-api.kalshi.com/trade-api/v2";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

@@ -151,7 +151,7 @@ export function registerForecastOSTools(server: McpServer): void {
     "forecastos_search_markets",
     {
       title: "Search External Prediction Markets",
-      description: "Read-only search across external prediction-market providers. Polymarket is implemented; Kalshi is reserved for the same provider envelope.",
+      description: "Read-only search across external prediction-market providers. Supports Polymarket and Kalshi public market data.",
       inputSchema: SearchMarketsInputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -179,7 +179,7 @@ export function registerForecastOSTools(server: McpServer): void {
     "forecastos_get_market_prices",
     {
       title: "Get External Market Prices",
-      description: "Read public external market prices. For Polymarket this uses unauthenticated CLOB token price endpoints only.",
+      description: "Read public external market prices. Polymarket uses unauthenticated CLOB token price endpoints; Kalshi reads public market price fields.",
       inputSchema: GetMarketPricesInputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },
@@ -193,7 +193,7 @@ export function registerForecastOSTools(server: McpServer): void {
     "forecastos_get_market_orderbook",
     {
       title: "Get External Market Orderbook",
-      description: "Read a public external market orderbook. For Polymarket this requires an outcome token_id and uses unauthenticated CLOB reads only.",
+      description: "Read a public external market orderbook. Polymarket requires an outcome token_id; Kalshi requires a market ticker.",
       inputSchema: GetMarketOrderbookInputSchema,
       annotations: READ_ONLY_ANNOTATIONS,
     },

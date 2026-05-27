@@ -47,6 +47,7 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos://docs/remote-mcp`
 - `forecastos://docs/external-markets`
 - `forecastos://docs/providers/polymarket-read`
+- `forecastos://docs/providers/kalshi-read`
 - `forecastos://templates/multi-outcome-market`
 - `forecastos://schemas/actions`
 - `forecastos://examples/agent-launch`
@@ -55,6 +56,7 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos://precog/capabilities`
 - `forecastos://precog/config-defaults`
 - `forecastos://providers/polymarket/capabilities`
+- `forecastos://providers/kalshi/capabilities`
 
 ## Tools
 

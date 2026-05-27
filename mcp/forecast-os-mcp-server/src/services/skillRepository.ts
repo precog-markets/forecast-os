@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RESOURCE_ROOT } from "../constants.js";
 import type { ForecastOSResource } from "../types.js";
-import { polymarketCapabilities } from "../tools/externalMarkets.js";
+import { kalshiCapabilities, polymarketCapabilities } from "../tools/externalMarkets.js";
 
 export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
   "forecastos://docs/skill": {
@@ -89,6 +89,12 @@ export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
     path: "docs/providers/polymarket-read.md",
     mimeType: "text/markdown",
   },
+  "forecastos://docs/providers/kalshi-read": {
+    uri: "forecastos://docs/providers/kalshi-read",
+    name: "ForecastOS Kalshi read-only provider",
+    path: "docs/providers/kalshi-read.md",
+    mimeType: "text/markdown",
+  },
   "forecastos://templates/multi-outcome-market": {
     uri: "forecastos://templates/multi-outcome-market",
     name: "Multi-outcome market template",
@@ -139,6 +145,11 @@ export function listForecastOSResources(): ForecastOSResource[] {
       name: "ForecastOS Polymarket read-only capability metadata",
       mimeType: "application/json",
     },
+    {
+      uri: "forecastos://providers/kalshi/capabilities",
+      name: "ForecastOS Kalshi read-only capability metadata",
+      mimeType: "application/json",
+    },
   ];
 }
 
@@ -163,6 +174,9 @@ export async function readForecastOSResource(uri: string): Promise<{
   }
   if (uri === "forecastos://providers/polymarket/capabilities") {
     return jsonResource(uri, polymarketCapabilities());
+  }
+  if (uri === "forecastos://providers/kalshi/capabilities") {
+    return jsonResource(uri, kalshiCapabilities());
   }
   throw new Error(
     `Unknown ForecastOS MCP resource '${uri}'. Use forecastos_list_resources to discover valid read-only resources.`,

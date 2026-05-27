@@ -25,6 +25,7 @@ const copies = [
   ["references/wallet-adapters.md", "docs/wallet-adapters.md"],
   ["references/external-markets.md", "docs/external-markets.md"],
   ["references/providers/polymarket-read.md", "docs/providers/polymarket-read.md"],
+  ["references/providers/kalshi-read.md", "docs/providers/kalshi-read.md"],
   ["assets/templates/multi-outcome-market.md", "templates/multi-outcome-market.md"],
   ["assets/schemas/actions.json", "schemas/actions.json"],
   ["references/examples/agent-launch.md", "examples/agent-launch.md"],

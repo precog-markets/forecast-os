@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -23,6 +24,7 @@ const {
   searchExternalMarkets,
 } = await import("../dist/tools/externalMarkets.js");
 const { createPolymarketFixtureFetch } = await import("./fixtures/polymarket.mjs");
+const { createKalshiFixtureFetch } = await import("./fixtures/kalshi.mjs");
 
 test("resources include remote-ready ForecastOS context", async () => {
   const uris = listForecastOSResources().map((resource) => resource.uri);
@@ -32,12 +34,14 @@ test("resources include remote-ready ForecastOS context", async () => {
   assert.ok(uris.includes("forecastos://docs/wallet-adapters"));
   assert.ok(uris.includes("forecastos://docs/external-markets"));
   assert.ok(uris.includes("forecastos://docs/providers/polymarket-read"));
+  assert.ok(uris.includes("forecastos://docs/providers/kalshi-read"));
   assert.ok(uris.includes("forecastos://templates/multi-outcome-market"));
   assert.ok(uris.includes("forecastos://schemas/actions"));
   assert.ok(uris.includes("forecastos://examples/full-workflow"));
   assert.ok(uris.includes("forecastos://precog/capabilities"));
   assert.ok(uris.includes("forecastos://precog/config-defaults"));
   assert.ok(uris.includes("forecastos://providers/polymarket/capabilities"));
+  assert.ok(uris.includes("forecastos://providers/kalshi/capabilities"));
 });
 
 test("config defaults redact open_api_key", async () => {
@@ -127,13 +131,151 @@ test("Polymarket provider reads market, prices, and orderbook from fixtures", as
   assert.equal(book.normalized.tick_size, "0.01");
 });
 
-test("Kalshi provider envelope is reserved but not implemented", async () => {
-  const result = await searchExternalMarkets({ provider: "kalshi", query: "fed" });
+test("Kalshi provider searches and normalizes fixture-backed public markets", async () => {
+  const fetcher = createKalshiFixtureFetch();
+  const result = await searchExternalMarkets(
+    {
+      provider: "kalshi",
+      query: "bitcoin",
+      limit: 5,
+      status: "active",
+      cache_mode: "bypass",
+    },
+    fetcher,
+  );
 
   assert.equal(result.provider, "kalshi");
   assert.equal(result.read_only, true);
-  assert.equal(result.implemented, false);
-  assert.ok(result.next_step.includes("not implemented"));
+  assert.equal(result.normalized.markets.length, 1);
+  assert.equal(result.normalized.markets[0].provider_market_id, "KXBTC-26JUN-T100000");
+  assert.equal(result.normalized.markets[0].outcomes[0].bid, 0.56);
+  assert.equal(result.normalized.search_mode, "live_scan_local_filter");
+  assert.equal(result.normalized.cache.enabled, false);
+  assert.ok(result.source.includes("external-api.kalshi.com/trade-api/v2/markets"));
+});
+
+test("Kalshi keyword search builds and reuses a persistent cache", async (t) => {
+  const previousCacheDir = process.env.FORECASTOS_KALSHI_CACHE_DIR;
+  const cacheDir = await mkdtemp(join(tmpdir(), "forecastos-kalshi-cache-"));
+  process.env.FORECASTOS_KALSHI_CACHE_DIR = cacheDir;
+  t.after(async () => {
+    if (previousCacheDir === undefined) delete process.env.FORECASTOS_KALSHI_CACHE_DIR;
+    else process.env.FORECASTOS_KALSHI_CACHE_DIR = previousCacheDir;
+    await rm(cacheDir, { recursive: true, force: true });
+  });
+
+  const fetcher = createKalshiFixtureFetch();
+  const first = await searchExternalMarkets(
+    {
+      provider: "kalshi",
+      query: "crypto",
+      limit: 5,
+      status: "active",
+    },
+    fetcher,
+  );
+
+  assert.equal(first.provider, "kalshi");
+  assert.equal(first.read_only, true);
+  assert.equal(first.normalized.search_mode, "persistent_cache");
+  assert.equal(first.normalized.cache.hit, false);
+  assert.equal(first.normalized.cache.market_count, 1);
+  assert.equal(first.normalized.markets.length, 1);
+  assert.ok(fetcher.calls.some((url) => url.includes("/series")));
+  assert.ok(fetcher.calls.some((url) => url.includes("/markets")));
+
+  const failingFetch = async (input) => {
+    throw new Error(`unexpected network call for cached search: ${input}`);
+  };
+  const second = await searchExternalMarkets(
+    {
+      provider: "kalshi",
+      query: "bitcoin",
+      limit: 5,
+      status: "active",
+    },
+    failingFetch,
+  );
+
+  assert.equal(second.normalized.search_mode, "persistent_cache");
+  assert.equal(second.normalized.cache.hit, true);
+  assert.equal(second.normalized.markets[0].provider_market_id, "KXBTC-26JUN-T100000");
+});
+
+test("Kalshi cache refresh rebuilds the persistent cache", async (t) => {
+  const previousCacheDir = process.env.FORECASTOS_KALSHI_CACHE_DIR;
+  const cacheDir = await mkdtemp(join(tmpdir(), "forecastos-kalshi-cache-"));
+  process.env.FORECASTOS_KALSHI_CACHE_DIR = cacheDir;
+  t.after(async () => {
+    if (previousCacheDir === undefined) delete process.env.FORECASTOS_KALSHI_CACHE_DIR;
+    else process.env.FORECASTOS_KALSHI_CACHE_DIR = previousCacheDir;
+    await rm(cacheDir, { recursive: true, force: true });
+  });
+
+  const firstFetcher = createKalshiFixtureFetch();
+  await searchExternalMarkets(
+    {
+      provider: "kalshi",
+      query: "bitcoin",
+      limit: 5,
+      status: "active",
+    },
+    firstFetcher,
+  );
+
+  const refreshFetcher = createKalshiFixtureFetch();
+  const refreshed = await searchExternalMarkets(
+    {
+      provider: "kalshi",
+      query: "bitcoin",
+      limit: 5,
+      status: "active",
+      cache_mode: "refresh",
+    },
+    refreshFetcher,
+  );
+
+  assert.equal(refreshed.normalized.search_mode, "persistent_cache");
+  assert.equal(refreshed.normalized.cache.hit, false);
+  assert.ok(refreshFetcher.calls.some((url) => url.includes("/series")));
+  assert.ok(refreshFetcher.calls.some((url) => url.includes("/markets")));
+});
+
+test("Kalshi provider reads event, prices, and orderbook from fixtures", async () => {
+  const fetcher = createKalshiFixtureFetch();
+
+  const event = await getExternalMarket(
+    {
+      provider: "kalshi",
+      identifier: { kalshi: { event_ticker: "KXBTC-26JUN" } },
+    },
+    fetcher,
+  );
+  assert.equal(event.normalized.event_ticker, "KXBTC-26JUN");
+  assert.equal(event.normalized.markets[0].provider_market_id, "KXBTC-26JUN-T100000");
+
+  const prices = await getExternalMarketPrices(
+    {
+      provider: "kalshi",
+      identifier: { kalshi: { ticker: "KXBTC-26JUN-T100000" } },
+    },
+    fetcher,
+  );
+  assert.equal(prices.read_only, true);
+  assert.equal(prices.normalized.prices[0].ticker, "KXBTC-26JUN-T100000");
+  assert.equal(prices.normalized.prices[0].outcomes[0].last_price, 0.57);
+
+  const book = await getExternalMarketOrderbook(
+    {
+      provider: "kalshi",
+      identifier: { kalshi: { ticker: "KXBTC-26JUN-T100000" } },
+      depth: 1,
+    },
+    fetcher,
+  );
+  assert.equal(book.normalized.yes_bids.length, 1);
+  assert.equal(book.normalized.no_bids.length, 1);
+  assert.equal(book.normalized.yes_bids[0].price, 0.56);
 });
 
 test("optional live Polymarket smoke test", { skip: process.env.FORECASTOS_LIVE_POLYMARKET_TEST !== "1" }, async () => {

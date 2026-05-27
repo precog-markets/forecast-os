@@ -48,7 +48,7 @@ Present a friendly draft summary before Precog creation. Do not expose raw JSON,
 - Read `references/wallet-adapters.md` when the operator chooses a concrete wallet/action provider for creation or funding.
 - Read `references/mcp.md` only when configuring or inspecting optional read-only MCP context.
 - Read `references/remote-mcp.md` only for future/advanced hosted MCP planning.
-- Read `references/external-markets.md` before using external prediction-market read tools; read `references/providers/polymarket-read.md` for Polymarket-specific public reads.
+- Read `references/external-markets.md` before using external prediction-market read tools; read `references/providers/polymarket-read.md` or `references/providers/kalshi-read.md` for provider-specific public reads.
 - Read `references/tool-schemas.md` or `assets/schemas/actions.json` for action input shapes.
 - Use `assets/templates/multi-outcome-market.md` when drafting a market structure.
 - Use `references/examples/` only when an example is directly relevant.
