@@ -100,6 +100,7 @@ interface NormalizedMarket {
   resolution_time?: string;
   source_url?: string;
   markets?: NormalizedMarket[];
+  market_count?: number;
 }
 
 function providerOf(input: ExternalMarketEnvelope): ExternalMarketProvider {
@@ -127,10 +128,12 @@ export async function searchExternalMarkets(
   if (provider === "kalshi") return searchKalshiMarkets(input, fetcher);
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
+  if (input.query) return searchPolymarketPublicSearch(input, fetcher);
+
   const limit = clamp(input.limit ?? 20, 1, 100);
   const offset = Math.max(0, input.offset ?? 0);
   const params: Record<string, string | number | boolean | undefined> = {
-    limit: input.query ? Math.max(limit, 50) : limit,
+    limit,
     offset,
     slug: input.slug,
     tag_id: input.tag_id,
@@ -142,11 +145,7 @@ export async function searchExternalMarkets(
   const url = buildUrl(POLYMARKET_GAMMA_API_ROOT, "/events", params);
   const raw = await fetchJson(url, fetcher);
   const events = ensureArray(raw);
-  const query = input.query?.toLowerCase();
-  const filtered = query
-    ? events.filter((event) => JSON.stringify(pickSearchFields(event)).toLowerCase().includes(query))
-    : events;
-  const limited = filtered.slice(0, limit);
+  const limited = events.slice(0, limit);
 
   return readOnlyEnvelope(
     "polymarket",
@@ -156,6 +155,7 @@ export async function searchExternalMarkets(
       limit,
       offset,
       has_more: events.length > offset + limit,
+      search_mode: "events_filters",
     },
     raw,
   );
@@ -452,6 +452,46 @@ export function kalshiCapabilities() {
       modes: ["auto", "refresh", "bypass"],
     },
   };
+}
+
+async function searchPolymarketPublicSearch(input: SearchMarketsInput, fetcher: FetchLike) {
+  const limit = clamp(input.limit ?? 20, 1, 100);
+  const offset = Math.max(0, input.offset ?? 0);
+  const page = Math.floor(offset / limit) + 1;
+  const params: Record<string, string | number | boolean | undefined> = {
+    q: input.query,
+    events_status: polymarketEventsStatus(input.status ?? "active"),
+    limit_per_type: limit,
+    page,
+    search_profiles: false,
+    search_tags: false,
+    optimized: true,
+  };
+
+  const url = buildUrl(POLYMARKET_GAMMA_API_ROOT, "/public-search", params);
+  const raw = await fetchJson(url, fetcher);
+  const events = ensureArray(asRecord(raw).events);
+  const limited = events.slice(0, limit);
+
+  return readOnlyEnvelope(
+    "polymarket",
+    url.toString(),
+    {
+      markets: limited.map((event) => normalizePolymarketSearchEvent(event)),
+      limit,
+      offset,
+      page,
+      has_more: Boolean(asRecord(raw).hasMore ?? asRecord(raw).pagination?.hasMore),
+      search_mode: "public_search",
+    },
+    {
+      event_count: events.length,
+      matched_count: events.length,
+      hasMore: Boolean(asRecord(raw).hasMore ?? asRecord(raw).pagination?.hasMore),
+      search_mode: "public_search",
+      events: limited.map((event) => compactPolymarketSearchEvent(event)),
+    },
+  );
 }
 
 async function searchPrecogMarkets(input: SearchMarketsInput, fetcher: FetchLike) {
@@ -756,6 +796,12 @@ function addStatusParams(params: Record<string, string | number | boolean | unde
   if (status === "closed") {
     params.closed = true;
   }
+}
+
+function polymarketEventsStatus(status: "active" | "closed" | "all"): string | undefined {
+  if (status === "active") return "active";
+  if (status === "closed") return "closed";
+  return undefined;
 }
 
 function unsupportedProvider(provider: ExternalMarketProvider) {
@@ -1146,6 +1192,26 @@ function normalizePolymarketEvent(value: unknown): NormalizedMarket {
   };
 }
 
+function normalizePolymarketSearchEvent(value: unknown): NormalizedMarket {
+  const event = asRecord(value);
+  const allMarkets = ensureArray(event.markets);
+  const markets = polymarketSearchMarkets(allMarkets).map((market) => normalizePolymarketMarket(market));
+  return {
+    provider_market_id: stringValue(event.id),
+    slug: stringValue(event.slug),
+    title: stringValue(event.title) ?? stringValue(event.question),
+    question: stringValue(event.question) ?? stringValue(event.title),
+    status: statusFrom(event),
+    volume: event.volume ?? event.volumeNum ?? event.volume_24hr,
+    liquidity: event.liquidity ?? event.liquidityNum,
+    close_time: stringValue(event.endDate) ?? stringValue(event.end_date),
+    resolution_time: stringValue(event.resolutionDate) ?? stringValue(event.closedTime),
+    source_url: event.slug ? `https://polymarket.com/event/${event.slug}` : undefined,
+    market_count: allMarkets.length,
+    markets,
+  };
+}
+
 function normalizePolymarketMarket(value: unknown): NormalizedMarket {
   const market = asRecord(value);
   return {
@@ -1162,6 +1228,51 @@ function normalizePolymarketMarket(value: unknown): NormalizedMarket {
     resolution_time: stringValue(market.resolutionDate) ?? stringValue(market.closedTime),
     source_url: market.slug ? `https://polymarket.com/market/${market.slug}` : undefined,
   };
+}
+
+function compactPolymarketSearchEvent(value: unknown) {
+  const event = asRecord(value);
+  const allMarkets = ensureArray(event.markets);
+  return {
+    id: event.id,
+    slug: event.slug,
+    title: event.title,
+    active: event.active,
+    closed: event.closed,
+    volume: event.volume ?? event.volumeNum ?? event.volume_24hr,
+    liquidity: event.liquidity ?? event.liquidityNum,
+    endDate: event.endDate ?? event.end_date,
+    market_count: allMarkets.length,
+    markets: polymarketSearchMarkets(allMarkets).map((market) => {
+      const entry = asRecord(market);
+      return {
+        id: entry.id,
+        conditionId: entry.conditionId ?? entry.conditionID ?? entry.condition_id,
+        slug: entry.slug,
+        question: entry.question ?? entry.title,
+        active: entry.active,
+        closed: entry.closed,
+        outcomes: entry.outcomes,
+        outcomePrices: entry.outcomePrices ?? entry.outcome_prices,
+        lastTradePrice: entry.lastTradePrice,
+        bestBid: entry.bestBid,
+        bestAsk: entry.bestAsk,
+      };
+    }),
+  };
+}
+
+function polymarketSearchMarkets(markets: unknown[]) {
+  return [...markets]
+    .sort((left, right) => polymarketYesPrice(right) - polymarketYesPrice(left))
+    .slice(0, 12);
+}
+
+function polymarketYesPrice(value: unknown): number {
+  const market = asRecord(value);
+  const prices = parseMaybeJsonArray(market.outcomePrices ?? market.outcome_prices);
+  const numeric = Number(prices[0] ?? market.lastTradePrice ?? market.bestBid ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function normalizeOutcomes(market: Record<string, any>) {

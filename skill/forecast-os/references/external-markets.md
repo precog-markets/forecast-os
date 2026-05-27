@@ -68,6 +68,13 @@ needs a manual refresh, set `cache_mode: "refresh"`; if a live bounded scan is
 needed, set `cache_mode: "bypass"`. Use official web sources only to verify the
 event, schedule, teams, or resolution context after market discovery.
 
+Use Polymarket keyword search through the Gamma `/public-search` endpoint. This
+is the native search path for events, markets, and profiles; ForecastOS keeps
+only event/market results and trims raw payloads so broad queries do not hide
+relevant events behind MCP response truncation. Direct slug, tag, and no-query
+Polymarket reads may still use `/events`, while price and orderbook reads stay
+on the public CLOB endpoints.
+
 If no external market is found, report that no matching market was found and
 avoid presenting a guessed probability as market-implied. External market prices
 can inform decisions and drafts, but Polymarket, Kalshi, and similar providers

@@ -177,6 +177,7 @@ const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8"
 const actionPolicyDoc = await readFile(join(root, "references", "action-policy.md"), "utf8");
 const externalMarketsDoc = await readFile(join(root, "references", "external-markets.md"), "utf8");
 const precogLiquidityDoc = await readFile(join(root, "references", "precog-liquidity.md"), "utf8");
+const polymarketReadDoc = await readFile(join(root, "references", "providers", "polymarket-read.md"), "utf8");
 assert(
   actionsDoc.includes("prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent"),
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
@@ -212,6 +213,14 @@ assert(
 assert(
   externalMarketsDoc.includes("avoid presenting a guessed probability as market-implied"),
   "references/external-markets.md must distinguish no-market findings from guessed probabilities",
+);
+assert(
+  externalMarketsDoc.includes("Gamma `/public-search` endpoint") && polymarketReadDoc.includes("GET /public-search"),
+  "Polymarket docs must document /public-search for keyword discovery",
+);
+assert(
+  polymarketReadDoc.includes("search_profiles=false") && polymarketReadDoc.includes("search_tags=false"),
+  "Polymarket docs must document trimmed public-search profile/tag behavior",
 );
 const liquidityDocs = [skill, actionsDoc, actionPolicyDoc, precogLiquidityDoc].join("\n");
 assert(

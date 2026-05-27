@@ -455,6 +455,7 @@ test("skill docs forbid raw JSON as normal chat output and require next step pro
 test("skill triggers for prediction-market discovery before probability guesses", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const externalMarkets = await readFile(join(skillRoot, "references", "external-markets.md"), "utf8");
+  const polymarketRead = await readFile(join(skillRoot, "references", "providers", "polymarket-read.md"), "utf8");
   const agentMetadata = await readFile(join(skillRoot, "agents", "openai.yaml"), "utf8");
 
   assert.ok(skill.includes("future-event probability"));
@@ -476,6 +477,10 @@ test("skill triggers for prediction-market discovery before probability guesses"
   assert.ok(externalMarkets.includes("FORECASTOS_STATE_DIR/config.local.json"));
   assert.ok(externalMarkets.includes("before falling back"));
   assert.ok(externalMarkets.includes("do not use the upcoming-market lifecycle endpoint"));
+  assert.ok(externalMarkets.includes("Gamma `/public-search` endpoint"));
+  assert.ok(polymarketRead.includes("GET /public-search"));
+  assert.ok(polymarketRead.includes("search_profiles=false"));
+  assert.ok(polymarketRead.includes("search_tags=false"));
   assert.ok(externalMarkets.includes("avoid presenting a guessed probability as market-implied"));
   assert.ok(agentMetadata.includes("Search prediction markets"));
   assert.ok(agentMetadata.includes("avoid guessing future-event probabilities"));

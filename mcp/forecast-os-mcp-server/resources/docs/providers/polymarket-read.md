@@ -37,6 +37,8 @@ gasless, CTF split/merge/redeem, or wallet operations from ForecastOS MCP.
 ## Endpoint Mapping
 
 - Search markets/events:
+  - Keyword search: `GET /public-search?q=...&events_status=active&limit_per_type=...&page=...`
+  - ForecastOS sets `search_profiles=false`, `search_tags=false`, and `optimized=true`, then keeps event/market results only.
   - `GET /events?active=true&closed=false&limit=...&offset=...`
   - Optional filters: `slug`, `tag_id`, `closed`, `active`.
 - Get market/event:
@@ -66,6 +68,10 @@ ForecastOS normalizes Polymarket results into:
 
 Use normalized fields for normal chat. Use raw payload only when the user asks for
 operator/debug detail.
+
+For keyword discovery, prefer `/public-search` over generic web search or broad
+`/events` scans. It surfaces event pages such as `Brazil Presidential Election`
+from natural-language queries and avoids returning unrelated raw profiles/tags.
 
 ## WebSockets
 

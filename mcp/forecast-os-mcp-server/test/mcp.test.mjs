@@ -82,7 +82,7 @@ test("Polymarket provider searches and normalizes fixture-backed public markets"
   const result = await searchExternalMarkets(
     {
       provider: "polymarket",
-      query: "Fed",
+      query: "Who is more liekly to win Brazil Presidential election first round",
       limit: 1,
       offset: 0,
     },
@@ -92,9 +92,22 @@ test("Polymarket provider searches and normalizes fixture-backed public markets"
   assert.equal(result.provider, "polymarket");
   assert.equal(result.read_only, true);
   assert.equal(result.normalized.markets.length, 1);
-  assert.equal(result.normalized.markets[0].slug, "fed-decision-in-october");
-  assert.equal(result.normalized.markets[0].outcomes.length, 3);
-  assert.ok(result.source.includes("gamma-api.polymarket.com/events"));
+  assert.equal(result.normalized.markets[0].slug, "brazil-presidential-election");
+  assert.equal(result.normalized.markets[0].outcomes, undefined);
+  assert.equal(result.normalized.markets[0].market_count, 2);
+  assert.equal(result.normalized.markets[0].markets.length, 2);
+  assert.equal(result.normalized.markets[0].markets[0].outcomes[0].price, "0.43");
+  assert.equal(result.normalized.search_mode, "public_search");
+  assert.equal(result.raw.event_count, 2);
+  assert.equal(result.raw.events.length, 1);
+  assert.equal(result.raw.events[0].slug, "brazil-presidential-election");
+  assert.equal(result.raw.events[0].market_count, 2);
+  assert.equal(result.raw.events[0].markets[0].question, "Will Lula win the 2026 Brazilian presidential election?");
+  assert.equal(result.raw.profiles, undefined);
+  assert.equal(result.raw.tags, undefined);
+  assert.ok(result.source.includes("gamma-api.polymarket.com/public-search"));
+  assert.ok(result.source.includes("events_status=active"));
+  assert.ok(result.source.includes("search_profiles=false"));
 });
 
 test("Polymarket provider reads market, prices, and orderbook from fixtures", async () => {
@@ -176,6 +189,7 @@ test("default market search checks Precog first, then Kalshi, then Polymarket", 
   assert.ok(calls.includes("external-api.kalshi.com"));
   assert.ok(calls.includes("gamma-api.polymarket.com"));
   assert.equal(result.normalized.markets[0].provider, "precog");
+  assert.ok(polymarket.calls?.[0]?.includes("/public-search"));
   assert.ok(precog.calls[0].includes("/api/v1/markets/"));
   assert.ok(precog.calls[0].includes("status=OPEN"));
   assert.ok(precog.calls[0].includes("limit=1000"));
