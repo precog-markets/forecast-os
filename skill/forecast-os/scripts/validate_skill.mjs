@@ -157,6 +157,10 @@ assert(
   "SKILL.md must prefer API-backed market tools over generic web search",
 );
 assert(
+  skill.includes("Always check Precog") && skill.includes("then Kalshi, then Polymarket"),
+  "SKILL.md must require Precog-first market discovery order",
+);
+assert(
   skill.includes("whether there is a prediction market"),
   "SKILL.md must explicitly trigger on prediction-market existence questions",
 );
@@ -185,12 +189,20 @@ assert(
   "references/external-markets.md must document market discovery workflow",
 );
 assert(
-  externalMarketsDoc.includes("search provider data before guessing a") && externalMarketsDoc.includes("Polymarket and Kalshi"),
+  externalMarketsDoc.includes("search provider data before guessing a") && externalMarketsDoc.includes("Precog first, then Kalshi, then Polymarket"),
   "references/external-markets.md must route probability questions through read-only providers first",
 );
 assert(
   externalMarketsDoc.includes("provider API-backed tools") && externalMarketsDoc.includes("generic search-engine result pages"),
   "references/external-markets.md must prefer provider API-backed tools over web search pages",
+);
+assert(
+  externalMarketsDoc.includes("/api/v1/markets/") && externalMarketsDoc.includes("status=OPEN"),
+  "references/external-markets.md must document Precog discovery through /api/v1/markets/?status=OPEN",
+);
+assert(
+  externalMarketsDoc.includes("do not use the upcoming-market lifecycle endpoint for ordinary market discovery"),
+  "references/external-markets.md must keep upcoming-market lifecycle separate from Precog discovery",
 );
 assert(
   externalMarketsDoc.includes("avoid presenting a guessed probability as market-implied"),

@@ -15,8 +15,9 @@ about a topic, including "is there a prediction market about..." prompts.
 Before inventing or guessing a probability, search read-only
 prediction-market context first through `forecastos_search_markets` and provider
 API-backed tools when they are available. Do not substitute generic web search
-results for Polymarket, Kalshi, or Precog API-backed reads. If the tools are not
-available, say so and either use a direct read-only provider API path when
+results for Precog, Kalshi, or Polymarket API-backed reads. Always check Precog
+first, then Kalshi, then Polymarket unless the user explicitly asks for one
+venue. If the tools are not available, say so and either use a direct read-only provider API path when
 available or explain the limitation. For niche topics, try aliases such as
 acronym, full event name, game/title, organizer, teams, category, and common
 shorthand. Use web or official sources as supporting context after market

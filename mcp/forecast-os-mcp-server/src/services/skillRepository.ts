@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RESOURCE_ROOT } from "../constants.js";
 import type { ForecastOSResource } from "../types.js";
-import { kalshiCapabilities, polymarketCapabilities } from "../tools/externalMarkets.js";
+import { kalshiCapabilities, polymarketCapabilities, precogMarketCapabilities } from "../tools/externalMarkets.js";
 
 export const STATIC_RESOURCES: Record<string, ForecastOSResource> = {
   "forecastos://docs/skill": {
@@ -141,6 +141,11 @@ export function listForecastOSResources(): ForecastOSResource[] {
       mimeType: "application/json",
     },
     {
+      uri: "forecastos://providers/precog/capabilities",
+      name: "ForecastOS Precog read-only market capability metadata",
+      mimeType: "application/json",
+    },
+    {
       uri: "forecastos://providers/polymarket/capabilities",
       name: "ForecastOS Polymarket read-only capability metadata",
       mimeType: "application/json",
@@ -171,6 +176,9 @@ export async function readForecastOSResource(uri: string): Promise<{
   }
   if (uri === "forecastos://precog/config-defaults") {
     return jsonResource(uri, await precogConfigDefaults());
+  }
+  if (uri === "forecastos://providers/precog/capabilities") {
+    return jsonResource(uri, precogMarketCapabilities());
   }
   if (uri === "forecastos://providers/polymarket/capabilities") {
     return jsonResource(uri, polymarketCapabilities());

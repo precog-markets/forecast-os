@@ -25,6 +25,7 @@ const {
 } = await import("../dist/tools/externalMarkets.js");
 const { createPolymarketFixtureFetch } = await import("./fixtures/polymarket.mjs");
 const { createKalshiFixtureFetch } = await import("./fixtures/kalshi.mjs");
+const { createPrecogFixtureFetch } = await import("./fixtures/precog.mjs");
 
 test("resources include remote-ready ForecastOS context", async () => {
   const uris = listForecastOSResources().map((resource) => resource.uri);
@@ -40,6 +41,7 @@ test("resources include remote-ready ForecastOS context", async () => {
   assert.ok(uris.includes("forecastos://examples/full-workflow"));
   assert.ok(uris.includes("forecastos://precog/capabilities"));
   assert.ok(uris.includes("forecastos://precog/config-defaults"));
+  assert.ok(uris.includes("forecastos://providers/precog/capabilities"));
   assert.ok(uris.includes("forecastos://providers/polymarket/capabilities"));
   assert.ok(uris.includes("forecastos://providers/kalshi/capabilities"));
 });
@@ -129,6 +131,85 @@ test("Polymarket provider reads market, prices, and orderbook from fixtures", as
   assert.equal(book.normalized.bids.length, 1);
   assert.equal(book.normalized.asks.length, 1);
   assert.equal(book.normalized.tick_size, "0.01");
+});
+
+test("default market search checks Precog first, then Kalshi, then Polymarket", async (t) => {
+  const previousCacheDir = process.env.FORECASTOS_KALSHI_CACHE_DIR;
+  const cacheDir = await mkdtemp(join(tmpdir(), "forecastos-kalshi-cache-"));
+  process.env.FORECASTOS_KALSHI_CACHE_DIR = cacheDir;
+  t.after(async () => {
+    if (previousCacheDir === undefined) delete process.env.FORECASTOS_KALSHI_CACHE_DIR;
+    else process.env.FORECASTOS_KALSHI_CACHE_DIR = previousCacheDir;
+    await rm(cacheDir, { recursive: true, force: true });
+  });
+
+  const precog = createPrecogFixtureFetch();
+  const kalshi = createKalshiFixtureFetch();
+  const polymarket = createPolymarketFixtureFetch();
+  const calls = [];
+  const fetcher = async (input, init) => {
+    const url = new URL(String(input));
+    calls.push(url.hostname);
+    if (url.hostname === "service.precog.markets") return precog(input, init);
+    if (url.hostname === "external-api.kalshi.com") return kalshi(input, init);
+    return polymarket(input, init);
+  };
+
+  const result = await searchExternalMarkets(
+    {
+      query: "Brazil",
+      limit: 5,
+      status: "active",
+    },
+    fetcher,
+  );
+
+  assert.equal(result.provider, "all");
+  assert.equal(result.read_only, true);
+  assert.deepEqual(result.normalized.provider_order, ["precog", "kalshi", "polymarket"]);
+  assert.equal(result.normalized.providers[0].provider, "precog");
+  assert.equal(result.normalized.providers[1].provider, "kalshi");
+  assert.equal(result.normalized.providers[2].provider, "polymarket");
+  assert.equal(calls[0], "service.precog.markets");
+  assert.ok(calls.some((hostname) => hostname === "service.precog.markets"));
+  assert.ok(calls.includes("external-api.kalshi.com"));
+  assert.ok(calls.includes("gamma-api.polymarket.com"));
+  assert.equal(result.normalized.markets[0].provider, "precog");
+  assert.ok(precog.calls[0].includes("/api/v1/markets/"));
+  assert.ok(precog.calls[0].includes("status=OPEN"));
+  assert.ok(!precog.calls[0].includes("upcoming-markets"));
+});
+
+test("Precog provider searches markets and returns outcome prices", async () => {
+  const fetcher = createPrecogFixtureFetch();
+  const result = await searchExternalMarkets(
+    {
+      provider: "precog",
+      query: "Brazil",
+      limit: 5,
+      status: "active",
+    },
+    fetcher,
+  );
+
+  assert.equal(result.provider, "precog");
+  assert.equal(result.read_only, true);
+  assert.equal(result.normalized.markets.length, 1);
+  assert.equal(result.normalized.markets[0].provider_market_id, "503");
+  assert.equal(result.normalized.markets[0].outcomes[0].price, "0.62");
+  assert.ok(result.source.includes("service.precog.markets/api/v1/markets"));
+  assert.ok(result.source.includes("status=OPEN"));
+  assert.ok(!result.source.includes("upcoming-markets"));
+
+  const prices = await getExternalMarketPrices(
+    {
+      provider: "precog",
+      identifier: { precog: { master_market_id: 503 } },
+    },
+    fetcher,
+  );
+  assert.equal(prices.normalized.prices[0].outcomes[0].name, "Lula");
+  assert.equal(prices.normalized.prices[0].outcomes[0].price, "0.62");
 });
 
 test("Kalshi provider searches and normalizes fixture-backed public markets", async () => {

@@ -55,6 +55,7 @@ Codex can use `adapters/hosts/codex/mcp.json`. Claude, OpenClaw, and other MCP-c
 - `forecastos://examples/full-workflow`
 - `forecastos://precog/capabilities`
 - `forecastos://precog/config-defaults`
+- `forecastos://providers/precog/capabilities`
 - `forecastos://providers/polymarket/capabilities`
 - `forecastos://providers/kalshi/capabilities`
 

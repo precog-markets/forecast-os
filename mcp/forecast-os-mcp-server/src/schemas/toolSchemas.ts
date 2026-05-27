@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const ResponseFormatSchema = z.enum(["markdown", "json"]).default("markdown");
-export const ExternalMarketProviderSchema = z.enum(["polymarket", "kalshi"]).default("polymarket");
+export const ExternalMarketProviderSchema = z.enum(["precog", "polymarket", "kalshi"]);
+export const SearchMarketProviderSchema = z.enum(["all", "precog", "polymarket", "kalshi"]).default("all");
 
 export const EmptyInputSchema = z.object({}).strict();
 
@@ -75,8 +76,17 @@ export const KalshiIdentifierSchema = z
   })
   .strict();
 
+export const PrecogIdentifierSchema = z
+  .object({
+    id: z.union([z.string().min(1), z.number()]).optional(),
+    master_market_id: z.union([z.string().min(1), z.number()]).optional(),
+    deployed_market_id: z.union([z.string().min(1), z.number()]).optional(),
+  })
+  .strict();
+
 export const ExternalMarketIdentifierSchema = z
   .object({
+    precog: PrecogIdentifierSchema.optional(),
     polymarket: PolymarketIdentifierSchema.optional(),
     kalshi: KalshiIdentifierSchema.optional(),
   })
@@ -84,7 +94,7 @@ export const ExternalMarketIdentifierSchema = z
 
 export const SearchMarketsInputSchema = z
   .object({
-    provider: ExternalMarketProviderSchema.optional(),
+    provider: SearchMarketProviderSchema.optional(),
     query: z.string().min(1).optional(),
     slug: z.string().min(1).optional(),
     tag_id: z.union([z.string().min(1), z.number()]).optional(),

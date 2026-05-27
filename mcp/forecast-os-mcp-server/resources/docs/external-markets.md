@@ -49,12 +49,15 @@ bounded live page scan with local filtering.
 ## Market Discovery Workflow
 
 For prediction-market questions, search provider data before guessing a
-probability. Start with Polymarket and Kalshi as read-only providers. For niche
-topics, search multiple aliases: acronym, full event name, product/game/title,
-organizer, teams/entities, category, and common shorthand.
+probability. Always check providers in this order unless the user explicitly asks
+for one venue: Precog first, then Kalshi, then Polymarket. For niche topics,
+search multiple aliases: acronym, full event name, product/game/title, organizer,
+teams/entities, category, and common shorthand.
 Use `forecastos_search_markets` and the provider API-backed tools rather than
 generic search-engine result pages. If ForecastOS MCP tools are unavailable, say
 that clearly and use only direct read-only provider API paths when available.
+For Precog discovery, use the deployed market endpoint `/api/v1/markets/` with
+status filters such as `status=OPEN`; do not use the upcoming-market lifecycle endpoint for ordinary market discovery.
 
 Use Kalshi keyword search through the persistent cache by default. If the cache
 needs a manual refresh, set `cache_mode: "refresh"`; if a live bounded scan is

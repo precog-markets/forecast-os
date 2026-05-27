@@ -1,8 +1,11 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   EXTERNAL_MARKET_REQUEST_TIMEOUT_MS,
   KALSHI_API_ROOT,
   POLYMARKET_CLOB_API_ROOT,
   POLYMARKET_GAMMA_API_ROOT,
+  RESOURCE_ROOT,
 } from "../constants.js";
 import {
   kalshiCacheDir,
@@ -12,7 +15,8 @@ import {
 } from "../services/kalshiCache.js";
 import type { ResponseFormat } from "../types.js";
 
-export type ExternalMarketProvider = "polymarket" | "kalshi";
+export type ExternalMarketProvider = "precog" | "polymarket" | "kalshi";
+export type ExternalMarketSearchProvider = ExternalMarketProvider | "all";
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface PolymarketIdentifier {
@@ -24,6 +28,11 @@ export interface PolymarketIdentifier {
 }
 
 export interface ExternalMarketIdentifier {
+  precog?: {
+    id?: string | number;
+    master_market_id?: string | number;
+    deployed_market_id?: string | number;
+  };
   polymarket?: PolymarketIdentifier;
   kalshi?: {
     ticker?: string;
@@ -37,7 +46,8 @@ export interface ExternalMarketEnvelope {
   response_format?: ResponseFormat;
 }
 
-export interface SearchMarketsInput extends ExternalMarketEnvelope {
+export interface SearchMarketsInput extends Omit<ExternalMarketEnvelope, "provider"> {
+  provider?: ExternalMarketSearchProvider;
   query?: string;
   slug?: string;
   tag_id?: string | number;
@@ -96,7 +106,7 @@ function providerOf(input: ExternalMarketEnvelope): ExternalMarketProvider {
   return input.provider ?? "polymarket";
 }
 
-function readOnlyEnvelope(provider: ExternalMarketProvider, source: string, normalized: unknown, raw: unknown) {
+function readOnlyEnvelope(provider: ExternalMarketProvider | "all", source: string, normalized: unknown, raw: unknown) {
   return {
     provider,
     read_only: true,
@@ -110,8 +120,10 @@ function readOnlyEnvelope(provider: ExternalMarketProvider, source: string, norm
 export async function searchExternalMarkets(
   input: SearchMarketsInput,
   fetcher: FetchLike = fetch,
-) {
-  const provider = providerOf(input);
+): Promise<any> {
+  const provider = input.provider ?? "all";
+  if (provider === "all") return searchAllExternalMarkets(input, fetcher);
+  if (provider === "precog") return searchPrecogMarkets(input, fetcher);
   if (provider === "kalshi") return searchKalshiMarkets(input, fetcher);
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
@@ -154,6 +166,11 @@ export async function getExternalMarket(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "precog") {
+    const id = precogIdentifier(input.identifier);
+    const result = await fetchPrecogMarket(id, fetcher);
+    return readOnlyEnvelope("precog", result.source, result.normalized, result.raw);
+  }
   if (provider === "kalshi") {
     const id = kalshiIdentifier(input.identifier);
     const result = await fetchKalshiMarket(id, fetcher);
@@ -171,6 +188,25 @@ export async function getExternalMarketPrices(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "precog") {
+    const id = precogIdentifier(input.identifier);
+    const result = await fetchPrecogMarket(id, fetcher);
+    const markets = normalizedPrecogMarkets(result.normalized);
+    if (markets.length === 0) {
+      throw new Error("Precog prices require identifier.precog.id, master_market_id, or deployed_market_id.");
+    }
+    return readOnlyEnvelope(
+      "precog",
+      result.source,
+      {
+        prices: markets.map((market) => ({
+          id: market.provider_market_id,
+          outcomes: market.outcomes,
+        })),
+      },
+      result.raw,
+    );
+  }
   if (provider === "kalshi") {
     const id = kalshiIdentifier(input.identifier);
     const result = await fetchKalshiMarket(id, fetcher);
@@ -220,6 +256,9 @@ export async function getExternalMarketOrderbook(
   fetcher: FetchLike = fetch,
 ) {
   const provider = providerOf(input);
+  if (provider === "precog") {
+    throw new Error("Precog orderbook reads are not supported by this read-only adapter.");
+  }
   if (provider === "kalshi") return getKalshiOrderbook(input, fetcher);
   if (provider !== "polymarket") return unsupportedProvider(provider);
 
@@ -252,7 +291,7 @@ export async function getExternalMarketOrderbook(
 }
 
 export function formatExternalMarketResult(value: any): string {
-  if (value.provider !== "polymarket" && value.provider !== "kalshi") {
+  if (value.provider !== "precog" && value.provider !== "polymarket" && value.provider !== "kalshi" && value.provider !== "all") {
     return `Provider ${value.provider} is not implemented yet.\n\n${value.next_step ?? ""}`.trim();
   }
   const normalized = value.normalized ?? {};
@@ -286,6 +325,72 @@ export function formatExternalMarketResult(value: any): string {
     normalized.source_url ? `URL: ${normalized.source_url}` : undefined,
     `Source: ${value.source}`,
   ].filter(Boolean).join("\n");
+}
+
+async function searchAllExternalMarkets(input: SearchMarketsInput, fetcher: FetchLike): Promise<any> {
+  const providers: ExternalMarketProvider[] = ["precog", "kalshi", "polymarket"];
+  const providerResults = [];
+  const markets: NormalizedMarket[] = [];
+  const errors = [];
+  for (const provider of providers) {
+    try {
+      const result: any = await searchExternalMarkets({ ...input, provider }, fetcher);
+      const normalized = asRecord(result.normalized);
+      const providerMarkets = ensureArray(normalized.markets) as NormalizedMarket[];
+      markets.push(...providerMarkets);
+      providerResults.push({
+        provider,
+        checked: true,
+        market_count: providerMarkets.length,
+        source: result.source,
+        search_mode: normalized.search_mode,
+      });
+    } catch (error) {
+      errors.push({
+        provider,
+        checked: true,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return readOnlyEnvelope(
+    "all",
+    providerResults.map((result) => result.source).filter(Boolean).join(", "),
+    {
+      markets,
+      providers: providerResults,
+      errors,
+      provider_order: providers,
+      search_mode: "precog_first_provider_sweep",
+    },
+    { providers: providerResults, errors },
+  );
+}
+
+export function precogMarketCapabilities() {
+  return {
+    provider: "precog",
+    read_only: true,
+    implemented: true,
+    endpoints: {
+      markets: "GET /api/v1/markets/",
+    },
+    supported_reads: [
+      "Precog markets by status, id, master_market_id, or deployed_market_id",
+      "Open market discovery through /api/v1/markets/?status=OPEN",
+      "Outcome probability fields from market outcomes_prices",
+    ],
+    unsupported_actions: [
+      "market creation through MCP",
+      "funding through MCP",
+      "wallet operations",
+      "signing",
+      "token approvals",
+      "orderbook reads",
+    ],
+    search_priority: "first",
+  };
 }
 
 export function polymarketCapabilities() {
@@ -347,6 +452,50 @@ export function kalshiCapabilities() {
       modes: ["auto", "refresh", "bypass"],
     },
   };
+}
+
+async function searchPrecogMarkets(input: SearchMarketsInput, fetcher: FetchLike) {
+  const limit = clamp(input.limit ?? 20, 1, 100);
+  const offset = Math.max(0, input.offset ?? 0);
+  const query = input.query?.toLowerCase();
+  const config = await readPrecogMarketConfig();
+  const headers = precogHeaders(config);
+  const marketsUrl = buildUrl(config.api_root, "/api/v1/markets/", {
+    status: precogStatus(input.status ?? "active"),
+  });
+  const raw = await fetchJson(marketsUrl, fetcher, { method: "GET", headers });
+  const candidates = precogCollection(raw).map((market) => ({ ...asRecord(market), precog_market_kind: "market" }));
+  const filtered = query
+    ? candidates.filter((market) => JSON.stringify(pickPrecogSearchFields(market)).toLowerCase().includes(query))
+    : candidates;
+  const limited = filtered.slice(offset, offset + limit);
+
+  return readOnlyEnvelope(
+    "precog",
+    marketsUrl.toString(),
+    {
+      markets: limited.map((market) => normalizePrecogMarket(market)),
+      limit,
+      offset,
+      has_more: filtered.length > offset + limit,
+      search_mode: "precog_markets_status_filter",
+      checked: ["markets"],
+    },
+    raw,
+  );
+}
+
+async function fetchPrecogMarket(id: NonNullable<ExternalMarketIdentifier["precog"]>, fetcher: FetchLike) {
+  const config = await readPrecogMarketConfig();
+  const headers = precogHeaders(config);
+  const url = buildUrl(config.api_root, "/api/v1/markets/", {
+    id: id.id,
+    master_market_id: id.master_market_id,
+    deployed_market_id: id.deployed_market_id,
+  });
+  const raw = await fetchJson(url, fetcher, { method: "GET", headers });
+  const market = precogCollection(raw)[0] ?? raw;
+  return { source: url.toString(), normalized: normalizePrecogMarket({ ...asRecord(market), precog_market_kind: "market" }), raw };
 }
 
 async function searchKalshiMarkets(input: SearchMarketsInput, fetcher: FetchLike) {
@@ -558,11 +707,11 @@ async function fetchPolymarketPricesForToken(
   };
 }
 
-async function fetchJson(url: URL, fetcher: FetchLike): Promise<unknown> {
+async function fetchJson(url: URL, fetcher: FetchLike, init: RequestInit = {}): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), EXTERNAL_MARKET_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetcher(url, { signal: controller.signal });
+    const response = await fetcher(url, { ...init, signal: controller.signal });
     if (!response.ok) {
       throw new Error(`External market read failed: ${response.status} ${response.statusText} for ${url.toString()}`);
     }
@@ -609,6 +758,14 @@ function unsupportedProvider(provider: ExternalMarketProvider) {
   };
 }
 
+function precogIdentifier(identifier: ExternalMarketIdentifier): NonNullable<ExternalMarketIdentifier["precog"]> {
+  const precog = identifier.precog ?? {};
+  if (!Object.values(precog).some((value) => value !== undefined && value !== "")) {
+    throw new Error("Provide identifier.precog with id, master_market_id, or deployed_market_id.");
+  }
+  return precog;
+}
+
 function kalshiIdentifier(identifier: ExternalMarketIdentifier): NonNullable<ExternalMarketIdentifier["kalshi"]> {
   const kalshi = identifier.kalshi ?? {};
   if (!Object.values(kalshi).some((value) => value !== undefined && value !== "")) {
@@ -623,6 +780,111 @@ function polymarketIdentifier(identifier: ExternalMarketIdentifier): PolymarketI
     throw new Error("Provide identifier.polymarket with slug, event_id, market_id, condition_id, or token_id.");
   }
   return polymarket;
+}
+
+async function readPrecogMarketConfig() {
+  const config = JSON.parse(await readFile(join(RESOURCE_ROOT, "precog", "config-defaults.json"), "utf8"));
+  const precog = asRecord(config.precog);
+  const apiRoot = stringValue(precog.api_root);
+  const openApiKey = stringValue(precog.open_api_key);
+  const deployedMasterAddress = stringValue(precog.deployed_master_address);
+  const chainId = Number(precog.chain_id);
+  if (!apiRoot || !openApiKey || !deployedMasterAddress || !Number.isInteger(chainId)) {
+    throw new Error("Precog market reads require api_root, open_api_key, chain_id, and deployed_master_address in config defaults.");
+  }
+  return {
+    api_root: apiRoot,
+    open_api_key: openApiKey,
+    chain_id: chainId,
+    deployed_master_address: deployedMasterAddress,
+  };
+}
+
+function precogHeaders(config: Awaited<ReturnType<typeof readPrecogMarketConfig>>) {
+  return {
+    "x-api-key": config.open_api_key,
+    "Content-Type": "application/json",
+  };
+}
+
+function precogCollection(raw: unknown): unknown[] {
+  const record = asRecord(raw);
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(record.results)) return record.results;
+  if (Array.isArray(record.markets)) return record.markets;
+  if (Array.isArray(record.upcoming_markets)) return record.upcoming_markets;
+  if (Array.isArray(record.data)) return record.data;
+  return Object.keys(record).length > 0 && !record.error ? [record] : [];
+}
+
+function normalizePrecogMarket(value: unknown): NormalizedMarket {
+  const market = asRecord(value);
+  const id = stringValue(market.master_market_id ?? market.deployed_market_id ?? market.id);
+  const question = stringValue(market.question ?? market.title ?? market.description) ?? id;
+  const outcomes = parsePrecogOutcomes(market.outcomes, market.outcomes_prices ?? market.outcome_prices);
+  return {
+    provider: "precog",
+    provider_market_id: id,
+    title: question,
+    question,
+    subtitle: stringValue(market.category ?? market.precog_market_kind),
+    status: normalizePrecogStatus(market.status),
+    outcomes,
+    volume: market.funding_amount ?? market.funding,
+    liquidity: market.liquidity,
+    close_time: stringValue(market.end_timestamp ?? market.close_time),
+    resolution_time: stringValue(market.resolution_time),
+    source_url: id ? `https://core.precog.markets/markets/${id}` : undefined,
+  };
+}
+
+function normalizedPrecogMarkets(normalized: unknown): NormalizedMarket[] {
+  const market = asRecord(normalized) as NormalizedMarket;
+  if (Array.isArray(market.markets)) return market.markets;
+  return market.provider_market_id ? [market] : [];
+}
+
+function pickPrecogSearchFields(value: unknown) {
+  const market = asRecord(value);
+  return {
+    id: market.id,
+    master_market_id: market.master_market_id,
+    deployed_market_id: market.deployed_market_id,
+    question: market.question,
+    title: market.title,
+    description: market.description,
+    category: market.category,
+    outcomes: market.outcomes,
+    status: market.status,
+  };
+}
+
+function precogStatus(status: "active" | "closed" | "all"): string | undefined {
+  if (status === "active") return "OPEN";
+  if (status === "closed") return "CLOSED";
+  return undefined;
+}
+
+function parsePrecogOutcomes(outcomesValue: unknown, pricesValue: unknown) {
+  const outcomes = parseMaybeJsonArray(outcomesValue);
+  const prices = parseMaybeJsonArray(pricesValue);
+  return outcomes.map((outcome, index) => ({
+    name: stringValue(outcome),
+    price: priceValue(prices[index]),
+    price_scale: "0-1",
+  }));
+}
+
+function priceValue(value: unknown): number | string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  return typeof value === "number" ? value : stringValue(value);
+}
+
+function normalizePrecogStatus(value: unknown): string {
+  const status = String(value ?? "").toLowerCase();
+  if (["open", "deployed", "validated", "created", "active"].includes(status)) return "active";
+  if (["closed", "settled", "expired", "cancelled", "canceled"].includes(status)) return "closed";
+  return stringValue(value) ?? "unknown";
 }
 
 function normalizeKalshiEvent(value: unknown): NormalizedMarket {
@@ -878,6 +1140,9 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function providerLabel(provider: ExternalMarketProvider): string {
-  return provider === "kalshi" ? "Kalshi" : "Polymarket";
+function providerLabel(provider: ExternalMarketProvider | "all"): string {
+  if (provider === "precog") return "Precog";
+  if (provider === "kalshi") return "Kalshi";
+  if (provider === "all") return "ForecastOS provider sweep";
+  return "Polymarket";
 }

@@ -464,11 +464,16 @@ test("skill triggers for prediction-market discovery before probability guesses"
   assert.ok(skill.includes("Before inventing or guessing a probability, search read-only"));
   assert.ok(skill.includes("forecastos_search_markets"));
   assert.ok(skill.includes("Do not substitute generic web search"));
+  assert.ok(skill.includes("Always check Precog"));
+  assert.ok(skill.includes("then Kalshi, then Polymarket"));
   assert.ok(externalMarkets.includes("Market Discovery Workflow"));
   assert.ok(externalMarkets.includes("search provider data before guessing a"));
-  assert.ok(externalMarkets.includes("Polymarket and Kalshi"));
+  assert.ok(externalMarkets.includes("Precog first, then Kalshi, then Polymarket"));
   assert.ok(externalMarkets.includes("provider API-backed tools"));
   assert.ok(externalMarkets.includes("generic search-engine result pages"));
+  assert.ok(externalMarkets.includes("/api/v1/markets/"));
+  assert.ok(externalMarkets.includes("status=OPEN"));
+  assert.ok(externalMarkets.includes("do not use the upcoming-market lifecycle endpoint"));
   assert.ok(externalMarkets.includes("avoid presenting a guessed probability as market-implied"));
   assert.ok(agentMetadata.includes("Search prediction markets"));
   assert.ok(agentMetadata.includes("avoid guessing future-event probabilities"));
