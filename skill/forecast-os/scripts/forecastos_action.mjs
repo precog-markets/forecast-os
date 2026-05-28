@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bridges operator-approved ForecastOS actions to the bundled runtime while keeping MCP read-only.
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 
@@ -19,8 +19,10 @@ const ACTIONS = new Set([
 const action = process.argv[2];
 const inputPath = argValue("--input");
 const walletOutputPath = argValue("--wallet-output") ?? argValue("--adapter-output");
-const stateDir = process.env.FORECASTOS_STATE_DIR ?? ".forecastos";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+const skillRoot = dirname(scriptDir);
+const defaultStateDir = join(skillRoot, ".forecastos");
+const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? defaultStateDir;
 
 if (!ACTIONS.has(action)) {
   fail(`Unsupported action '${action ?? ""}'. Supported actions: ${[...ACTIONS].join(", ")}`);

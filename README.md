@@ -21,8 +21,9 @@ The portable skill lives in:
 skill/forecast-os
 ```
 
-To install from this repo into Codex, copy or symlink the skill folder into your
-Codex skills directory.
+To install from this repo into an agent host, copy or symlink the skill folder
+into that host's skills directory. For Codex, the default user skills directory
+is shown below.
 
 macOS / Linux:
 
@@ -40,9 +41,16 @@ New-Item -ItemType SymbolicLink `
   -Target "C:\path\to\forecast-os\skill\forecast-os"
 ```
 
-For a fixed install instead of live repo development, copy `skill/forecast-os`
-to the same destination. After installing or updating the skill, restart Codex
-so it reloads skill metadata.
+For a fixed install instead of live repo development, first generate the
+detached skill version from the canonical root `VERSION`, then copy
+`skill/forecast-os` to the same destination:
+
+```txt
+node skill/forecast-os/scripts/sync_version.mjs
+```
+
+After installing or updating the skill, reload or restart whichever agent host
+will discover the skill so it refreshes skill metadata.
 
 The skill also works without MCP. Agents can use `SKILL.md`, `references/`, `scripts/`, `assets/`, and `.forecastos/config.json` directly from the skill folder.
 

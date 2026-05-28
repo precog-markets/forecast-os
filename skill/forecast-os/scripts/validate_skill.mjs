@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(root));
 const skill = await readFile(join(root, "SKILL.md"), "utf8");
+const repoVersion = await readTextOrNull(join(repoRoot, "VERSION"));
+const skillArtifactVersion = await readTextOrNull(join(root, "VERSION"));
+const effectiveVersion = (repoVersion ?? skillArtifactVersion ?? "").trim();
 const precogConfig = JSON.parse(await readFile(join(root, ".forecastos", "config.json"), "utf8"));
 const agentMetadata = await readFile(join(root, "agents", "openai.yaml"), "utf8");
 const actionSchema = JSON.parse(await readFile(join(root, "assets", "schemas", "actions.json"), "utf8"));
@@ -33,6 +36,13 @@ assert(
   "SKILL.md description needs ForecastOS discovery, probability, boundaries, and action context",
 );
 assert(frontmatter, "SKILL.md needs YAML frontmatter");
+assert(/^\d+\.\d+\.\d+$/.test(effectiveVersion), "ForecastOS VERSION must contain semver like 0.1.0");
+if (repoVersion !== null && skillArtifactVersion !== null) {
+  assert(
+    repoVersion.trim() === skillArtifactVersion.trim(),
+    "generated skill VERSION must match repo root VERSION when both exist",
+  );
+}
 assert(
   frontmatter[1].trim().split(/\r?\n/).map((line) => line.split(":")[0]).join(",") === "name,description",
   "SKILL.md frontmatter must only use name and description",
@@ -55,6 +65,9 @@ await assertDir(join(root, "references"));
 await assertDir(join(root, "scripts"));
 await assertDir(join(root, "assets"));
 await assertDir(join(root, ".forecastos"));
+await assertFile(join(root, "scripts", "check_version.mjs"));
+await assertFile(join(root, "scripts", "check_pending_market.mjs"));
+await assertFile(join(root, "scripts", "sync_version.mjs"));
 assert(
   precogConfig.precog?.api_root,
   ".forecastos/config.json needs precog.api_root",
@@ -366,6 +379,15 @@ async function exists(path) {
     return true;
   } catch (error) {
     if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function readTextOrNull(path) {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
     throw error;
   }
 }

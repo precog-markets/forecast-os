@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Builds a read-only human approval view from a ForecastOS draft or workflow.
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? ".forecastos";
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const skillRoot = dirname(scriptDir);
+const defaultStateDir = join(skillRoot, ".forecastos");
+const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? defaultStateDir;
 const draftIdArg = argValue("--draft-id");
 const workflowIdArg = argValue("--workflow-id");
 
@@ -52,6 +56,7 @@ function buildReviewMessage(draft, workflow) {
     market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
     market.resolution_time ? `Resolution time: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
+    formatTokenLine(market),
     needs && questions.length ? `Questions: ${questions.join(" ")}` : null,
     quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
     needs
@@ -59,6 +64,15 @@ function buildReviewMessage(draft, workflow) {
       : draft.approval_prompt ?? "Reply yes to approve this draft.",
   ].filter(Boolean);
   return lines.join("\n");
+}
+
+function formatTokenLine(market = {}) {
+  if (market.collateral_symbol && market.collateral_address) {
+    return `Token: ${market.collateral_symbol} (${market.collateral_address})`;
+  }
+  if (market.collateral_symbol) return `Token: ${market.collateral_symbol}`;
+  if (market.collateral_address) return `Token: ${market.collateral_address}`;
+  return null;
 }
 
 function formatUtcForReview(value) {
