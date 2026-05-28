@@ -48,7 +48,7 @@ An agent may attempt `fund_market` only when:
 - collateral token approval has been handled by the wallet flow if allowance was insufficient
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Configured wallet/action tooling resolves a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
+Configured wallet/action tooling resolves a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. Base MCP funding may return Base Account smart-wallet signatures verified through EIP-1271/ERC-6492; those signatures are accepted for funding but not for creation unless they are EOA-style 65-byte EIP-712. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 

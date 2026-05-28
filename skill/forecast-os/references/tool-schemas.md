@@ -114,7 +114,7 @@ Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic in
 }
 ```
 
-The wallet/action tool checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields. Useful options include [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).
+The wallet/action tool checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields. Useful options include [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Base MCP funding may return Base Account smart-wallet signatures verified through EIP-1271/ERC-6492; those signatures are accepted for funding even though Base MCP smart-account signatures are not accepted for creation unless they are EOA-style 65-byte EIP-712.
 
 If the user asks what funding does economically, read `references/precog-liquidity.md`. LPs earn from 90% of the post-payout profit pool, plus trading fees when applicable, but LP positions are locked until market resolution and returns are not guaranteed.
 ## fund_market
@@ -138,7 +138,7 @@ Funding requires explicit operator approval. A configured wallet/action tool can
 }
 ```
 
-`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding.
+`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding. Unlike creation, funding accepts Base Account smart-wallet signature shapes when returned by Base MCP.
 
 ## consume_prediction
 

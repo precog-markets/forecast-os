@@ -20,7 +20,9 @@ calldata envelope or ordered transaction batch into Base MCP `send_calls`, then
 returns the standard `fund_market` adapter output after [Base MCP](https://mcp.base.org) supplies the
 transaction hash and EIP-712 funding signature. It must not invent funding
 calldata; a Precog funding transaction builder or another trusted resolver must
-provide the unsigned call data first.
+provide the unsigned call data first. Base Account smart-wallet signatures are
+verified through EIP-1271, with ERC-6492 relevant before deployment; ForecastOS
+accepts those Base MCP signature shapes for funding.
 
 For creation, [Base MCP](https://mcp.base.org) can prepare a typed-data signing request, but current
 Base Account smart-account/WebAuthn signatures are not accepted by the Precog
@@ -59,6 +61,11 @@ When the same EVM wallet will create now and fund later, its policy should allow
 ## Funding Flow
 
 Funding adapters should consume `prepare_funding_intent` output and return a `funding_request` with `tx_hash`, `funder_address`, `funder_signature`, and the display-unit `amount`. Funding adapters must handle token approval outside ForecastOS when needed.
+
+Base MCP funding intentionally accepts any hex EIP-712 signature returned by Base
+Account, including non-65-byte smart-wallet/WebAuthn signatures. Do not apply
+the creation-path EOA signature restriction to funding unless Precog funding
+backend support changes.
 
 ## Legacy Skill Shim
 

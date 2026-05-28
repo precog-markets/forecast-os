@@ -338,12 +338,13 @@ test("Base MCP funding resolver returns required wallet actions before tx hash",
   assert.equal(resolved.next_action, "base_mcp_sign_and_send_calls");
 });
 
-test("Base MCP funding resolver returns ForecastOS fund_market output after Base MCP completion", () => {
+test("Base MCP funding resolver accepts Base Account smart-wallet signatures", () => {
+  const smartWalletSignature = "0x" + "ab".repeat(96);
   const resolved = resolveFunding({
     intent: buildFundingIntentFixture(),
     walletAddress: "0x2222222222222222222222222222222222222222",
     nonce: 10,
-    funderSignature: "0xabcdef",
+    funderSignature: smartWalletSignature,
     txHash: "0x1234",
     prepareResponse: {
       transactions: [
@@ -362,9 +363,13 @@ test("Base MCP funding resolver returns ForecastOS fund_market output after Base
     amount: "1.5",
     tx_hash: "0x1234",
     funder_address: "0x2222222222222222222222222222222222222222",
-    funder_signature: "0xabcdef",
+    funder_signature: smartWalletSignature,
   });
   assert.equal(resolved.wallet_audit.method, "base_mcp_sign_and_send_calls");
+  assert.equal(
+    resolved.wallet_audit.signature_compatibility,
+    "base_account_eip1271_erc6492_supported_for_precog_funding",
+  );
   assert.equal(resolved.next_action, "fund_market");
 });
 

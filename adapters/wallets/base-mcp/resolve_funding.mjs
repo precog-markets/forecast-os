@@ -57,6 +57,7 @@ export function resolveFunding({
     chain_id: BASE_CHAIN_ID,
     nonce: typedData.message?.nonce,
     method: "base_mcp_sign_and_send_calls",
+    signature_compatibility: "base_account_eip1271_erc6492_supported_for_precog_funding",
     typed_data_primary_type: typedData.primaryType,
     transaction_steps: transactions.map((tx) => tx.step).filter(Boolean),
   });

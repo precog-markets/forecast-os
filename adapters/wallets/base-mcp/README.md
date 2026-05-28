@@ -51,6 +51,10 @@ the standard ForecastOS `fund_market` adapter output.
   before wallet-dependent actions, use EIP-712 signing for Precog
   authorization when available, and use `send_calls` only for ordered unsigned
   EVM transaction batches.
+- Base Account signatures may be smart-wallet signatures verified through
+  EIP-1271, with ERC-6492 relevant before deployment. ForecastOS accepts those
+  signature shapes for Precog funding, but not for Precog creation unless the
+  signer returns an EOA-style 65-byte EIP-712 signature.
 - ForecastOS MCP remains read-only. Do not add mutating MCP tools for Base
   compatibility.
 
@@ -83,4 +87,8 @@ unsigned calldata envelope or ordered transaction batch:
 ```
 
 This adapter validates and maps that prepared calldata into [Base MCP](https://mcp.base.org)'s canonical
-`{ chain: "base", calls }` shape. It does not invent funding calldata.
+`{ chain: "base", calls }` shape. It does not invent funding calldata. After
+Base MCP returns a transaction hash and funding signature, the resolver accepts
+any hex signature, including non-65-byte Base Account smart-wallet/WebAuthn
+signatures, because Precog funding is expected to verify Base Account signatures
+through EIP-1271/ERC-6492.
