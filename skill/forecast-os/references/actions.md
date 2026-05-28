@@ -95,7 +95,9 @@ Creation payload hygiene:
 - `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
 - `image_url` must be an `http` or `https` URL.
 - `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
+- `resolution_criteria` should be detailed enough to display directly in Launchpad: name the source of truth, state how exactly one listed outcome wins, include the resolution time, and describe fallback/no official result handling when relevant.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
+- Outcome labels must not contain commas because the Precog create API treats commas as outcome separators. Use labels such as `June 1-15 2026`, not `June 1-15, 2026`.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.

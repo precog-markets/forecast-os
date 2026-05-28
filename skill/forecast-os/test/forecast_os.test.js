@@ -313,6 +313,77 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[2].body.amount, "1");
 });
 
+test("create_market sends comma-safe outcome labels", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "comma-safe-outcomes");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 777, status: "CREATED" });
+        },
+      };
+    },
+    now: () => new Date("2026-05-28T00:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "When will Strait of Hormuz traffic return to normal?",
+    requested_outcomes: [
+      "June 1-15, 2026",
+      "June 16-30, 2026",
+      "July 1-31, 2026",
+      "Not returned to normal by July 31, 2026 / no reliable resolution",
+    ],
+    source_hints: ["Official maritime traffic authority reports"],
+    requested_close_time: "2026-06-30T23:00:00Z",
+    requested_resolution_time: "2026-07-31T23:59:59Z",
+  });
+
+  await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+
+  assert.deepEqual(draft.market.outcomes, [
+    "June 1-15 2026",
+    "June 16-30 2026",
+    "July 1-31 2026",
+    "Not returned to normal by July 31 2026 / no reliable resolution",
+  ]);
+  assert.equal(
+    requests[0].body.outcomes,
+    "June 1-15 2026,June 16-30 2026,July 1-31 2026,Not returned to normal by July 31 2026 / no reliable resolution",
+  );
+  assert.equal(requests[0].body.outcomes.split(",").length, 4);
+});
+
 test("wallet-resolved create through run_skill_step persists await_precog_approval", async () => {
   const rootDir = join(skillRoot, "api-test-output", "wallet-resolved-create-step");
   const stateDir = join(rootDir, ".forecastos");
@@ -468,6 +539,36 @@ test("draft review is chat-facing and ends with next steps", async () => {
   assert.ok(!draft.review_message.includes("{"));
   assert.ok(!draft.review_message.includes("draft_"));
   assert.ok(!draft.review_message.includes("hash_"));
+});
+
+test("draft_market generates detailed default resolution criteria", async () => {
+  const forecastos = await createIsolatedForecastOS("detailed-resolution-criteria");
+  const draft = await forecastos.draftMarket({
+    prompt: "When will Strait of Hormuz traffic return to normal?",
+    requested_outcomes: [
+      "June 1-15, 2026",
+      "June 16-30, 2026",
+      "Not returned to normal by July 31, 2026 / no reliable resolution",
+    ],
+    source_hints: ["Official maritime traffic authority reports"],
+    requested_close_time: "2026-06-30T23:00:00Z",
+    requested_resolution_time: "2026-07-31T23:59:59Z",
+  });
+
+  assert.deepEqual(draft.market.outcomes, [
+    "June 1-15 2026",
+    "June 16-30 2026",
+    "Not returned to normal by July 31 2026 / no reliable resolution",
+  ]);
+  assert.ok(draft.market.resolution_criteria.includes("Official maritime traffic authority reports"));
+  assert.ok(draft.market.resolution_criteria.includes("Resolve to exactly one listed outcome"));
+  assert.ok(draft.market.resolution_criteria.includes("2026-07-31T23:59:59.000Z UTC"));
+  assert.ok(
+    draft.market.resolution_criteria.includes(
+      'resolve to "Not returned to normal by July 31 2026 / no reliable resolution"',
+    ),
+  );
+  assert.ok(draft.review_message.includes("Resolution criteria:"));
 });
 
 test("skill docs forbid raw JSON as normal chat output and require next step prompt", async () => {

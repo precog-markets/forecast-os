@@ -611,19 +611,26 @@ function buildDraft(input = {}) {
     );
   }
   const suggestNextQuestions = buildSuggestNextQuestions(missingFields);
+  const question = input.question ?? input.prompt ?? "ForecastOS market question";
+  const sourceOfTruth = input.source_of_truth ?? input.source_hints?.[0] ?? null;
   const market = {
     market_type: "multi_outcome",
     title: input.title ?? titleFromPrompt(input.prompt),
-    question: input.question ?? input.prompt ?? "ForecastOS market question",
+    question,
     outcomes,
     description: input.description ?? "ForecastOS multi-outcome market draft.",
     resolution_criteria:
       input.resolution_criteria ??
-      "Resolve to the listed outcome confirmed by the stated source of truth.",
+      buildDefaultResolutionCriteria({
+        question,
+        outcomes,
+        sourceOfTruth,
+        resolutionTime,
+      }),
     close_time: closeTime,
     resolution_time: resolutionTime,
     time_zone: "UTC",
-    source_of_truth: input.source_of_truth ?? input.source_hints?.[0] ?? null,
+    source_of_truth: sourceOfTruth,
     category: input.preferred_category ?? "other",
     tags: ["forecastos", "multi_outcome"],
   };
@@ -668,12 +675,50 @@ function buildSuggestNextQuestions(missingFields = []) {
 
 function normalizeDraftOutcomes(value) {
   if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
+    return value.map(sanitizeOutcomeLabel).filter(Boolean);
   }
   return String(value ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map(sanitizeOutcomeLabel)
     .filter(Boolean);
+}
+
+function sanitizeOutcomeLabel(value) {
+  return String(value ?? "")
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildDefaultResolutionCriteria({
+  question,
+  outcomes = [],
+  sourceOfTruth,
+  resolutionTime,
+} = {}) {
+  const source = sourceOfTruth ?? "the stated source of truth";
+  const outcomeList = outcomes.length ? outcomes.join(" / ") : "the listed outcomes";
+  const fallbackOutcome = outcomes.find(isFallbackOutcomeLabel);
+  const lines = [
+    `Resolution source: ${source}.`,
+    `Resolve to exactly one listed outcome: ${outcomeList}.`,
+    `Use the first official result, announcement, or data update from ${source} that unambiguously answers: "${question}". Do not use unofficial reports, speculation, or secondary summaries unless ${source} cites them as official.`,
+  ];
+  if (resolutionTime) {
+    lines.push(`Resolve at or after ${formatUtcForReview(resolutionTime)} once the official result is available.`);
+  }
+  if (fallbackOutcome) {
+    lines.push(`If no listed non-fallback outcome is confirmed by the resolution time, resolve to "${fallbackOutcome}".`);
+  } else {
+    lines.push("If the official source does not confirm any listed outcome by the resolution time, resolve to the listed outcome that best matches the final official result.");
+  }
+  return lines.join("\n");
+}
+
+function isFallbackOutcomeLabel(value) {
+  return /(?:no official|cancel|invalid|ambiguous|fallback|no reliable|not returned|other)/i.test(
+    String(value ?? ""),
+  );
 }
 
 function ensureState(state, event) {
@@ -1037,7 +1082,7 @@ function buildFriendlyReviewMessage(draft) {
     market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
     market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
-    market.resolution_criteria ? `Criteria: ${market.resolution_criteria}` : null,
+    market.resolution_criteria ? `Resolution criteria: ${market.resolution_criteria}` : null,
     needs && questions.length ? `Questions: ${questions.join(" ")}` : null,
     quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
     needs
@@ -1074,9 +1119,7 @@ function normalizePrecogCategory(category) {
 
 function normalizePrecogOutcomes(outcomes) {
   const input = Array.isArray(outcomes) ? outcomes : String(outcomes ?? "").split(",");
-  const normalized = input.map((outcome) =>
-    outcome === undefined || outcome === null ? null : String(outcome).trim(),
-  );
+  const normalized = input.map(sanitizeOutcomeLabel);
   if (normalized.length < 2 || normalized.some((outcome) => !outcome)) {
     fail("Precog create payload requires at least two non-empty outcomes.");
   }
