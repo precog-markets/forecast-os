@@ -76,6 +76,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `create_market` submits to the configured Precog API root and requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
+- After a successful `create_market`, ForecastOS generates a launchpad share/check URL in the form `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}`. The URL is built locally from config `precog.chain_id`, the normalized upcoming market id, and a question-derived slug; do not rely on a backend-provided `url` field.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
@@ -119,6 +120,8 @@ Normal chat Precog creation flow after approval:
 1. Call `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
 3. Call `run_skill_step` with the current `create_market` workflow state and `--wallet-output <wallet-adapter-output-json>`. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
+
+After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market.
 
 [Base MCP](https://mcp.base.org) creation caveat: current Base Account signatures are smart-account/WebAuthn signatures, and the Precog create endpoint currently validates EOA-style 65-byte EIP-712 signatures. Do not submit Base MCP smart-account signatures for creation; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/) unless Base MCP returns a 65-byte EOA signature.
 
