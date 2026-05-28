@@ -18,6 +18,7 @@ const ACTIONS = new Set([
 
 const action = process.argv[2];
 const inputPath = argValue("--input");
+const walletOutputPath = argValue("--wallet-output") ?? argValue("--adapter-output");
 const stateDir = process.env.FORECASTOS_STATE_DIR ?? ".forecastos";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +26,9 @@ if (!ACTIONS.has(action)) {
   fail(`Unsupported action '${action ?? ""}'. Supported actions: ${[...ACTIONS].join(", ")}`);
 }
 
-const input = normalizeInput(action, inputPath ? parseJsonInput(await readFile(inputPath, "utf8")) : {});
+const rawInput = inputPath ? parseJsonInput(await readFile(inputPath, "utf8")) : {};
+const walletOutput = walletOutputPath ? parseJsonInput(await readFile(walletOutputPath, "utf8")) : undefined;
+const input = normalizeInput(action, mergeWalletOutput(action, rawInput, walletOutput));
 enforceApproval(action, input);
 
 const forecastos = await loadForecastOS();
@@ -96,6 +99,43 @@ function normalizeInput(actionName, input) {
             }
           : input.event?.draft_input,
       },
+    };
+  }
+  return input;
+}
+
+function mergeWalletOutput(actionName, input, walletOutput) {
+  if (!walletOutput) return input;
+  const resolved = walletOutput.result ?? walletOutput;
+  const event = resolved.event ?? {};
+  const fundingRequest = resolved.funding_request ?? event.funding_request;
+  const walletAudit = resolved.wallet_audit ?? event.wallet_audit;
+  if (actionName === "run_skill_step") {
+    return {
+      ...input,
+      event: withoutUndefined({
+        ...(input.event ?? {}),
+        ...event,
+        funding_request: fundingRequest ?? input.event?.funding_request,
+        wallet_audit: walletAudit ?? input.event?.wallet_audit,
+      }),
+    };
+  }
+  if (actionName === "create_market") {
+    return withoutUndefined({
+      ...input,
+      ...event,
+      wallet_audit: walletAudit ?? input.wallet_audit,
+    });
+  }
+  if (actionName === "fund_market") {
+    return {
+      ...input,
+      wallet_audit: walletAudit ?? input.wallet_audit,
+      funding_request: withoutUndefined({
+        ...(input.funding_request ?? {}),
+        ...(fundingRequest ?? {}),
+      }),
     };
   }
   return input;
@@ -185,4 +225,8 @@ function serializeError(error) {
     endpoint: error?.endpoint,
     body: error?.body,
   };
+}
+
+function withoutUndefined(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
