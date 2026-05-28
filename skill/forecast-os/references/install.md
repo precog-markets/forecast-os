@@ -31,6 +31,14 @@ Agent runtimes usually discover skills from repo, user, admin, or system locatio
 
 For this package, copy or symlink `skill/forecast-os` as `forecast-os` into the desired skills directory. Keep the skill folder contents together so local references, scripts, assets, and `.forecastos/config.json` continue to resolve.
 
+The repo root `VERSION` is the canonical project version. Symlink installs can read it from the repo. For fixed-copy installs, generate the detachable skill artifact version before copying:
+
+```txt
+node skill/forecast-os/scripts/sync_version.mjs
+```
+
+That writes `skill/forecast-os/VERSION` from the root `VERSION`; the generated file is ignored in repo source but travels with copied skill artifacts.
+
 For reusable distribution beyond local authoring, package this repo with the host runtime's preferred plugin or extension format.
 
 ## Optional Local MCP
@@ -113,6 +121,7 @@ This checks:
 - `.forecastos/config.json` includes public Precog defaults.
 - no `mcp.json` or bundled MCP package is required inside the portable skill folder.
 - MCP tool names documented by the skill remain read-only.
+- any generated skill-local `VERSION` matches the root `VERSION` when both exist.
 - forbidden clutter files such as README, changelog, evals, grader, analyzer, and comparator are absent from the skill artifact.
 
 ## Inspect State

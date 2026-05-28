@@ -19,11 +19,17 @@ Optional state directory override:
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
+By default, bundled scripts read and write the skill-local `.forecastos` directory next to `SKILL.md`: `skill/forecast-os/.forecastos` in the repo, or the installed skill's own `.forecastos` directory in Codex. `FORECASTOS_STATE_DIR` controls where `.forecastos` memory and config are read/written when a custom location is needed; scripts with `--state-dir` also accept that explicit override. A repo-root `.forecastos/config.json` is not required unless an operator explicitly points `FORECASTOS_STATE_DIR` or `--state-dir` there. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
+
+## Version And Scheduled Checks
+
+The repo root `VERSION` is the canonical source. A skill-local `VERSION` is generated only for fixed-copy installs where the skill is detached from the repo; run `node scripts/sync_version.mjs` from the repo before copying if the install needs that artifact file. Run `node scripts/check_version.mjs` daily from the skill directory or repo to get JSON with current skill, repo, optional artifact, and version-drift fields. The script only reports; Codex automation, cron, or another scheduler owns the daily cadence.
+
+For markets waiting on Precog approval, run `node scripts/check_pending_market.mjs --workflow-id <workflow_id>` hourly. The script polls once per invocation, keeps `CREATED`, `PENDING`, and unknown non-final statuses in `await_precog_approval`, advances `VALIDATED` to funding readiness, and records `REJECTED`, `FAILED`, or `DENIED` as terminal rejected/error states.
 
 ## Precog Config
 
-Live Precog calls read config from `.forecastos/config.json`, with optional local overrides from `.forecastos/config.local.json`:
+Live Precog calls read config from the active state directory's `config.json`, with optional local overrides from `config.local.json`. In the repo, the bundled public config lives at `skill/forecast-os/.forecastos/config.json`:
 
 ```json
 {
@@ -63,6 +69,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
 - After a successful `create_market`, ForecastOS generates a launchpad share/check URL in the form `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}`. The URL is built locally from config `precog.chain_id`, the normalized upcoming market id, and a question-derived slug; do not rely on a backend-provided `url` field.
+- Draft approval summaries display the configured collateral token, for example `Token: USDC`, and include the collateral address when available. This is collateral context, not a claim about deployed market token details.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
@@ -98,6 +105,7 @@ Creation payload hygiene:
 - `resolution_criteria` should be detailed enough to display directly in Launchpad: name the source of truth, state how exactly one listed outcome wins, include the resolution time, and describe fallback/no official result handling when relevant.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
 - Outcome labels must not contain commas because the Precog create API treats commas as outcome separators. Use labels such as `June 1-15 2026`, not `June 1-15, 2026`.
+- Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
@@ -179,9 +187,9 @@ Precog lifecycle is:
 CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 ```
 
-Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` means the market exists but is not approved for funding yet.
+Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` and `PENDING` mean the market exists but is not approved for funding yet; check again later, typically hourly via `scripts/check_pending_market.mjs`. Treat `REJECTED`, `FAILED`, and `DENIED` as rejected terminal states and keep the raw Precog status in workflow memory.
 
-Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
+Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from the active `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
 
 After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
 

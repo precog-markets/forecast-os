@@ -30,6 +30,168 @@ test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
   );
 });
 
+test("root VERSION is canonical and check_version works without skill artifact VERSION", async () => {
+  await rm(join(skillRoot, "VERSION"), { force: true });
+  const rootVersion = (await readFile(join(monorepoRoot, "VERSION"), "utf8")).trim();
+
+  assert.equal(rootVersion, "0.1.0");
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "check_version.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.current_skill_version, "0.1.0");
+  assert.equal(report.skill_artifact_version, null);
+  assert.equal(report.repo_version, "0.1.0");
+  assert.equal(report.repo_skill_version, null);
+  assert.equal(report.versions_differ, false);
+});
+
+test("sync_version generates detached skill artifact VERSION from root VERSION", async () => {
+  await rm(join(skillRoot, "VERSION"), { force: true });
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "sync_version.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const report = JSON.parse(stdout);
+
+  try {
+    assert.equal(report.repo_version, "0.1.0");
+    assert.equal((await readFile(join(skillRoot, "VERSION"), "utf8")).trim(), "0.1.0");
+    const checked = JSON.parse(
+      (
+        await execFileAsync(
+          process.execPath,
+          [join(skillRoot, "scripts", "check_version.mjs")],
+          { cwd: monorepoRoot },
+        )
+      ).stdout,
+    );
+    assert.equal(checked.skill_artifact_version, "0.1.0");
+    assert.equal(checked.versions_differ, false);
+  } finally {
+    await rm(join(skillRoot, "VERSION"), { force: true });
+  }
+});
+
+test("forecastos_action defaults to bundled skill config when run from repo root", async () => {
+  const rootDir = join(skillRoot, "test-output", "repo-root-default-action");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  const inputPath = join(rootDir, "draft.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      prompt: "Which launcher wins June 2026?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      source_hints: ["Public launchpad dashboards"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+    }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      join(skillRoot, "scripts", "forecastos_action.mjs"),
+      "draft_market",
+      "--input",
+      inputPath,
+    ],
+    { cwd: monorepoRoot, env: envWithoutForecastState() },
+  );
+  const result = JSON.parse(stdout);
+
+  try {
+    assert.equal(await exists(join(monorepoRoot, ".forecastos", "config.json")), false);
+    assert.equal(result.status, "ok");
+    assert.equal(result.result.market.collateral_symbol, "USDC");
+    assert.equal(result.result.market.collateral_address, configCollateralAddress);
+    assert.equal(
+      await exists(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`)),
+      true,
+    );
+  } finally {
+    await rm(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`), {
+      force: true,
+    });
+  }
+});
+
+test("check_pending_market defaults to skill-local state when run from repo root", async () => {
+  const workflowId = "workflow_default_state_pending_test";
+  const workflowPath = join(skillRoot, ".forecastos", "workflows", "all", `${workflowId}.json`);
+  await mkdir(dirname(workflowPath), { recursive: true });
+  await writeFile(
+    workflowPath,
+    JSON.stringify({
+      workflow_id: workflowId,
+      step: "await_precog_approval",
+      market_id: 999,
+      upcoming_market: 999,
+    }),
+  );
+
+  try {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "check_pending_market.mjs"),
+        "--workflow-id",
+        workflowId,
+      ],
+      {
+        cwd: monorepoRoot,
+        env: {
+          ...envWithoutForecastState(),
+          FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+            { id: 999, chain_id: configChainId, status: "PENDING" },
+          ]),
+        },
+      },
+    );
+    const report = JSON.parse(stdout);
+
+    assert.equal(report.status, "pending");
+    assert.equal(report.precog_status, "PENDING");
+    assert.equal(report.state.step, "await_precog_approval");
+  } finally {
+    await rm(workflowPath, { force: true });
+    await rm(join(skillRoot, ".forecastos", "workflows", "await_precog_approval", `${workflowId}.json`), {
+      force: true,
+    });
+  }
+});
+
+test("scripts keep FORECASTOS_STATE_DIR override ahead of skill-local default", async () => {
+  const rootDir = join(skillRoot, "test-output", "state-dir-override");
+  const stateDir = join(rootDir, ".forecastos");
+  const workflowId = "workflow_state_dir_override";
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+  await writeFile(
+    join(stateDir, "workflows", "all", `${workflowId}.json`),
+    JSON.stringify({ workflow_id: workflowId, step: "create_market" }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "next_step.mjs"), "--workflow-id", workflowId],
+    {
+      cwd: monorepoRoot,
+      env: { ...envWithoutForecastState(), FORECASTOS_STATE_DIR: stateDir },
+    },
+  );
+  const guidance = JSON.parse(stdout);
+
+  assert.equal(guidance.workflow_id, workflowId);
+  assert.equal(guidance.next_action, "prepare_create_intent");
+});
+
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
   const stateDir = join(rootDir, ".forecastos");
@@ -354,7 +516,7 @@ test("create_market sends comma-safe outcome labels", async () => {
       "June 1-15, 2026",
       "June 16-30, 2026",
       "July 1-31, 2026",
-      "Not returned to normal by July 31, 2026 / no reliable resolution",
+      "No normal by Jul 31, 2026",
     ],
     source_hints: ["Official maritime traffic authority reports"],
     requested_close_time: "2026-06-30T23:00:00Z",
@@ -375,11 +537,11 @@ test("create_market sends comma-safe outcome labels", async () => {
     "June 1-15 2026",
     "June 16-30 2026",
     "July 1-31 2026",
-    "Not returned to normal by July 31 2026 / no reliable resolution",
+    "No normal by Jul 31 2026",
   ]);
   assert.equal(
     requests[0].body.outcomes,
-    "June 1-15 2026,June 16-30 2026,July 1-31 2026,Not returned to normal by July 31 2026 / no reliable resolution",
+    "June 1-15 2026,June 16-30 2026,July 1-31 2026,No normal by Jul 31 2026",
   );
   assert.equal(requests[0].body.outcomes.split(",").length, 4);
 });
@@ -1014,6 +1176,107 @@ test("legacy Privy skill shim delegates to top-level wallet adapter", async () =
   assert.equal(typedData.message.nonce, 12);
 });
 
+test("draft validation blocks long questions and outcomes", async () => {
+  const forecastos = await createIsolatedForecastOS("draft-length-limits");
+  const baseInput = {
+    requested_outcomes: ["June 1-15 2026", "June 16-30 2026", "Other"],
+    source_hints: ["Official source"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  };
+  const longQuestion = await forecastos.draftMarket({
+    ...baseInput,
+    prompt: "Which launchpad will have the most newly launched production AI agents by the end of June 2026?",
+  });
+  const longOutcome = await forecastos.draftMarket({
+    ...baseInput,
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: [
+      "June 1-15 2026",
+      "June 16-30 2026",
+      "Not returned to normal by July 31 2026",
+    ],
+  });
+
+  assert.equal(longQuestion.status, "blocked");
+  assert.ok(longQuestion.missing_fields.includes("question_length"));
+  assert.ok(longQuestion.review_message.includes("65 characters or fewer"));
+  assert.equal(longOutcome.status, "blocked");
+  assert.ok(longOutcome.missing_fields.includes("outcome_length"));
+  assert.ok(longOutcome.review_message.includes("32 characters or fewer"));
+});
+
+test("draft review displays configured collateral token", async () => {
+  const rootDir = join(skillRoot, "test-output", "draft-token-review");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  assert.equal(draft.market.collateral_symbol, "USDC");
+  assert.equal(draft.market.collateral_address, configCollateralAddress);
+  assert.ok(draft.review_message.includes(`Token: USDC (${configCollateralAddress})`));
+});
+
+test("check_pending_market classifies pending, approved, and rejected statuses", async () => {
+  for (const [precogStatus, expectedStatus, expectedStep] of [
+    ["CREATED", "pending", "await_precog_approval"],
+    ["PENDING", "pending", "await_precog_approval"],
+    ["VALIDATED", "approved", "fund"],
+    ["REJECTED", "rejected", "rejected"],
+    ["FAILED", "rejected", "rejected"],
+    ["DENIED", "rejected", "rejected"],
+  ]) {
+    const rootDir = join(skillRoot, "test-output", `pending-${precogStatus.toLowerCase()}`);
+    const stateDir = join(rootDir, ".forecastos");
+    const workflowId = `workflow_pending_${precogStatus.toLowerCase()}`;
+    await rm(rootDir, { recursive: true, force: true });
+    await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+    await writeTestConfig(stateDir);
+    await writeFile(
+      join(stateDir, "workflows", "all", `${workflowId}.json`),
+      JSON.stringify({
+        workflow_id: workflowId,
+        step: "await_precog_approval",
+        market_id: 888,
+        upcoming_market: 888,
+      }),
+    );
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "check_pending_market.mjs"),
+        "--workflow-id",
+        workflowId,
+      ],
+      {
+        env: {
+          ...process.env,
+          FORECASTOS_STATE_DIR: stateDir,
+          FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+            { id: 888, chain_id: configChainId, status: precogStatus },
+          ]),
+        },
+      },
+    );
+    const report = JSON.parse(stdout);
+
+    assert.equal(report.status, expectedStatus);
+    assert.equal(report.precog_status, precogStatus);
+    assert.equal(report.state.step, expectedStep);
+  }
+});
+
 test("skill guidance does not advertise unrelated named wallet provider support", async () => {
   const files = [
     "SKILL.md",
@@ -1197,6 +1460,29 @@ async function createIsolatedForecastOS(name) {
   return createForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
   });
+}
+
+async function writeTestConfig(stateDir) {
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+}
+
+function envWithoutForecastState(extra = {}) {
+  const env = { ...process.env, ...extra };
+  delete env.FORECASTOS_STATE_DIR;
+  return env;
 }
 
 async function readJson(path) {

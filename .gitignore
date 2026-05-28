@@ -3,6 +3,7 @@ skill/forecast-os/test-output/
 skill/forecast-os/api-test-output/
 
 # Optional local overrides and generated workflow memory.
+skill/forecast-os/VERSION
 skill/forecast-os/.forecastos/drafts/
 skill/forecast-os/.forecastos/workflows/
 

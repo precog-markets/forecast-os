@@ -8,12 +8,15 @@ const STATUS_FOLDERS = Object.freeze([
   "await_approval",
   "create_market",
   "await_precog_approval",
+  "rejected",
   "funded",
   "consume_prediction",
   "done",
 ]);
 
 const PRECOG_LAUNCHPAD_BASE_URL = "https://core.precog.markets/launchpad";
+const MAX_QUESTION_LENGTH = 65;
+const MAX_OUTCOME_LENGTH = 32;
 
 export class DirectoryDraftStateStore {
   constructor(rootDir = ".forecastos") {
@@ -87,7 +90,10 @@ class ForecastOSLocalRuntime {
   }
 
   async draftMarket(input) {
-    const draft = buildDraft(input);
+    const config = typeof this.store.getConfig === "function"
+      ? await this.store.getConfig()
+      : {};
+    const draft = buildDraft(input, { config });
     await this.store.save(draft);
     return draft;
   }
@@ -285,6 +291,20 @@ class ForecastOSLocalRuntime {
             agent_message: "Precog status is VALIDATED. Funding is now allowed.",
           });
         }
+        if (result.rejected) {
+          return this.#saveResult({
+            state: transition(current, {
+              ...current,
+              step: "rejected",
+              precog_approval: result,
+              precog_status: result.precog_status,
+              last_result: result,
+            }, "precog_approval_rejected"),
+            tool_result: result,
+            needs_human_input: false,
+            agent_message: `Precog status is ${result.precog_status ?? "unknown"}. Market was rejected or cannot be funded.`,
+          });
+        }
         return this.#saveResult({
           state: transition(current, {
             ...current,
@@ -295,7 +315,7 @@ class ForecastOSLocalRuntime {
           }, "precog_approval_checked"),
           tool_result: result,
           needs_human_input: false,
-          agent_message: `Precog status is ${result.precog_status ?? "unknown"}. Funding is not valid yet.`,
+          agent_message: `Precog status is ${result.precog_status ?? "unknown"}. Funding is not valid yet; check again in about one hour.`,
         });
       } catch (error) {
         return this.#saveResult({
@@ -585,7 +605,7 @@ class ForecastOSLocalRuntime {
   }
 }
 
-function buildDraft(input = {}) {
+function buildDraft(input = {}, context = {}) {
   const draftId = `draft_${randomUUID()}`;
   const draftHash = `hash_${randomUUID()}`;
   const outcomes = normalizeDraftOutcomes(input.requested_outcomes ?? input.outcomes ?? []);
@@ -603,6 +623,9 @@ function buildDraft(input = {}) {
   if (!closeTime) missingFields.push("close_time");
   if (!resolutionTime) missingFields.push("resolution_time");
 
+  const question = input.question ?? input.prompt ?? "ForecastOS market question";
+  const sourceOfTruth = input.source_of_truth ?? input.source_hints?.[0] ?? null;
+  const collateralContext = buildDraftCollateralContext(input, context.config);
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
   if (outcomes.length > 0 && outcomes.length < 3) {
     missingFields.push("at_least_three_outcomes");
@@ -610,9 +633,20 @@ function buildDraft(input = {}) {
       "ForecastOS defaults to multi-outcome markets and requires at least three explicit outcomes. Split yes/no-shaped prompts into concrete mutually exclusive outcomes.",
     );
   }
+  if (question.length > MAX_QUESTION_LENGTH) {
+    missingFields.push("question_length");
+    blockingIssues.push(
+      `Question must be ${MAX_QUESTION_LENGTH} characters or fewer for Launchpad display.`,
+    );
+  }
+  const longOutcomes = outcomes.filter((outcome) => outcome.length > MAX_OUTCOME_LENGTH);
+  if (longOutcomes.length) {
+    missingFields.push("outcome_length");
+    blockingIssues.push(
+      `Each outcome must be ${MAX_OUTCOME_LENGTH} characters or fewer for Launchpad display.`,
+    );
+  }
   const suggestNextQuestions = buildSuggestNextQuestions(missingFields);
-  const question = input.question ?? input.prompt ?? "ForecastOS market question";
-  const sourceOfTruth = input.source_of_truth ?? input.source_hints?.[0] ?? null;
   const market = {
     market_type: "multi_outcome",
     title: input.title ?? titleFromPrompt(input.prompt),
@@ -631,6 +665,8 @@ function buildDraft(input = {}) {
     resolution_time: resolutionTime,
     time_zone: "UTC",
     source_of_truth: sourceOfTruth,
+    collateral_symbol: collateralContext.symbol,
+    collateral_address: collateralContext.address,
     category: input.preferred_category ?? "other",
     tags: ["forecastos", "multi_outcome"],
   };
@@ -666,11 +702,23 @@ function buildSuggestNextQuestions(missingFields = []) {
     outcomes: "What are the possible outcomes? Please provide at least three clear options.",
     at_least_three_outcomes:
       "Can you split this into at least three concrete outcomes instead of a simple Yes/No?",
+    question_length:
+      `Can you shorten the question to ${MAX_QUESTION_LENGTH} characters or fewer?`,
+    outcome_length:
+      `Can you shorten each outcome to ${MAX_OUTCOME_LENGTH} characters or fewer?`,
     source_of_truth: "What official source should resolve this market?",
     close_time: "When should trading close? Please use UTC or include a timezone.",
     resolution_time: "When should the market resolve? Please use UTC or include a timezone.",
   };
   return unique.map((field) => questions[field] ?? `Please provide ${field}.`);
+}
+
+function buildDraftCollateralContext(input = {}, config = {}) {
+  const precog = config?.precog ?? {};
+  return {
+    symbol: input.collateral_symbol ?? precog.default_collateral_symbol ?? null,
+    address: input.collateral_address ?? precog.default_collateral_address ?? null,
+  };
 }
 
 function normalizeDraftOutcomes(value) {
@@ -828,12 +876,15 @@ function normalizeApprovalResponse(response, expectedId) {
         body: [],
       });
     }
+    const status = normalizePrecogStatus(market.status);
     return {
-      ready_to_fund: market.status === "VALIDATED",
+      ready_to_fund: status === "VALIDATED",
+      rejected: isRejectedPrecogStatus(status),
+      pending: !isFinalPrecogApprovalStatus(status),
       market_id: market.id,
       upcoming_market: market.id,
-      precog_status: market.status,
-      status: market.status,
+      precog_status: status,
+      status: status,
       upcoming_market_status: market,
       precog_response: market,
     };
@@ -849,6 +900,19 @@ function normalizeApprovalResponse(response, expectedId) {
     code: "PRECOG_UNEXPECTED_RESPONSE",
     body: response,
   });
+}
+
+function normalizePrecogStatus(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function isRejectedPrecogStatus(status) {
+  return ["REJECTED", "FAILED", "DENIED"].includes(normalizePrecogStatus(status));
+}
+
+function isFinalPrecogApprovalStatus(status) {
+  const normalized = normalizePrecogStatus(status);
+  return normalized === "VALIDATED" || isRejectedPrecogStatus(normalized);
 }
 
 function normalizeDeploymentResponse(response, expectedId) {
@@ -1082,6 +1146,7 @@ function buildFriendlyReviewMessage(draft) {
     market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
     market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
+    formatTokenLine(market),
     market.resolution_criteria ? `Resolution criteria: ${market.resolution_criteria}` : null,
     needs && questions.length ? `Questions: ${questions.join(" ")}` : null,
     quality.warnings?.length ? `Warnings: ${quality.warnings.join(" ")}` : null,
@@ -1089,7 +1154,16 @@ function buildFriendlyReviewMessage(draft) {
       ? "Next: answer the questions above or tell me what you want changed."
       : "Next: reply yes to approve, or tell me what you want changed.",
   ].filter(Boolean);
-  return lines.join("\\n");
+  return lines.join("\n");
+}
+
+function formatTokenLine(market = {}) {
+  if (market.collateral_symbol && market.collateral_address) {
+    return `Token: ${market.collateral_symbol} (${market.collateral_address})`;
+  }
+  if (market.collateral_symbol) return `Token: ${market.collateral_symbol}`;
+  if (market.collateral_address) return `Token: ${market.collateral_address}`;
+  return null;
 }
 
 function formatUtcForReview(value) {
