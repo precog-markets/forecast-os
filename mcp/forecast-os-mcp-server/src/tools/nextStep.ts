@@ -16,9 +16,9 @@ export async function explainNextStep(input: {
     draft: "Run the action bridge to produce and store a draft, then show a short human review summary.",
     needs_info: "Ask the user for the missing fields, then rerun the action bridge with the added facts.",
     await_approval: "Show the friendly review summary and ask the user to reply yes or request edits.",
-    create_market: "Ask what wallet/action tool the user wants to use. If none is available, send the Precog launchpad fallback URL.",
+    create_market: "Ask what wallet/action tool the user wants to use. Options include Privy, another EOA-compatible wallet/action tool, or the Precog creation area. Use Base MCP for creation only if it returns a 65-byte EOA signature.",
     await_precog_approval: "Check the upcoming market status. Continue only after Precog returns VALIDATED.",
-    fund: "Generate a wallet-agnostic funding intent. Wallet/action tooling handles token approval, transaction, and signature.",
+    fund: "Generate a wallet-agnostic funding intent. Options include Privy, Base MCP, another configured wallet/action tool, or the Precog creation area.",
     consume_prediction: "Wait for deployment, then inspect deployed market data. Do not invent prices.",
     done: "The workflow is complete. Use stored market data as the planning signal.",
   };
@@ -28,7 +28,7 @@ export async function explainNextStep(input: {
     next_step_guidance: guidance[step] ?? "Inspect workflow state before acting.",
     read_only: true,
     execution_surface: "scripts/forecastos_action.mjs or future ForecastOS SDK/API, not MCP",
-    launchpad_fallback_url: "https://core.precog.markets/launchpad/",
+    creation_area_url: "https://core.precog.markets/launchpad/",
   };
 }
 
@@ -37,6 +37,6 @@ export function formatNextStepExplanation(guidance: Awaited<ReturnType<typeof ex
     `Current step: ${guidance.step}.`,
     `Next: ${guidance.next_step_guidance}`,
     `Execution surface: ${guidance.execution_surface}.`,
-    `Launchpad fallback: ${guidance.launchpad_fallback_url}.`,
+    `Precog creation area: ${guidance.creation_area_url}.`,
   ].join("\n");
 }

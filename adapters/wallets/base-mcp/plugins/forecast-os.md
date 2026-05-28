@@ -1,11 +1,11 @@
-# ForecastOS Base MCP Wallet Plugin
+# ForecastOS [Base MCP](https://mcp.base.org) Wallet Plugin
 
 > [!IMPORTANT]
 > ## STOP - COMPLETE BASE MCP ONBOARDING BEFORE WALLET ACTIONS
 >
-> Before using Base MCP wallet tools for ForecastOS creation or funding, you MUST:
+> Before using [Base MCP](https://mcp.base.org) wallet tools for ForecastOS creation or funding, you MUST:
 > 1. Call `get_wallets` to detect the available wallet.
-> 2. Present the wallet status and Base MCP disclaimer required by the host.
+> 2. Present the wallet status and [Base MCP](https://mcp.base.org) disclaimer required by the host.
 > 3. Use the detected wallet address as the account in ForecastOS EIP-712
 >    authorization payloads.
 >
@@ -15,14 +15,14 @@
 ForecastOS is a human-approved multi-outcome prediction-market workflow for
 drafting, creating, funding, and consuming Precog markets on Base. Use the
 ForecastOS skill/action bridge for workflow state and Precog API submission, and
-use Base MCP only as the wallet/action adapter.
+use [Base MCP](https://mcp.base.org) only as the wallet/action adapter.
 
-**Supported chain:** Base mainnet (`8453` / `0x2105`), mapped to Base MCP chain
+**Supported chain:** Base mainnet (`8453` / `0x2105`), mapped to [Base MCP](https://mcp.base.org) chain
 name `base`.
 
 **Host model:** A user may run ForecastOS inside Codex, Claude, Hermes,
 OpenClaw, or another host. The host adapter makes ForecastOS available. This
-Base MCP plugin supplies the wallet/action mapping and is complementary to that
+[Base MCP](https://mcp.base.org) plugin supplies the wallet/action mapping and is complementary to that
 host adapter.
 
 **ForecastOS boundaries:** ForecastOS MCP is read-only. Do not create mutating
@@ -93,11 +93,27 @@ The intent includes:
 
 ## Base MCP Create Mapping
 
-Use the wallet returned by `get_wallets` as the EIP-712 `account`. If the host
-provides a Base MCP signing tool compatible with EIP-712 typed data, request a
-signature for the completed `eip712_typed_data_template`.
+Use the wallet returned by `get_wallets` as the EIP-712 `account`. [Base MCP](https://mcp.base.org) can
+prepare the typed-data signing request, but the current Precog create endpoint
+requires an EOA-style 65-byte EIP-712 signature. Current Base Account
+smart-account/WebAuthn signatures are not accepted for Precog creation.
 
-Map the Base MCP signing result into the ForecastOS wallet adapter shape:
+Run the resolver before asking for the signature:
+
+```txt
+node adapters/wallets/base-mcp/resolve_create.mjs \
+  --input <prepare-create-intent-json> \
+  --wallet-address <base-mcp-wallet-address> \
+  --nonce <pending-nonce>
+```
+
+Request the returned `base_mcp.sign` payload through [Base MCP](https://mcp.base.org). Then run the
+resolver again with `--creator-signature <signature>`. If it fails with
+`BASE_MCP_CREATE_SIGNATURE_UNSUPPORTED`, do not submit that signature to
+ForecastOS; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the Precog
+creation area.
+
+Map the [Base MCP](https://mcp.base.org) signing result into the ForecastOS wallet adapter shape:
 
 ```json
 {
@@ -128,6 +144,9 @@ Then pass `event` to the current ForecastOS `create_market` workflow state via
 node skill/forecast-os/scripts/forecastos_action.mjs run_skill_step --input <json-file>
 ```
 
+Prefer passing the saved [Base MCP](https://mcp.base.org) signing result through `--wallet-output` /
+`--adapter-output` rather than rebuilding create input with shell variables.
+
 Creation is not a `send_calls` flow. It is an EIP-712 authorization signature
 followed by a human-approved Precog API submission through ForecastOS.
 
@@ -144,7 +163,7 @@ node skill/forecast-os/scripts/forecastos_action.mjs prepare_funding_intent --in
 
 The current ForecastOS funding intent documents amount, collateral context,
 policy prerequisites, token-approval guidance, and EIP-712 authorization fields.
-It does not by itself guarantee a Base MCP `send_calls` batch.
+It does not by itself guarantee a [Base MCP](https://mcp.base.org) `send_calls` batch.
 
 ## Base MCP Funding Mapping
 
@@ -197,7 +216,7 @@ Ordered batch:
 }
 ```
 
-The resolver maps every transaction to Base MCP `send_calls`:
+The resolver maps every transaction to [Base MCP](https://mcp.base.org) `send_calls`:
 
 ```json
 {
@@ -208,7 +227,7 @@ The resolver maps every transaction to Base MCP `send_calls`:
 }
 ```
 
-After the user approves and Base MCP returns the transaction hash and EIP-712
+After the user approves and [Base MCP](https://mcp.base.org) returns the transaction hash and EIP-712
 signature, run the resolver again with `--tx-hash` and `--funder-signature`. It
 will emit the standard ForecastOS `fund_market` adapter output:
 

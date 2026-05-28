@@ -272,6 +272,8 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
   assert.ok(approved.result.agent_message.includes("What wallet or wallet/action tool"));
+  assert.ok(approved.result.agent_message.includes("Privy"));
+  assert.ok(approved.result.agent_message.includes("EOA-compatible"));
   assert.ok(approved.result.agent_message.includes("https://core.precog.markets/launchpad/"));
   assert.equal(approved.result.state.approved_draft_id, draftId);
   assert.equal(approved.result.state.approved_draft_hash, drafted.result.state.draft_hash);
@@ -546,6 +548,62 @@ test("create_market sends comma-safe outcome labels", async () => {
   assert.equal(requests[0].body.outcomes.split(",").length, 4);
 });
 
+test("bundled runtime rejects Base MCP smart-account create signatures before API submission", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "base-mcp-create-signature");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return { ok: true, status: 200, async text() { return "{}"; } };
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the test market resolve?",
+    requested_outcomes: ["Yes", "No", "Other"],
+    source_hints: ["Official source"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  await assert.rejects(
+    forecastos.createMarket({
+      draft_id: draft.draft_id,
+      approved: true,
+      approved_by: "operator",
+      approval_text: draft.approval_text,
+      image_url: "https://example.com/image.png",
+      creator_address: "0x2222222222222222222222222222222222222222",
+      creator_signature: "0x" + "ab".repeat(96),
+      wallet_provider: "base-mcp",
+    }),
+    (error) => {
+      assert.equal(error.code, "FORECASTOS_WALLET_SIGNATURE_UNSUPPORTED");
+      assert.match(error.message, /smart-account\/WebAuthn signature/);
+      return true;
+    },
+  );
+  assert.equal(requests.length, 0);
+});
+
 test("wallet-resolved create through run_skill_step persists await_precog_approval", async () => {
   const rootDir = join(skillRoot, "api-test-output", "wallet-resolved-create-step");
   const stateDir = join(rootDir, ".forecastos");
@@ -621,6 +679,69 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
       )
     ).market_id,
     456,
+  );
+});
+
+test("forecastos_action merges wallet output for create submission", async () => {
+  const rootDir = join(skillRoot, "test-output", "create-wallet-output-merge");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+  const inputPath = join(rootDir, "create.json");
+  const walletOutputPath = join(rootDir, "wallet-output.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      approved: true,
+      image_url: "https://example.com/image.png",
+      creator_address: "0xCreator",
+      approved_draft_hash: "hash",
+    }),
+  );
+  await writeFile(
+    walletOutputPath,
+    JSON.stringify({
+      event: {
+        creator_signature: "0xCreatorSignature",
+        wallet_provider: "privy",
+      },
+    }),
+  );
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "forecastos_action.mjs"),
+        "create_market",
+        "--input",
+        inputPath,
+        "--wallet-output",
+        walletOutputPath,
+      ],
+      { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+    ),
+    (error) => {
+      const stderr = String(error.stderr ?? "");
+      assert.ok(stderr.includes("Draft not found"));
+      assert.ok(!stderr.includes("creator_signature"));
+      return true;
+    },
   );
 });
 
@@ -1256,7 +1377,8 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
       { provider, amount: "1", funding_asset: "MATE", chain_id: 999999 },
     );
     assert.equal(intent.wallet_provider, provider);
-    assert.equal(intent.wallet_tool_hint.includes("configured wallet/action tool"), true);
+    assert.equal(intent.wallet_tool_hint.includes("Privy"), true);
+    assert.equal(intent.wallet_tool_hint.includes("Base MCP"), true);
     assert.equal(intent.launchpad_fallback_url, "https://core.precog.markets/launchpad/");
     assert.equal(intent.amount, "1");
     assert.equal(intent.chain_id, configChainId);
@@ -1466,6 +1588,9 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(!guidance.required_fields.includes("creator_address"));
   assert.ok(!guidance.required_fields.includes("creator_signature"));
   assert.ok(guidance.notes.some((note) => note.includes("What wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("Privy") && note.includes("EOA-compatible")));
+  assert.ok(guidance.notes.some((note) => note.includes("Base MCP smart-account/WebAuthn signatures")));
+  assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
   assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
@@ -1490,6 +1615,8 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
 
   assert.equal(guidance.next_action, "prepare_funding_intent");
   assert.ok(guidance.notes.some((note) => note.includes("what wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("Privy") && note.includes("Base MCP")));
+  assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));
   assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));
 });

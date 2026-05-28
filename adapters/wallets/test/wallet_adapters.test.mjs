@@ -8,6 +8,9 @@ import {
   resolveCreate,
 } from "../privy/resolve_create.mjs";
 import {
+  resolveCreate as resolveBaseMcpCreate,
+} from "../base-mcp/resolve_create.mjs";
+import {
   buildSendCallsRequest,
   normalizePreparedTransactions,
   resolveFunding,
@@ -259,6 +262,45 @@ test("Base MCP funding resolver maps a single calldata envelope to send_calls", 
       },
     ],
   });
+});
+
+test("Base MCP create resolver refuses smart-account signatures before Precog submission", () => {
+  const resolved = resolveBaseMcpCreate({
+    intent: buildCreateIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    nonce: "9",
+  });
+
+  assert.equal(resolved.status, "base_mcp_signature_required");
+  assert.equal(resolved.base_mcp.sign.type, "typed_data");
+  assert.equal(resolved.base_mcp.sign.data.message.account, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.base_mcp.sign.data.message.nonce, 9);
+
+  assert.throws(
+    () =>
+      resolveBaseMcpCreate({
+        intent: buildCreateIntentFixture(),
+        walletAddress: "0x2222222222222222222222222222222222222222",
+        nonce: "9",
+        creatorSignature: "0x" + "ab".repeat(96),
+      }),
+    /smart-account\/WebAuthn signature/,
+  );
+});
+
+test("Base MCP create resolver returns run_skill_step output for EOA signatures", () => {
+  const resolved = resolveBaseMcpCreate({
+    intent: buildCreateIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    nonce: "0x9",
+    creatorSignature: "0x" + "ab".repeat(65),
+  });
+
+  assert.equal(resolved.next_action, "run_skill_step");
+  assert.equal(resolved.event.creator_address, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.event.creator_signature, "0x" + "ab".repeat(65));
+  assert.equal(resolved.event.wallet_audit.provider, "base-mcp");
+  assert.equal(resolved.event.wallet_audit.nonce, 9);
 });
 
 test("Base MCP funding resolver returns required wallet actions before tx hash", () => {

@@ -13,6 +13,20 @@ node scripts/render_review.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs <action> --input <json-file>
 ```
 
+When a wallet adapter returns signed fields, pass the adapter output as a file
+instead of threading signatures through shell variables:
+
+```txt
+node scripts/forecastos_action.mjs run_skill_step \
+  --input <create-market-step-json> \
+  --wallet-output <wallet-adapter-output-json>
+```
+
+`--adapter-output` is accepted as an alias. For `run_skill_step`, the adapter's
+`event` object is merged into the action event. For direct `create_market`, the
+adapter's `event` fields are merged into the create input. For `fund_market`,
+the adapter's `funding_request` is merged into the funding request.
+
 Optional state directory override:
 
 ```txt
@@ -73,7 +87,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
-- The bundled runtime asks which wallet or wallet/action tool should sign the Precog create/fund payload. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets. If no wallet/action tool is configured, send the user to https://core.precog.markets/launchpad/.
+- The bundled runtime asks which wallet or wallet/action tool should sign the Precog create/fund payload. For creation, offer [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/); [Base MCP](https://mcp.base.org) smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint unless the signer returns a 65-byte EOA signature. For funding, [Base MCP](https://mcp.base.org) may be used after a prepared unsigned calldata envelope exists. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets.
 
 ## Precog Endpoints
 
@@ -115,7 +129,9 @@ Normal chat Precog creation flow after approval:
 
 1. Call `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
-3. Call `run_skill_step` with the current `create_market` workflow state and the resolved event fields. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
+3. Call `run_skill_step` with the current `create_market` workflow state and `--wallet-output <wallet-adapter-output-json>`. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
+
+[Base MCP](https://mcp.base.org) creation caveat: current Base Account signatures are smart-account/WebAuthn signatures, and the Precog create endpoint currently validates EOA-style 65-byte EIP-712 signatures. Do not submit Base MCP smart-account signatures for creation; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/) unless Base MCP returns a 65-byte EOA signature.
 
 After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market.
 

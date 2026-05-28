@@ -1,6 +1,6 @@
-# Privy Wallet Adapter
+# [Privy](https://www.privy.io/ai) Wallet Adapter
 
-Resolves ForecastOS create intents with a Privy Ethereum wallet.
+Resolves ForecastOS create intents with a [Privy](https://www.privy.io/ai) Ethereum wallet.
 
 ## Create
 
@@ -14,12 +14,12 @@ Use `--wallet-address <address>` instead of `--wallet-id` when the operator pref
 
 - `PRIVY_APP_ID`
 - `PRIVY_APP_SECRET`
-- A Privy Ethereum wallet policy allowing both `eth_signTypedData_v4` and `eth_sendTransaction`
+- A [Privy](https://www.privy.io/ai) Ethereum wallet policy allowing both `eth_signTypedData_v4` and `eth_sendTransaction`
 - Base RPC via `FORECASTOS_BASE_RPC_URL`, `BASE_RPC_URL`, `--rpc-url`, or the default `https://mainnet.base.org`
 
 ## Policy Shape
 
-For now, ForecastOS expects the selected Privy wallet to be usable for create and later funding. Attach constrained `ALLOW` rules for:
+For now, ForecastOS expects the selected [Privy](https://www.privy.io/ai) wallet to be usable for create and later funding. Attach constrained `ALLOW` rules for:
 
 - `eth_signTypedData_v4` for Precog authorization signatures.
 - `eth_sendTransaction` for future funding, token approval, and submit transactions.
@@ -28,6 +28,15 @@ Keep the transaction-send rule Base-only (`chain_id = 8453`) and prefer contract
 
 ## Output
 
-The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass its `event` object to `scripts/forecastos_action.mjs run_skill_step` with the stored `create_market` workflow state.
+The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass the adapter output file directly to `scripts/forecastos_action.mjs run_skill_step` with the stored `create_market` workflow state:
+
+```txt
+node skill/forecast-os/scripts/forecastos_action.mjs run_skill_step \
+  --input <create-market-step-json> \
+  --wallet-output <privy-resolve-create-output-json>
+```
+
+Prefer `--wallet-output` over shell variables so the signature cannot be dropped
+by accidentally using an unexported environment value.
 
 The adapter converts ForecastOS canonical EIP-712 `primaryType` into Privy's required `primary_type` and does not include `caip2` in the Privy signing request.
