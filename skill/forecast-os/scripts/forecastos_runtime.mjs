@@ -13,6 +13,8 @@ const STATUS_FOLDERS = Object.freeze([
   "done",
 ]);
 
+const PRECOG_LAUNCHPAD_BASE_URL = "https://core.precog.markets/launchpad";
+
 export class DirectoryDraftStateStore {
   constructor(rootDir = ".forecastos") {
     this.rootDir = rootDir;
@@ -249,7 +251,12 @@ class ForecastOSLocalRuntime {
           }, "market_created"),
           tool_result: result,
           needs_human_input: false,
-          agent_message: "Precog upcoming market created. Next step is await_precog_approval.",
+          agent_message: [
+            "Precog upcoming market created.",
+            `Title: ${result.title}`,
+            `Link: ${result.url}`,
+            "Next step is await_precog_approval.",
+          ].join("\n"),
         });
       } catch (error) {
         return this.#saveResult({
@@ -729,6 +736,11 @@ function buildCreatePayload(draft, input, now) {
 function normalizeCreateResponse(response, draft, input = {}) {
   const marketId =
     response.upcoming_market ?? response.upcoming_market_id ?? response.market_id ?? response.id;
+  const url = buildLaunchpadMarketUrl({
+    chainId: input.chain_id,
+    marketId,
+    question: draft.market.question,
+  });
   return {
     market_id: marketId,
     upcoming_market: response.upcoming_market ?? marketId,
@@ -740,9 +752,24 @@ function normalizeCreateResponse(response, draft, input = {}) {
     title: draft.market.title,
     close_time: draft.market.close_time,
     resolution_time: draft.market.resolution_time,
-    url: response.url ?? null,
+    url,
     precog_response: response,
   };
+}
+
+export function formatMarketQuestionToURL(question) {
+  return String(question ?? "")
+    .replace(/\?$/, "")
+    .replace(/[''`]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .toLowerCase();
+}
+
+export function buildLaunchpadMarketUrl({ chainId, marketId, question }) {
+  const slug = formatMarketQuestionToURL(question);
+  const baseUrl = `${PRECOG_LAUNCHPAD_BASE_URL}/${chainId}/${marketId}`;
+  return slug ? `${baseUrl}/${slug}` : baseUrl;
 }
 
 function normalizeApprovalResponse(response, expectedId) {

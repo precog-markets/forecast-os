@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import test from "node:test";
 import {
   DirectoryDraftStateStore,
+  formatMarketQuestionToURL,
   createForecastOS,
 } from "../scripts/forecastos_runtime.mjs";
 
@@ -17,6 +18,17 @@ const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "
 const configChainId = shippedConfig.precog.chain_id;
 const configCollateralAddress = shippedConfig.precog.default_collateral_address;
 const configSignatureActions = shippedConfig.precog.signature_actions;
+
+test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
+  assert.equal(
+    formatMarketQuestionToURL("L2Beat: Which L2's will achieve Stage 2 by July 2026?"),
+    "l2beat-which-l2s-will-achieve-stage-2-by-july-2026",
+  );
+  assert.equal(
+    formatMarketQuestionToURL("Will `Foo`   win -- or lose?!"),
+    "will-foo-win----or-lose",
+  );
+});
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -171,7 +183,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
       const body = url.includes("/upcoming-markets/")
-        ? [{ id: 123, chain_id: configChainId, deployed_master_address: "0xMaster", status: "VALIDATED" }]
+        ? [{ id: 428, chain_id: configChainId, deployed_master_address: "0xMaster", status: "VALIDATED" }]
         : url.includes("/markets/")
         ? [{
             id: 1,
@@ -186,8 +198,12 @@ test("bundled runtime builds Precog create and fund requests from local config",
             contract_address: "0xContract",
           }]
         : url.endsWith("/create-upcoming-market/")
-        ? { upcoming_market: 123, status: "PENDING" }
-        : { upcoming_market: 123, status: "FUNDED", funding_amount: 100.0 };
+        ? {
+            upcoming_market: 428,
+            status: "CREATED",
+            url: "https://backend.example/ignored",
+          }
+        : { upcoming_market: 428, status: "FUNDED", funding_amount: 100.0 };
       return {
         ok: true,
         status: 200,
@@ -267,14 +283,20 @@ test("bundled runtime builds Precog create and fund requests from local config",
     {},
   );
 
-  assert.equal(created.market_id, 123);
+  assert.equal(created.market_id, 428);
+  assert.equal(created.chain_id, configChainId);
+  assert.equal(
+    created.url,
+    `https://core.precog.markets/launchpad/${configChainId}/428/which-launchpad-gets-the-most-new-agents-in-june-2026`,
+  );
+  assert.equal(created.precog_response.url, "https://backend.example/ignored");
   assert.equal(approved.precog_status, "VALIDATED");
   assert.equal(approved.ready_to_fund, true);
   assert.equal(funded.precog_status, "FUNDED");
   assert.equal(consumed.ready_to_finish, true);
   assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
   assert.equal(requests[0].url, `${shippedConfig.precog.api_root}api/v1/create-upcoming-market/`);
-  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=${configChainId}&id=123`);
+  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=${configChainId}&id=428`);
   assert.ok(!requests[1].url.includes("deployed_master_address"));
   assert.equal(requests[2].url, `${shippedConfig.precog.api_root}api/v1/fund-upcoming-market/`);
   assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=${configChainId}&master_address=0xMaster&master_market_id=1`);
@@ -287,7 +309,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].body.start_timestamp, Date.parse("2026-06-01T12:00:00Z") / 1000);
   assert.equal(requests[0].body.end_timestamp, Date.parse("2026-06-30T23:59:59Z") / 1000);
   assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
-  assert.equal(requests[2].body.upcoming_market, 123);
+  assert.equal(requests[2].body.upcoming_market, 428);
   assert.equal(requests[2].body.amount, "1");
 });
 
@@ -349,6 +371,12 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
 
   assert.equal(result.state.step, "await_precog_approval");
   assert.equal(result.state.market_id, 456);
+  assert.equal(
+    result.state.market_url,
+    `https://core.precog.markets/launchpad/${configChainId}/456/which-launcher-gets-the-most-new-agents-in-june-2026`,
+  );
+  assert.ok(result.agent_message.includes("Which launcher gets the most new agents in June 2026?"));
+  assert.ok(result.agent_message.includes(result.state.market_url));
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
     "await_precog_approval",

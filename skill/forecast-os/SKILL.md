@@ -59,7 +59,7 @@ intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
 ```
 
-Present a friendly draft summary before Precog creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. After approval, ask what wallet or wallet/action tool the user wants to use for the Precog submission. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
+Present a friendly draft summary before Precog creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. After approval, ask what wallet or wallet/action tool the user wants to use for the Precog submission. Once Precog creation succeeds, return the created market title and generated launchpad share/check link to the user. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
 
 ## Read Next
 
