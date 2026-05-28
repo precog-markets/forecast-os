@@ -33,7 +33,7 @@ Optional state directory override:
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-By default, bundled scripts read and write the skill-local `.forecastos` directory next to `SKILL.md`: `skill/forecast-os/.forecastos` in the repo, or the installed skill's own `.forecastos` directory in Codex. `FORECASTOS_STATE_DIR` controls where `.forecastos` memory and config are read/written when a custom location is needed; scripts with `--state-dir` also accept that explicit override. A repo-root `.forecastos/config.json` is not required unless an operator explicitly points `FORECASTOS_STATE_DIR` or `--state-dir` there. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
+By default, bundled scripts read and write the skill-local `.forecastos` directory next to `SKILL.md`: `skill/forecast-os/.forecastos` in the repo, or the installed skill's own `.forecastos` directory in the active host. `FORECASTOS_STATE_DIR` controls where `.forecastos` memory and config are read/written when a custom location is needed; scripts with `--state-dir` also accept that explicit override. A repo-root `.forecastos/config.json` is not required unless an operator explicitly points `FORECASTOS_STATE_DIR` or `--state-dir` there. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
 
 ## Version And Scheduled Checks
 
