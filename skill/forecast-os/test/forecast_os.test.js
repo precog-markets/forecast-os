@@ -425,6 +425,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     step: "await_precog_approval",
     market_id: created.market_id,
   });
+  const smartAccountFundingSignature = "0x" + "ab".repeat(96);
   const funded = await forecastos.fundMarket(
     { step: "fund", market_id: created.market_id, precog_approval: { status: "VALIDATED" } },
     {
@@ -433,7 +434,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
         amount: "1",
         tx_hash: "0xTransactionHash",
         funder_address: "0xFunder",
-        funder_signature: "0xFunderSignature",
+        funder_signature: smartAccountFundingSignature,
       },
     },
   );
@@ -475,6 +476,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
   assert.equal(requests[2].body.upcoming_market, 428);
   assert.equal(requests[2].body.amount, "1");
+  assert.equal(requests[2].body.funder_signature, smartAccountFundingSignature);
 });
 
 test("create_market sends comma-safe outcome labels", async () => {
@@ -1399,6 +1401,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.token_approval_required_if_needed, true);
     assert.ok(intent.token_approval_note.includes("approve collateral token allowance"));
     assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
+    assert.ok(intent.notes.some((note) => note.includes("EIP-1271/ERC-6492") && note.includes("accepted for funding")));
     assert.equal(intent.precog_payload_template.amount, "1");
   }
 });

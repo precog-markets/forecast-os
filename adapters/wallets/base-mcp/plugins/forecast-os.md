@@ -231,6 +231,12 @@ After the user approves and [Base MCP](https://mcp.base.org) returns the transac
 signature, run the resolver again with `--tx-hash` and `--funder-signature`. It
 will emit the standard ForecastOS `fund_market` adapter output:
 
+Base Account signatures may be smart-wallet signatures verified through
+EIP-1271, with ERC-6492 relevant before deployment. Those Base MCP signature
+shapes are intentionally accepted for funding, including non-65-byte
+smart-wallet/WebAuthn signatures. Do not reuse the creation-path 65-byte EOA
+restriction for funding.
+
 ```json
 {
   "funding_request": {

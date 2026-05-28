@@ -472,6 +472,7 @@ class ForecastOSLocalRuntime {
       notes: [
         "ForecastOS does not choose token decimals, approve tokens, sign EIP-712 typed data, sign/send transactions, fetch nonces, or move funds.",
         "Use a configured wallet/action tool with policy permission for EIP-712 signing and funding transactions.",
+        "Base MCP funding may return Base Account smart-wallet signatures verified through EIP-1271/ERC-6492; those are accepted for funding but not for creation.",
         "If collateral allowance is insufficient, the wallet/action tool approves the token before funding.",
         "The wallet/action tool resolves this intent into tx_hash, funder_address, and funder_signature.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) instead of asking for raw signatures.",
