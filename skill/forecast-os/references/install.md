@@ -39,6 +39,8 @@ node skill/forecast-os/scripts/sync_version.mjs
 
 That writes `skill/forecast-os/VERSION` from the root `VERSION`; the generated file is ignored in repo source but travels with copied skill artifacts.
 
+Do not include generated test-output or api-test-output folders in copied or packaged skill artifacts.
+
 For reusable distribution beyond local authoring, package this repo with the host runtime's preferred plugin or extension format.
 
 ## Optional Local MCP

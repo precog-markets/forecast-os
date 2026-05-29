@@ -1122,7 +1122,13 @@ test("consume_prediction requires deployed_master_address only before deployed m
   assert.ok(!requests[0].url.includes("deployed_master_address"));
 });
 test("prepare_funding_intent creates generic wallet-tool handoff intents", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "generic-funding-intent");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
   const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("prepare_funding_intent must not call the network");
     },
@@ -1147,7 +1153,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
     assert.equal(intent.eip712_typed_data_template.domain.name, "Precog Markets");
     assert.equal(intent.eip712_typed_data_template.domain.chainId, configChainId);
-    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, shippedConfig.precog.deployed_master_address);
+    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, "0xMaster");
     assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
     assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
     assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");
