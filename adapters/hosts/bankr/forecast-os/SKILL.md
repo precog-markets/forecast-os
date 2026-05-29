@@ -10,6 +10,10 @@ workflows. Draft the market first, ask the user to approve the draft, then use
 Bankr only as the wallet/action layer for EIP-712 signatures and transaction
 submission.
 
+This Bankr-facing skill package requires the ForecastOS repo/runtime or an
+installed equivalent for the action bridge, bundled config, and wallet adapter
+scripts. It is the host-facing guidance layer, not the full runtime by itself.
+
 ## Core Rules
 
 - Create Precog multi-outcome markets, not Polymarket/Kalshi markets.

@@ -3,6 +3,10 @@
 This is the Claude-facing ForecastOS skill export. It keeps Claude host setup
 separate from wallet/action providers.
 
+This package assumes access to the full ForecastOS repo/runtime or an installed
+equivalent. The action bridge, bundled config, MCP server build, and wallet
+adapters are provided by that runtime, not by this host export folder alone.
+
 ## Claude Code MCP
 
 ForecastOS MCP is optional read-only context. Use it for docs, templates,

@@ -31,6 +31,8 @@ Agent runtimes usually discover skills from repo, user, admin, or system locatio
 
 For this package, copy or symlink `skill/forecast-os` as `forecast-os` into the desired skills directory. Keep the skill folder contents together so local references, scripts, assets, and `.forecastos/config.json` continue to resolve.
 
+Do not include generated test-output or api-test-output folders when copying or packaging a portable skill artifact. They are local test products, not skill instructions or runtime assets.
+
 The repo root `VERSION` is the canonical project version. Symlink installs can read it from the repo. For fixed-copy installs, generate the detachable skill artifact version before copying:
 
 ```txt

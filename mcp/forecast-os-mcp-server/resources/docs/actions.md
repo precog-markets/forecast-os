@@ -33,11 +33,17 @@ Optional state directory override:
 FORECASTOS_STATE_DIR=.forecastos
 ```
 
-`FORECASTOS_STATE_DIR` controls where `.forecastos` memory is written. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
+By default, bundled scripts read and write the skill-local `.forecastos` directory next to `SKILL.md`: `skill/forecast-os/.forecastos` in the repo, or the installed skill's own `.forecastos` directory in the active host. `FORECASTOS_STATE_DIR` controls where `.forecastos` memory and config are read/written when a custom location is needed; scripts with `--state-dir` also accept that explicit override. A repo-root `.forecastos/config.json` is not required unless an operator explicitly points `FORECASTOS_STATE_DIR` or `--state-dir` there. The bundled scripts and local runtime are the execution path for normal Precog create/fund/status/prediction flows. Creation defaults to Precog: `prepare_create_intent` and `create_market` are Precog creation steps, not provider-neutral publishing steps.
+
+## Version And Scheduled Checks
+
+The repo root `VERSION` is the canonical source. A skill-local `VERSION` is generated only for fixed-copy installs where the skill is detached from the repo; run `node scripts/sync_version.mjs` from the repo before copying if the install needs that artifact file. Run `node scripts/check_version.mjs` daily from the skill directory or repo to get JSON with current skill, repo, optional artifact, and version-drift fields. The script only reports; Codex automation, cron, or another scheduler owns the daily cadence.
+
+For markets waiting on Precog approval, run `node scripts/check_pending_market.mjs --workflow-id <workflow_id>` hourly. The script polls once per invocation, keeps `CREATED`, `PENDING`, and unknown non-final statuses in `await_precog_approval`, advances `VALIDATED` to funding readiness, and records `REJECTED`, `FAILED`, or `DENIED` as terminal rejected/error states.
 
 ## Precog Config
 
-Live Precog calls read config from `.forecastos/config.json`, with optional local overrides from `.forecastos/config.local.json`:
+Live Precog calls read config from the active state directory's `config.json`, with optional local overrides from `config.local.json`. In the repo, the bundled public config lives at `skill/forecast-os/.forecastos/config.json`:
 
 ```json
 {
@@ -76,10 +82,12 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `create_market` submits to the configured Precog API root and requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
 - `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
+- After a successful `create_market`, ForecastOS generates a launchpad share/check URL in the form `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}`. The URL is built locally from config `precog.chain_id`, the normalized upcoming market id, and a question-derived slug; do not rely on a backend-provided `url` field.
+- Draft approval summaries display the configured collateral token, for example `Token: USDC`, and include the collateral address when available. This is collateral context, not a claim about deployed market token details.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
 - `fund_market` requires `approved: true` from an operator after a wallet resolves the intent.
 - The bundled runtime may submit approved signed payloads to Precog after trusted tooling resolves them.
-- The bundled runtime asks which wallet or wallet/action tool should sign the Precog create/fund payload. For creation, offer [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/); [Base MCP](https://mcp.base.org) smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint unless the signer returns a 65-byte EOA signature. For funding, [Base MCP](https://mcp.base.org) may be used after a prepared unsigned calldata envelope exists. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets.
+- The bundled runtime asks which wallet or wallet/action tool should sign the Precog create/fund payload. For creation, offer [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/); [Base MCP](https://mcp.base.org) smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint unless the signer returns a 65-byte EOA signature. For funding, [Bankr](https://bankr.bot), [Base MCP](https://mcp.base.org), or another configured wallet/action tool may be used after a prepared unsigned calldata envelope exists; Base Account smart-wallet signatures verified through EIP-1271/ERC-6492 are accepted for funding. It does not ask users for raw address/signature fields in normal chat, approve tokens, sign messages, fetch nonces, sign/send transactions, transfer funds, or custody wallets.
 
 ## Precog Endpoints
 
@@ -108,7 +116,10 @@ Creation payload hygiene:
 - `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
 - `image_url` must be an `http` or `https` URL.
 - `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
+- `resolution_criteria` should be detailed enough to display directly in Launchpad: name the source of truth, state how exactly one listed outcome wins, include the resolution time, and describe fallback/no official result handling when relevant.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Yes,No,Other"`, and must contain at least two non-empty labels. ForecastOS drafts may keep outcomes as arrays internally.
+- Outcome labels must not contain commas because the Precog create API treats commas as outcome separators. Use labels such as `June 1-15 2026`, not `June 1-15, 2026`.
+- Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
@@ -122,11 +133,13 @@ Normal chat Precog creation flow after approval:
 
 [Base MCP](https://mcp.base.org) creation caveat: current Base Account signatures are smart-account/WebAuthn signatures, and the Precog create endpoint currently validates EOA-style 65-byte EIP-712 signatures. Do not submit Base MCP smart-account signatures for creation; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/) unless Base MCP returns a 65-byte EOA signature.
 
+After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market.
+
 Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
 
-For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
+For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads. Bankr support lives under `adapters/wallets/bankr/`; keep Bankr endpoint and setup details in the Bankr adapter docs. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 
-Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`.
+Funding should start with `prepare_funding_intent`. The intent contains `upcoming_market`, config-sourced `chain_id`, display-unit `amount`, funding asset context, wallet policy prerequisites, token-approval guidance, an EIP-712 typed-data template, and the fields the wallet must return. A configured wallet/action tool resolves allowance, token approval if needed, transaction signing/sending, and the final `tx_hash`, `funder_address`, and `funder_signature`. Bankr and Base MCP details live in their provider adapter docs; provider adapters must not invent funding calldata.
 
 For user-facing explanations of funding economics, read `references/precog-liquidity.md`. In short: winning outcome traders are paid first, remaining funds become the profit pool, and the profit pool is split 90% to LPs, 5% to the market creator, and 5% to the protocol. Current creator boost behavior means the protocol's 5% currently also goes to market creators through the creator boost program. Funding still requires explicit approval and must not be presented as guaranteed profit.
 
@@ -190,9 +203,9 @@ Precog lifecycle is:
 CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 ```
 
-Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` means the market exists but is not approved for funding yet.
+Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` and `PENDING` mean the market exists but is not approved for funding yet; check again later, typically hourly via `scripts/check_pending_market.mjs`. Treat `REJECTED`, `FAILED`, and `DENIED` as rejected terminal states and keep the raw Precog status in workflow memory.
 
-Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
+Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from the active `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
 
 After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
 

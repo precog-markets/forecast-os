@@ -49,3 +49,8 @@ Use that folder as the Claude skill package when the runtime supports skills.
 MCP is optional read-only context; the skill still explains the action bridge
 path for draft, approval, create, pending checks, funding, and prediction
 consumption.
+
+This host package is not a standalone ForecastOS runtime. It requires the full
+ForecastOS repo/runtime, or an installed equivalent that provides
+`skill/forecast-os/scripts/forecastos_action.mjs`, bundled config, and the
+selected wallet/action adapters.
