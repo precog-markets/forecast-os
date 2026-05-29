@@ -1,52 +1,74 @@
-# Hermes Adapter
+# Hermes Host Adapter
 
-This adapter exposes ForecastOS to Hermes as a native plugin without copying or
-reimplementing the ForecastOS skill.
+ForecastOS should be installed in Hermes as a normal skill first. Hermes skills
+are discoverable through `skills_list`, slash commands, and `skill_view`; the
+Python plugin wrapper is optional advanced infrastructure for users who
+explicitly want a Hermes tool.
 
-## Local Install
+## Skill-First Install
 
 Preferred local development install:
 
 ```txt
-ln -s /path/to/forecast-os/adapters/hosts/hermes/forecast-os ~/.hermes/plugins/forecast-os
+mkdir -p ~/.hermes/skills/prediction
+ln -s /path/to/forecast-os/adapters/hosts/hermes/skills/prediction/forecast-os ~/.hermes/skills/prediction/forecast-os
 ```
 
-When symlinking, the adapter can resolve the repo-local skill folder:
+For repo-local development without copying, Hermes can scan an external skill
+directory. Add the ForecastOS Hermes skills directory to `skills.external_dirs`
+in `~/.hermes/config.yaml`:
+
+```yaml
+skills:
+  external_dirs:
+    - /path/to/forecast-os/adapters/hosts/hermes/skills
+```
+
+If the Hermes skill is copied away from the ForecastOS repo, set
+`FORECASTOS_REPO_ROOT` to the ForecastOS repo/runtime root before using live
+workflow commands:
 
 ```txt
-skill/forecast-os
+FORECASTOS_REPO_ROOT=/path/to/forecast-os
 ```
 
-If you copy only `adapters/hosts/hermes/forecast-os` into `~/.hermes/plugins/forecast-os`,
-set `FORECASTOS_SKILL_DIR` to the canonical skill folder:
+If `node` is not directly executable from the Hermes environment, set
+`FORECASTOS_NODE_BIN` to the full Node executable path.
+
+Run the read-only setup check from Hermes or a shell:
+
+```txt
+node ~/.hermes/skills/prediction/forecast-os/scripts/check-hermes-setup.mjs
+```
+
+## Optional Plugin Wrapper
+
+The legacy plugin wrapper remains available at:
+
+```txt
+adapters/hosts/hermes/forecast-os
+```
+
+Use it only when a Hermes plugin-provided tool named `forecastos_action` is
+explicitly desired:
+
+```txt
+ln -s /path/to/forecast-os/adapters/hosts/hermes/forecast-os ~/.hermes/plugins/forecast-os
+hermes plugins enable forecast-os
+```
+
+If you copy only the plugin wrapper into `~/.hermes/plugins/forecast-os`, set
+`FORECASTOS_SKILL_DIR` to the canonical skill folder:
 
 ```txt
 FORECASTOS_SKILL_DIR=/path/to/forecast-os/skill/forecast-os
 ```
 
-If `node` is not directly executable from the Hermes Python environment, set
-`FORECASTOS_NODE_BIN` to the full Node executable path.
+## Boundaries
 
-Then enable the plugin in Hermes:
-
-```txt
-hermes plugins enable forecast-os
-```
-
-## What This Adapter Does
-
-- Registers the existing ForecastOS skill with Hermes as `forecast-os:forecast-os`.
-- Registers one Hermes tool, `forecastos_action`.
-- Invokes the existing Node action bridge at
-  `skill/forecast-os/scripts/forecastos_action.mjs`.
-
-## What This Adapter Does Not Do
-
-- It does not copy `skill/forecast-os` into the plugin folder.
-- It does not reimplement ForecastOS workflow logic in Python.
-- It does not add mutating MCP tools.
-- It does not sign transactions, custody wallets, fetch nonces, approve tokens, or
-  bypass the existing ForecastOS approval rules.
-
-ForecastOS logic remains in `skill/forecast-os`. This adapter is only a Hermes
-compatibility wrapper.
+- The Hermes skill is the primary discoverable integration.
+- The plugin wrapper is optional and does not replace the skill package.
+- ForecastOS workflow logic remains in `skill/forecast-os`.
+- The action bridge remains `skill/forecast-os/scripts/forecastos_action.mjs`.
+- Neither the skill nor plugin signs transactions, custodies wallets, fetches
+  nonces, approves tokens, or bypasses ForecastOS approval rules.

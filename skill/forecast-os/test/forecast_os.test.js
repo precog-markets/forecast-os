@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
 import {
   DirectoryDraftStateStore,
+  formatMarketQuestionToURL,
   createForecastOS,
 } from "../scripts/forecastos_runtime.mjs";
 
@@ -17,6 +18,179 @@ const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "
 const configChainId = shippedConfig.precog.chain_id;
 const configCollateralAddress = shippedConfig.precog.default_collateral_address;
 const configSignatureActions = shippedConfig.precog.signature_actions;
+
+test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
+  assert.equal(
+    formatMarketQuestionToURL("L2Beat: Which L2's will achieve Stage 2 by July 2026?"),
+    "l2beat-which-l2s-will-achieve-stage-2-by-july-2026",
+  );
+  assert.equal(
+    formatMarketQuestionToURL("Will `Foo`   win -- or lose?!"),
+    "will-foo-win----or-lose",
+  );
+});
+
+test("root VERSION is canonical and check_version works without skill artifact VERSION", async () => {
+  await rm(join(skillRoot, "VERSION"), { force: true });
+  const rootVersion = (await readFile(join(monorepoRoot, "VERSION"), "utf8")).trim();
+
+  assert.equal(rootVersion, "0.1.0");
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "check_version.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.current_skill_version, "0.1.0");
+  assert.equal(report.skill_artifact_version, null);
+  assert.equal(report.repo_version, "0.1.0");
+  assert.equal(report.repo_skill_version, null);
+  assert.equal(report.versions_differ, false);
+});
+
+test("sync_version generates detached skill artifact VERSION from root VERSION", async () => {
+  await rm(join(skillRoot, "VERSION"), { force: true });
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "sync_version.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const report = JSON.parse(stdout);
+
+  try {
+    assert.equal(report.repo_version, "0.1.0");
+    assert.equal((await readFile(join(skillRoot, "VERSION"), "utf8")).trim(), "0.1.0");
+    const checked = JSON.parse(
+      (
+        await execFileAsync(
+          process.execPath,
+          [join(skillRoot, "scripts", "check_version.mjs")],
+          { cwd: monorepoRoot },
+        )
+      ).stdout,
+    );
+    assert.equal(checked.skill_artifact_version, "0.1.0");
+    assert.equal(checked.versions_differ, false);
+  } finally {
+    await rm(join(skillRoot, "VERSION"), { force: true });
+  }
+});
+
+test("forecastos_action defaults to bundled skill config when run from repo root", async () => {
+  const rootDir = join(skillRoot, "test-output", "repo-root-default-action");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  const inputPath = join(rootDir, "draft.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      prompt: "Which launcher wins June 2026?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      source_hints: ["Public launchpad dashboards"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+    }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      join(skillRoot, "scripts", "forecastos_action.mjs"),
+      "draft_market",
+      "--input",
+      inputPath,
+    ],
+    { cwd: monorepoRoot, env: envWithoutForecastState() },
+  );
+  const result = JSON.parse(stdout);
+
+  try {
+    assert.equal(await exists(join(monorepoRoot, ".forecastos", "config.json")), false);
+    assert.equal(result.status, "ok");
+    assert.equal(result.result.market.collateral_symbol, "USDC");
+    assert.equal(result.result.market.collateral_address, configCollateralAddress);
+    assert.equal(
+      await exists(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`)),
+      true,
+    );
+  } finally {
+    await rm(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`), {
+      force: true,
+    });
+  }
+});
+
+test("check_pending_market defaults to skill-local state when run from repo root", async () => {
+  const workflowId = "workflow_default_state_pending_test";
+  const workflowPath = join(skillRoot, ".forecastos", "workflows", "all", `${workflowId}.json`);
+  await mkdir(dirname(workflowPath), { recursive: true });
+  await writeFile(
+    workflowPath,
+    JSON.stringify({
+      workflow_id: workflowId,
+      step: "await_precog_approval",
+      market_id: 999,
+      upcoming_market: 999,
+    }),
+  );
+
+  try {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "check_pending_market.mjs"),
+        "--workflow-id",
+        workflowId,
+      ],
+      {
+        cwd: monorepoRoot,
+        env: {
+          ...envWithoutForecastState(),
+          FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+            { id: 999, chain_id: configChainId, status: "PENDING" },
+          ]),
+        },
+      },
+    );
+    const report = JSON.parse(stdout);
+
+    assert.equal(report.status, "pending");
+    assert.equal(report.precog_status, "PENDING");
+    assert.equal(report.state.step, "await_precog_approval");
+  } finally {
+    await rm(workflowPath, { force: true });
+    await rm(join(skillRoot, ".forecastos", "workflows", "await_precog_approval", `${workflowId}.json`), {
+      force: true,
+    });
+  }
+});
+
+test("scripts keep FORECASTOS_STATE_DIR override ahead of skill-local default", async () => {
+  const rootDir = join(skillRoot, "test-output", "state-dir-override");
+  const stateDir = join(rootDir, ".forecastos");
+  const workflowId = "workflow_state_dir_override";
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+  await writeFile(
+    join(stateDir, "workflows", "all", `${workflowId}.json`),
+    JSON.stringify({ workflow_id: workflowId, step: "create_market" }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "next_step.mjs"), "--workflow-id", workflowId],
+    {
+      cwd: monorepoRoot,
+      env: { ...envWithoutForecastState(), FORECASTOS_STATE_DIR: stateDir },
+    },
+  );
+  const guidance = JSON.parse(stdout);
+
+  assert.equal(guidance.workflow_id, workflowId);
+  assert.equal(guidance.next_action, "prepare_create_intent");
+});
 
 test("forecastos_action creates and advances files in .forecastos", async () => {
   const rootDir = join(skillRoot, "test-output");
@@ -171,7 +345,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
       const body = url.includes("/upcoming-markets/")
-        ? [{ id: 123, chain_id: configChainId, deployed_master_address: "0xMaster", status: "VALIDATED" }]
+        ? [{ id: 428, chain_id: configChainId, deployed_master_address: "0xMaster", status: "VALIDATED" }]
         : url.includes("/markets/")
         ? [{
             id: 1,
@@ -186,8 +360,12 @@ test("bundled runtime builds Precog create and fund requests from local config",
             contract_address: "0xContract",
           }]
         : url.endsWith("/create-upcoming-market/")
-        ? { upcoming_market: 123, status: "PENDING" }
-        : { upcoming_market: 123, status: "FUNDED", funding_amount: 100.0 };
+        ? {
+            upcoming_market: 428,
+            status: "CREATED",
+            url: "https://backend.example/ignored",
+          }
+        : { upcoming_market: 428, status: "FUNDED", funding_amount: 100.0 };
       return {
         ok: true,
         status: 200,
@@ -267,14 +445,20 @@ test("bundled runtime builds Precog create and fund requests from local config",
     {},
   );
 
-  assert.equal(created.market_id, 123);
+  assert.equal(created.market_id, 428);
+  assert.equal(created.chain_id, configChainId);
+  assert.equal(
+    created.url,
+    `https://core.precog.markets/launchpad/${configChainId}/428/which-launchpad-gets-the-most-new-agents-in-june-2026`,
+  );
+  assert.equal(created.precog_response.url, "https://backend.example/ignored");
   assert.equal(approved.precog_status, "VALIDATED");
   assert.equal(approved.ready_to_fund, true);
   assert.equal(funded.precog_status, "FUNDED");
   assert.equal(consumed.ready_to_finish, true);
   assert.deepEqual(consumed.signal.outcomes_prices, [0.4, 0.3, 0.2, 0.1]);
   assert.equal(requests[0].url, `${shippedConfig.precog.api_root}api/v1/create-upcoming-market/`);
-  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=${configChainId}&id=123`);
+  assert.equal(requests[1].url, `${shippedConfig.precog.api_root}api/v1/upcoming-markets/?chain_id=${configChainId}&id=428`);
   assert.ok(!requests[1].url.includes("deployed_master_address"));
   assert.equal(requests[2].url, `${shippedConfig.precog.api_root}api/v1/fund-upcoming-market/`);
   assert.equal(requests[3].url, `${shippedConfig.precog.api_root}api/v1/markets/?chain_id=${configChainId}&master_address=0xMaster&master_market_id=1`);
@@ -287,8 +471,79 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].body.start_timestamp, Date.parse("2026-06-01T12:00:00Z") / 1000);
   assert.equal(requests[0].body.end_timestamp, Date.parse("2026-06-30T23:59:59Z") / 1000);
   assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
-  assert.equal(requests[2].body.upcoming_market, 123);
+  assert.equal(requests[2].body.upcoming_market, 428);
   assert.equal(requests[2].body.amount, "1");
+});
+
+test("create_market sends comma-safe outcome labels", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "comma-safe-outcomes");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 777, status: "CREATED" });
+        },
+      };
+    },
+    now: () => new Date("2026-05-28T00:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "When will Strait of Hormuz traffic return to normal?",
+    requested_outcomes: [
+      "June 1-15, 2026",
+      "June 16-30, 2026",
+      "July 1-31, 2026",
+      "No normal by Jul 31, 2026",
+    ],
+    source_hints: ["Official maritime traffic authority reports"],
+    requested_close_time: "2026-06-30T23:00:00Z",
+    requested_resolution_time: "2026-07-31T23:59:59Z",
+  });
+
+  await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+
+  assert.deepEqual(draft.market.outcomes, [
+    "June 1-15 2026",
+    "June 16-30 2026",
+    "July 1-31 2026",
+    "No normal by Jul 31 2026",
+  ]);
+  assert.equal(
+    requests[0].body.outcomes,
+    "June 1-15 2026,June 16-30 2026,July 1-31 2026,No normal by Jul 31 2026",
+  );
+  assert.equal(requests[0].body.outcomes.split(",").length, 4);
 });
 
 test("wallet-resolved create through run_skill_step persists await_precog_approval", async () => {
@@ -349,6 +604,12 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
 
   assert.equal(result.state.step, "await_precog_approval");
   assert.equal(result.state.market_id, 456);
+  assert.equal(
+    result.state.market_url,
+    `https://core.precog.markets/launchpad/${configChainId}/456/which-launcher-gets-the-most-new-agents-in-june-2026`,
+  );
+  assert.ok(result.agent_message.includes("Which launcher gets the most new agents in June 2026?"));
+  assert.ok(result.agent_message.includes(result.state.market_url));
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
     "await_precog_approval",
@@ -442,6 +703,36 @@ test("draft review is chat-facing and ends with next steps", async () => {
   assert.ok(!draft.review_message.includes("hash_"));
 });
 
+test("draft_market generates detailed default resolution criteria", async () => {
+  const forecastos = await createIsolatedForecastOS("detailed-resolution-criteria");
+  const draft = await forecastos.draftMarket({
+    prompt: "When will Strait of Hormuz traffic return to normal?",
+    requested_outcomes: [
+      "June 1-15, 2026",
+      "June 16-30, 2026",
+      "Not returned to normal by July 31, 2026 / no reliable resolution",
+    ],
+    source_hints: ["Official maritime traffic authority reports"],
+    requested_close_time: "2026-06-30T23:00:00Z",
+    requested_resolution_time: "2026-07-31T23:59:59Z",
+  });
+
+  assert.deepEqual(draft.market.outcomes, [
+    "June 1-15 2026",
+    "June 16-30 2026",
+    "Not returned to normal by July 31 2026 / no reliable resolution",
+  ]);
+  assert.ok(draft.market.resolution_criteria.includes("Official maritime traffic authority reports"));
+  assert.ok(draft.market.resolution_criteria.includes("Resolve to exactly one listed outcome"));
+  assert.ok(draft.market.resolution_criteria.includes("2026-07-31T23:59:59.000Z UTC"));
+  assert.ok(
+    draft.market.resolution_criteria.includes(
+      'resolve to "Not returned to normal by July 31 2026 / no reliable resolution"',
+    ),
+  );
+  assert.ok(draft.review_message.includes("Resolution criteria:"));
+});
+
 test("skill docs forbid raw JSON as normal chat output and require next step prompt", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const workflow = await readFile(join(skillRoot, "references", "workflow.md"), "utf8");
@@ -531,6 +822,118 @@ test("skill treats MCP as optional read-only context, not the production gate", 
       "../../../skill/forecast-os/.forecastos",
     );
   }
+});
+
+test("Cursor host adapter exposes a native Agent Skill package", async () => {
+  const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
+  const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
+  const cursorWorkflow = await readFile(join(cursorSkillRoot, "references", "cursor-workflow.md"), "utf8");
+  const setupScript = await readFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"), "utf8");
+  const forwarder = await readFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "utf8");
+  const topLevel = (await readdir(cursorSkillRoot)).sort();
+  const combined = [cursorSkill, cursorWorkflow, setupScript, forwarder].join("\n");
+
+  assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
+  assert.match(cursorSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(!cursorSkill.includes("paths:"));
+  assert.ok(!cursorSkill.includes("disable-model-invocation"));
+  assert.ok(cursorSkill.includes("Use ForecastOS whenever"));
+  assert.ok(cursorSkill.includes("scripts/check-cursor-setup.mjs"));
+  assert.ok(cursorSkill.includes("scripts/forecastos-action.mjs"));
+  assert.ok(cursorWorkflow.includes(".cursor/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes(".agents/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("~/.cursor/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("~/.agents/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("Codex and Claude skill folders"));
+  assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
+  assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("adapters/wallets"));
+  assert.ok(combined.includes("explicit approval") || combined.includes("approval"));
+  assert.ok(combined.includes("private keys"));
+  assert.ok(combined.includes("raw signatures"));
+  assert.ok(combined.includes("token approval"));
+  assert.ok(!combined.includes("/wallet/sign"));
+  assert.ok(!combined.includes("/wallet/submit"));
+  assert.ok(!combined.includes("BANKR_API_KEY"));
+
+  const setupResult = await execFileAsync(
+    process.execPath,
+    [join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const setup = JSON.parse(setupResult.stdout);
+  assert.equal(setup.ok, true);
+  assert.equal(setup.forecastos_repo_root, monorepoRoot);
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
+
+  const cursorRoot = join(skillRoot, "test-output", "cursor-adapter");
+  const cursorStateDir = join(cursorRoot, ".forecastos");
+  const cursorInput = join(cursorRoot, "draft-input.json");
+  await rm(cursorRoot, { recursive: true, force: true });
+  await mkdir(cursorStateDir, { recursive: true });
+  await writeFile(
+    cursorInput,
+    JSON.stringify({
+      prompt: "Which launcher leads June agents?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      requested_close_time: "2026-06-30T23:00:00Z",
+      requested_resolution_time: "2026-07-01T12:00:00Z",
+      source_hints: ["Official public leaderboard"],
+    }),
+  );
+  const forwarded = await execFileAsync(
+    process.execPath,
+    [join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "draft_market", "--input", cursorInput],
+    { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_STATE_DIR: cursorStateDir } },
+  );
+  const draft = JSON.parse(forwarded.stdout);
+  assert.equal(draft.status, "ok");
+  assert.ok(draft.result.review_message.includes("Which launcher leads June agents?"));
+});
+
+test("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
+  const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
+  const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
+  const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");
+  const hermesWorkflow = await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8");
+  const hermesReadme = await readFile(join(hermesRoot, "README.md"), "utf8");
+  const setupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
+  const pluginYaml = await readFile(join(hermesRoot, "forecast-os", "plugin.yaml"), "utf8");
+  const topLevel = (await readdir(hermesSkillRoot)).sort();
+  const combined = [hermesSkill, hermesWorkflow, hermesReadme].join("\n");
+
+  assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
+  assert.match(hermesSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(hermesSkill.includes("version: 0.1.0"));
+  assert.ok(hermesSkill.includes("author: ForecastOS"));
+  assert.ok(hermesSkill.includes("license: UNLICENSED"));
+  assert.ok(hermesSkill.includes("metadata:\n  hermes:"));
+  assert.ok(hermesSkill.includes("## When to Use"));
+  assert.ok(hermesSkill.includes("## Quick Reference"));
+  assert.ok(hermesSkill.includes("## Procedure"));
+  assert.ok(hermesSkill.includes("## Pitfalls"));
+  assert.ok(hermesSkill.includes("## Verification"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs"));
+  assert.ok(!hermesSkill.includes("required_environment_variables"));
+  assert.ok(!hermesSkill.includes("BANKR_API_KEY"));
+  assert.ok(combined.includes("~/.hermes/skills/prediction/forecast-os"));
+  assert.ok(combined.includes("skills.external_dirs"));
+  assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("approval rules"));
+  assert.ok(combined.includes("does not replace the skill package"));
+  assert.ok(pluginYaml.includes("provides_tools"));
+  assert.ok(pluginYaml.includes("forecastos_action"));
+  assert.ok(setupScript.includes("FORECASTOS_REPO_ROOT"));
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const setup = JSON.parse(stdout);
+  assert.equal(setup.ok, true);
+  assert.equal(setup.forecastos_repo_root, monorepoRoot);
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
@@ -831,7 +1234,13 @@ test("consume_prediction requires deployed_master_address only before deployed m
   assert.ok(!requests[0].url.includes("deployed_master_address"));
 });
 test("prepare_funding_intent creates generic wallet-tool handoff intents", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "generic-funding-intent");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
   const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("prepare_funding_intent must not call the network");
     },
@@ -856,7 +1265,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
     assert.equal(intent.eip712_typed_data_template.domain.name, "Precog Markets");
     assert.equal(intent.eip712_typed_data_template.domain.chainId, configChainId);
-    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, shippedConfig.precog.deployed_master_address);
+    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, "0xMaster");
     assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
     assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
     assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");
@@ -883,6 +1292,107 @@ test("legacy Privy skill shim delegates to top-level wallet adapter", async () =
   assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
   assert.equal(typedData.message.account, "0xCreator");
   assert.equal(typedData.message.nonce, 12);
+});
+
+test("draft validation blocks long questions and outcomes", async () => {
+  const forecastos = await createIsolatedForecastOS("draft-length-limits");
+  const baseInput = {
+    requested_outcomes: ["June 1-15 2026", "June 16-30 2026", "Other"],
+    source_hints: ["Official source"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  };
+  const longQuestion = await forecastos.draftMarket({
+    ...baseInput,
+    prompt: "Which launchpad will have the most newly launched production AI agents by the end of June 2026?",
+  });
+  const longOutcome = await forecastos.draftMarket({
+    ...baseInput,
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: [
+      "June 1-15 2026",
+      "June 16-30 2026",
+      "Not returned to normal by July 31 2026",
+    ],
+  });
+
+  assert.equal(longQuestion.status, "blocked");
+  assert.ok(longQuestion.missing_fields.includes("question_length"));
+  assert.ok(longQuestion.review_message.includes("65 characters or fewer"));
+  assert.equal(longOutcome.status, "blocked");
+  assert.ok(longOutcome.missing_fields.includes("outcome_length"));
+  assert.ok(longOutcome.review_message.includes("32 characters or fewer"));
+});
+
+test("draft review displays configured collateral token", async () => {
+  const rootDir = join(skillRoot, "test-output", "draft-token-review");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  assert.equal(draft.market.collateral_symbol, "USDC");
+  assert.equal(draft.market.collateral_address, configCollateralAddress);
+  assert.ok(draft.review_message.includes(`Token: USDC (${configCollateralAddress})`));
+});
+
+test("check_pending_market classifies pending, approved, and rejected statuses", async () => {
+  for (const [precogStatus, expectedStatus, expectedStep] of [
+    ["CREATED", "pending", "await_precog_approval"],
+    ["PENDING", "pending", "await_precog_approval"],
+    ["VALIDATED", "approved", "fund"],
+    ["REJECTED", "rejected", "rejected"],
+    ["FAILED", "rejected", "rejected"],
+    ["DENIED", "rejected", "rejected"],
+  ]) {
+    const rootDir = join(skillRoot, "test-output", `pending-${precogStatus.toLowerCase()}`);
+    const stateDir = join(rootDir, ".forecastos");
+    const workflowId = `workflow_pending_${precogStatus.toLowerCase()}`;
+    await rm(rootDir, { recursive: true, force: true });
+    await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+    await writeTestConfig(stateDir);
+    await writeFile(
+      join(stateDir, "workflows", "all", `${workflowId}.json`),
+      JSON.stringify({
+        workflow_id: workflowId,
+        step: "await_precog_approval",
+        market_id: 888,
+        upcoming_market: 888,
+      }),
+    );
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "check_pending_market.mjs"),
+        "--workflow-id",
+        workflowId,
+      ],
+      {
+        env: {
+          ...process.env,
+          FORECASTOS_STATE_DIR: stateDir,
+          FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+            { id: 888, chain_id: configChainId, status: precogStatus },
+          ]),
+        },
+      },
+    );
+    const report = JSON.parse(stdout);
+
+    assert.equal(report.status, expectedStatus);
+    assert.equal(report.precog_status, precogStatus);
+    assert.equal(report.state.step, expectedStep);
+  }
 });
 
 test("skill guidance does not advertise unrelated named wallet provider support", async () => {
@@ -1068,6 +1578,29 @@ async function createIsolatedForecastOS(name) {
   return createForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
   });
+}
+
+async function writeTestConfig(stateDir) {
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+}
+
+function envWithoutForecastState(extra = {}) {
+  const env = { ...process.env, ...extra };
+  delete env.FORECASTOS_STATE_DIR;
+  return env;
 }
 
 async function readJson(path) {

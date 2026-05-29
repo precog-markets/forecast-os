@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(root));
 const skill = await readFile(join(root, "SKILL.md"), "utf8");
+const repoVersion = await readTextOrNull(join(repoRoot, "VERSION"));
+const skillArtifactVersion = await readTextOrNull(join(root, "VERSION"));
+const effectiveVersion = (repoVersion ?? skillArtifactVersion ?? "").trim();
 const precogConfig = JSON.parse(await readFile(join(root, ".forecastos", "config.json"), "utf8"));
 const agentMetadata = await readFile(join(root, "agents", "openai.yaml"), "utf8");
 const actionSchema = JSON.parse(await readFile(join(root, "assets", "schemas", "actions.json"), "utf8"));
@@ -33,6 +36,13 @@ assert(
   "SKILL.md description needs ForecastOS discovery, probability, boundaries, and action context",
 );
 assert(frontmatter, "SKILL.md needs YAML frontmatter");
+assert(/^\d+\.\d+\.\d+$/.test(effectiveVersion), "ForecastOS VERSION must contain semver like 0.1.0");
+if (repoVersion !== null && skillArtifactVersion !== null) {
+  assert(
+    repoVersion.trim() === skillArtifactVersion.trim(),
+    "generated skill VERSION must match repo root VERSION when both exist",
+  );
+}
 assert(
   frontmatter[1].trim().split(/\r?\n/).map((line) => line.split(":")[0]).join(",") === "name,description",
   "SKILL.md frontmatter must only use name and description",
@@ -55,6 +65,9 @@ await assertDir(join(root, "references"));
 await assertDir(join(root, "scripts"));
 await assertDir(join(root, "assets"));
 await assertDir(join(root, ".forecastos"));
+await assertFile(join(root, "scripts", "check_version.mjs"));
+await assertFile(join(root, "scripts", "check_pending_market.mjs"));
+await assertFile(join(root, "scripts", "sync_version.mjs"));
 assert(
   precogConfig.precog?.api_root,
   ".forecastos/config.json needs precog.api_root",
@@ -287,11 +300,15 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "mcp", "forecast-os-mcp-server"));
   await assertDir(join(monorepoRoot, "adapters", "hosts"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts", "cursor"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "privy"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "test"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "contract.md"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
+  await assertCursorHostAdapter(monorepoRoot);
+  await assertHermesHostAdapter(monorepoRoot);
+  await assertGeneratedOutputsExcluded(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
@@ -332,6 +349,173 @@ async function exists(path) {
     return true;
   } catch (error) {
     if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function assertGeneratedOutputsExcluded(monorepoRoot) {
+  const gitignore = await readTextOrNull(join(monorepoRoot, ".gitignore"));
+  assert(gitignore !== null, ".gitignore must exclude generated skill test outputs");
+  for (const ignoredPath of ["skill/forecast-os/test-output/", "skill/forecast-os/api-test-output/"]) {
+    assert(
+      gitignore.includes(ignoredPath),
+      `${ignoredPath} must stay ignored so generated test output is not packaged as skill content`,
+    );
+  }
+  const installDoc = await readFile(join(root, "references", "install.md"), "utf8");
+  assert(
+    installDoc.includes("Do not include generated test-output or api-test-output folders"),
+    "install docs must tell packagers to exclude generated test output folders",
+  );
+}
+
+async function assertCursorHostAdapter(monorepoRoot) {
+  const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
+  await assertFile(join(cursorSkillRoot, "SKILL.md"));
+  await assertDir(join(cursorSkillRoot, "references"));
+  await assertDir(join(cursorSkillRoot, "scripts"));
+  await assertFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"));
+  await assertFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"));
+
+  const topLevel = (await readdir(cursorSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Cursor export package must contain only SKILL.md, references/, and scripts/",
+  );
+
+  const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
+  const frontmatterMatch = cursorSkill.match(/^---\n([\s\S]*?)\n---/);
+  assert(frontmatterMatch, "Cursor SKILL.md must have YAML frontmatter");
+  const cursorFrontmatter = frontmatterMatch[1];
+  assert(
+    /^name: forecast-os$/m.test(cursorFrontmatter) &&
+      /^description: ".+ForecastOS.+Cursor.+prediction-market.+pending Precog approval.+future-event probability.+market context.*"$/m.test(cursorFrontmatter),
+    "Cursor SKILL.md must have forecast-os name and a strong Cursor ForecastOS description",
+  );
+  assert(
+    !/^paths:/m.test(cursorFrontmatter) && !/^disable-model-invocation:/m.test(cursorFrontmatter),
+    "Cursor SKILL.md must not set paths or disable-model-invocation",
+  );
+  assert(
+    cursorSkill.includes("scripts/forecastos-action.mjs") && cursorSkill.includes("scripts/check-cursor-setup.mjs"),
+    "Cursor SKILL.md must point agents at the bundled Cursor helper scripts",
+  );
+
+  const cursorDocs = [
+    await readFile(join(cursorSkillRoot, "references", "cursor-workflow.md"), "utf8"),
+    await readFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"), "utf8"),
+    await readFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "utf8"),
+  ].join("\n");
+  assert(
+    cursorDocs.includes(".cursor/skills/forecast-os") &&
+      cursorDocs.includes(".agents/skills/forecast-os") &&
+      cursorDocs.includes("~/.cursor/skills/forecast-os") &&
+      cursorDocs.includes("~/.agents/skills/forecast-os"),
+    "Cursor docs must document project and user skill install paths",
+  );
+  assert(
+    cursorDocs.includes("Codex and Claude skill folders") && cursorDocs.includes("native Cursor package"),
+    "Cursor docs must mention compatibility discovery while preferring the native Cursor adapter",
+  );
+  assert(
+    cursorDocs.includes("FORECASTOS_REPO_ROOT") && cursorDocs.includes("skill/forecast-os/scripts/forecastos_action.mjs"),
+    "Cursor docs/scripts must support FORECASTOS_REPO_ROOT and the canonical action bridge",
+  );
+  assert(
+    cursorDocs.includes("private keys") &&
+      cursorDocs.includes("raw signatures") &&
+      cursorDocs.includes("token approval") &&
+      cursorDocs.includes("adapters/wallets"),
+    "Cursor docs must preserve wallet and custody boundaries",
+  );
+  assert(
+    !cursorDocs.includes("/wallet/sign") &&
+      !cursorDocs.includes("/wallet/submit") &&
+      !cursorDocs.includes("BANKR_API_KEY") &&
+      !cursorDocs.includes("PRIVY_API_KEY"),
+    "Cursor docs must not contain wallet-provider endpoint details or secrets",
+  );
+}
+
+async function assertHermesHostAdapter(monorepoRoot) {
+  const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
+  const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
+  const hermesPluginRoot = join(hermesRoot, "forecast-os");
+  await assertFile(join(hermesRoot, "README.md"));
+  await assertFile(join(hermesSkillRoot, "SKILL.md"));
+  await assertDir(join(hermesSkillRoot, "references"));
+  await assertDir(join(hermesSkillRoot, "scripts"));
+  await assertFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"));
+  await assertFile(join(hermesPluginRoot, "plugin.yaml"));
+  await assertFile(join(hermesPluginRoot, "__init__.py"));
+
+  const topLevel = (await readdir(hermesSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Hermes skill export package must contain only SKILL.md, references/, and scripts/",
+  );
+
+  const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");
+  assert(
+    /^---\nname: forecast-os\ndescription: [\s\S]+?\nversion: 0\.1\.0\nauthor: ForecastOS\nlicense: UNLICENSED\nmetadata:\n  hermes:/m.test(hermesSkill),
+    "Hermes SKILL.md must have Hermes-style frontmatter with version, author, license, and metadata.hermes",
+  );
+  assert(
+    ["## When to Use", "## Quick Reference", "## Procedure", "## Pitfalls", "## Verification"].every((text) =>
+      hermesSkill.includes(text),
+    ),
+    "Hermes SKILL.md must use the expected Hermes sections",
+  );
+  assert(
+    hermesSkill.includes("${HERMES_SKILL_DIR}") && hermesSkill.includes("check-hermes-setup.mjs"),
+    "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
+  );
+  assert(
+    !hermesSkill.includes("required_environment_variables") &&
+      !hermesSkill.includes("BANKR_API_KEY") &&
+      !hermesSkill.includes("PRIVY"),
+    "Hermes core skill must not prompt for wallet-provider secrets on load",
+  );
+
+  const hermesDocs = [
+    await readFile(join(hermesRoot, "README.md"), "utf8"),
+    await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8"),
+  ].join("\n");
+  assert(
+    hermesDocs.includes("Skill-First") &&
+      hermesDocs.includes("~/.hermes/skills/prediction/forecast-os") &&
+      hermesDocs.includes("skills.external_dirs"),
+    "Hermes docs must recommend the skill-first install path and external_dirs for repo development",
+  );
+  assert(
+    hermesDocs.includes("plugin wrapper") &&
+      hermesDocs.includes("optional") &&
+      hermesDocs.includes("does not replace the skill package"),
+    "Hermes docs must frame the Python plugin as optional advanced integration",
+  );
+  assert(
+    hermesDocs.includes("ForecastOS repo/runtime") &&
+      hermesDocs.includes("skill/forecast-os/scripts/forecastos_action.mjs"),
+    "Hermes docs must clearly require the ForecastOS runtime and action bridge",
+  );
+  assert(
+    hermesDocs.includes("does not replace the skill package") ||
+      hermesSkill.includes("plugin wrapper is only for users who"),
+    "Hermes docs must avoid plugin-only install language as the primary path",
+  );
+
+  const pluginYaml = await readFile(join(hermesPluginRoot, "plugin.yaml"), "utf8");
+  assert(
+    pluginYaml.includes("provides_tools") && pluginYaml.includes("forecastos_action"),
+    "Hermes plugin wrapper must remain separated as a tool provider",
+  );
+}
+
+async function readTextOrNull(path) {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
     throw error;
   }
 }

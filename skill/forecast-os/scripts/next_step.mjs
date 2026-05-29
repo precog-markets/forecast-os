@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Reads one workflow and reports the next valid ForecastOS operator action.
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? ".forecastos";
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const skillRoot = dirname(scriptDir);
+const defaultStateDir = join(skillRoot, ".forecastos");
+const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? defaultStateDir;
 const workflowId = argValue("--workflow-id");
 
 if (!workflowId) {
@@ -120,7 +124,7 @@ function guidanceFor(step, workflow) {
       notes: [
         "Generate a wallet-agnostic funding intent, then ask what wallet or wallet/action tool should resolve funding.",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
-        "Do not ask for chain_id; ForecastOS reads the Base chain from .forecastos/config.json.",
+        "Do not ask for chain_id; ForecastOS reads the Base chain from the active .forecastos/config.json.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",
         "If the collateral token allowance is insufficient, the wallet/action tool must approve the token before funding.",
         "After the wallet/action tool resolves nonce lookup, token approval if needed, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
@@ -137,7 +141,7 @@ function guidanceFor(step, workflow) {
         "market_id",
 
         "deployed_market_id or deployable upcoming market status",
-        ".forecastos/config.json precog.deployed_master_address before deployed market fetch",
+        "active .forecastos/config.json precog.deployed_master_address before deployed market fetch",
       ],
       suggested_command: commands.consumePrediction,
       notes: [

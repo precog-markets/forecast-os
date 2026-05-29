@@ -4,7 +4,7 @@ These shapes are for `scripts/forecastos_action.mjs` and bundled runtime calls. 
 
 ## draft_market
 
-Always use `preferred_market_type: "multi_outcome"` and provide at least three explicit `requested_outcomes`. Do not use only `Yes` and `No` unless the user explicitly asks to leave ForecastOS' default behavior. For yes/no-shaped prompts, split the negative side into objective outcomes such as `Target event happens`, `Entity eliminated before target event`, `Entity does not qualify or participate`, and `No official result / event cancelled`. Do not ask the user for chain selection; ForecastOS reads `precog.chain_id` from `.forecastos/config.json`. Do not ask for collateral in the normal flow; ForecastOS defaults to Base USDC unless the operator explicitly requests another collateral.
+Always use `preferred_market_type: "multi_outcome"` and provide at least three explicit `requested_outcomes`. Do not use only `Yes` and `No` unless the user explicitly asks to leave ForecastOS' default behavior. For yes/no-shaped prompts, split the negative side into objective outcomes such as `Target event happens`, `Entity eliminated before target event`, `Entity does not qualify or participate`, and `No official result / event cancelled`. Outcome labels must not contain commas because Precog creation sends outcomes as a comma-delimited string; use date labels like `June 1-15 2026`, not `June 1-15, 2026`. Keep questions at 65 characters or fewer and outcome labels at 32 characters or fewer after comma sanitization. Provide detailed `resolution_criteria` when possible: name the source of truth, define how one listed outcome wins, include the resolution time, and explain fallback/no official result handling. Draft approval summaries display configured collateral token context such as `Token: USDC`, including the collateral address when available. Do not ask the user for chain selection; ForecastOS reads `precog.chain_id` from the active `.forecastos/config.json`, defaulting to the bundled skill-local config. Do not ask for collateral in the normal flow; ForecastOS defaults to Base USDC unless the operator explicitly requests another collateral.
 
 ```json
 {
@@ -95,7 +95,7 @@ Normal chat flow should feed the resolved fields back through `run_skill_step` w
 }
 ```
 
-This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`.
+This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`. `CREATED`, `PENDING`, and unknown non-final statuses remain pending; `REJECTED`, `FAILED`, and `DENIED` are terminal rejected states. Use `scripts/check_pending_market.mjs --workflow-id <workflow_id>` as the one-shot command for hourly external checks.
 
 ## prepare_funding_intent
 
@@ -161,6 +161,6 @@ Funding requires explicit operator approval. A configured wallet/action tool can
 }
 ```
 
-If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first using only `chain_id` and `id`. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with config `precog.chain_id`, `master_market_id`, and `master_address` from `.forecastos/config.json`.
+If `deployed_market_id` is missing, ForecastOS checks `GET /api/v1/upcoming-markets/` first using only `chain_id` and `id`. Once the upcoming market is `DEPLOYED`, it fetches `GET /api/v1/markets/` with config `precog.chain_id`, `master_market_id`, and `master_address` from the active `.forecastos/config.json`.
 
 The result stores the raw market plus parsed `outcomes` and `outcomes_prices` in `prediction_result.signal`. Empty or errored responses keep the workflow in `consume_prediction`.

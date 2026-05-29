@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // Prints a read-only summary of ForecastOS drafts and workflows from the local state directory.
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const stateDir = process.env.FORECASTOS_STATE_DIR ?? process.argv[2] ?? ".forecastos";
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const skillRoot = dirname(scriptDir);
+const defaultStateDir = join(skillRoot, ".forecastos");
+const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? process.argv[2] ?? defaultStateDir;
 const statuses = [
   "all",
   "needs_info",
   "await_approval",
   "create_market",
   "await_precog_approval",
+  "rejected",
   "funded",
   "consume_prediction",
   "done",
@@ -42,4 +47,9 @@ async function readJsonDir(path) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
 }
