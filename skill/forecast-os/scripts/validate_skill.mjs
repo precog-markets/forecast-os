@@ -325,6 +325,7 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "adapters", "hosts"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "claude"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts", "cursor"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "bankr"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "base-mcp"));
@@ -338,6 +339,7 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
   await assertBaseMcpWalletAdapter(monorepoRoot);
   await assertClaudeHostAdapter(monorepoRoot);
+  await assertCursorHostAdapter(monorepoRoot);
   await assertBankrCompatibility(monorepoRoot);
   await assertHermesHostAdapter(monorepoRoot);
   await assertMcpResourcesInSync(monorepoRoot);
@@ -509,6 +511,74 @@ async function assertClaudeHostAdapter(monorepoRoot) {
   assert(
     !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
     "Claude docs must not contain wallet-provider endpoint details",
+  );
+}
+
+async function assertCursorHostAdapter(monorepoRoot) {
+  const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
+  await assertFile(join(cursorSkillRoot, "SKILL.md"));
+  await assertDir(join(cursorSkillRoot, "references"));
+  await assertDir(join(cursorSkillRoot, "scripts"));
+  await assertFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"));
+  await assertFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"));
+
+  const topLevel = (await readdir(cursorSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Cursor export package must contain only SKILL.md, references/, and scripts/",
+  );
+
+  const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
+  const frontmatterMatch = cursorSkill.match(/^---\n([\s\S]*?)\n---/);
+  assert(frontmatterMatch, "Cursor SKILL.md must have YAML frontmatter");
+  const cursorFrontmatter = frontmatterMatch[1];
+  assert(
+    /^name: forecast-os$/m.test(cursorFrontmatter) &&
+      /^description: ".+ForecastOS.+Cursor.+prediction-market.+pending Precog approval.+future-event probability.+market context.*"$/m.test(cursorFrontmatter),
+    "Cursor SKILL.md must have forecast-os name and a strong Cursor ForecastOS description",
+  );
+  assert(
+    !/^paths:/m.test(cursorFrontmatter) && !/^disable-model-invocation:/m.test(cursorFrontmatter),
+    "Cursor SKILL.md must not set paths or disable-model-invocation",
+  );
+  assert(
+    cursorSkill.includes("scripts/forecastos-action.mjs") && cursorSkill.includes("scripts/check-cursor-setup.mjs"),
+    "Cursor SKILL.md must point agents at the bundled Cursor helper scripts",
+  );
+
+  const cursorDocs = [
+    await readFile(join(cursorSkillRoot, "references", "cursor-workflow.md"), "utf8"),
+    await readFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"), "utf8"),
+    await readFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "utf8"),
+  ].join("\n");
+  assert(
+    cursorDocs.includes(".cursor/skills/forecast-os") &&
+      cursorDocs.includes(".agents/skills/forecast-os") &&
+      cursorDocs.includes("~/.cursor/skills/forecast-os") &&
+      cursorDocs.includes("~/.agents/skills/forecast-os"),
+    "Cursor docs must document project and user skill install paths",
+  );
+  assert(
+    cursorDocs.includes("Codex and Claude skill folders") && cursorDocs.includes("native Cursor package"),
+    "Cursor docs must mention compatibility discovery while preferring the native Cursor adapter",
+  );
+  assert(
+    cursorDocs.includes("FORECASTOS_REPO_ROOT") && cursorDocs.includes("skill/forecast-os/scripts/forecastos_action.mjs"),
+    "Cursor docs/scripts must support FORECASTOS_REPO_ROOT and the canonical action bridge",
+  );
+  assert(
+    cursorDocs.includes("private keys") &&
+      cursorDocs.includes("raw signatures") &&
+      cursorDocs.includes("token approval") &&
+      cursorDocs.includes("adapters/wallets"),
+    "Cursor docs must preserve wallet and custody boundaries",
+  );
+  assert(
+    !cursorDocs.includes("/wallet/sign") &&
+      !cursorDocs.includes("/wallet/submit") &&
+      !cursorDocs.includes("BANKR_API_KEY") &&
+      !cursorDocs.includes("PRIVY_API_KEY"),
+    "Cursor docs must not contain wallet-provider endpoint details or secrets",
   );
 }
 

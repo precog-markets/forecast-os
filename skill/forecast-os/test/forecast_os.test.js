@@ -969,6 +969,73 @@ test("Claude host adapter uses Claude MCP shape and keeps host boundaries", asyn
   assert.ok(!combined.includes("/wallet/submit"));
 });
 
+test("Cursor host adapter exposes a native Agent Skill package", async () => {
+  const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
+  const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
+  const cursorWorkflow = await readFile(join(cursorSkillRoot, "references", "cursor-workflow.md"), "utf8");
+  const setupScript = await readFile(join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs"), "utf8");
+  const forwarder = await readFile(join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "utf8");
+  const topLevel = (await readdir(cursorSkillRoot)).sort();
+  const combined = [cursorSkill, cursorWorkflow, setupScript, forwarder].join("\n");
+
+  assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
+  assert.match(cursorSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(!cursorSkill.includes("paths:"));
+  assert.ok(!cursorSkill.includes("disable-model-invocation"));
+  assert.ok(cursorSkill.includes("Use ForecastOS whenever"));
+  assert.ok(cursorSkill.includes("scripts/check-cursor-setup.mjs"));
+  assert.ok(cursorSkill.includes("scripts/forecastos-action.mjs"));
+  assert.ok(cursorWorkflow.includes(".cursor/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes(".agents/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("~/.cursor/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("~/.agents/skills/forecast-os"));
+  assert.ok(cursorWorkflow.includes("Codex and Claude skill folders"));
+  assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
+  assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("adapters/wallets"));
+  assert.ok(combined.includes("explicit approval") || combined.includes("approval"));
+  assert.ok(combined.includes("private keys"));
+  assert.ok(combined.includes("raw signatures"));
+  assert.ok(combined.includes("token approval"));
+  assert.ok(!combined.includes("/wallet/sign"));
+  assert.ok(!combined.includes("/wallet/submit"));
+  assert.ok(!combined.includes("BANKR_API_KEY"));
+
+  const setupResult = await execFileAsync(
+    process.execPath,
+    [join(cursorSkillRoot, "scripts", "check-cursor-setup.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const setup = JSON.parse(setupResult.stdout);
+  assert.equal(setup.ok, true);
+  assert.equal(setup.forecastos_repo_root, monorepoRoot);
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
+
+  const cursorRoot = join(skillRoot, "test-output", "cursor-adapter");
+  const cursorStateDir = join(cursorRoot, ".forecastos");
+  const cursorInput = join(cursorRoot, "draft-input.json");
+  await rm(cursorRoot, { recursive: true, force: true });
+  await mkdir(cursorStateDir, { recursive: true });
+  await writeFile(
+    cursorInput,
+    JSON.stringify({
+      prompt: "Which launcher leads June agents?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      requested_close_time: "2026-06-30T23:00:00Z",
+      requested_resolution_time: "2026-07-01T12:00:00Z",
+      source_hints: ["Official public leaderboard"],
+    }),
+  );
+  const forwarded = await execFileAsync(
+    process.execPath,
+    [join(cursorSkillRoot, "scripts", "forecastos-action.mjs"), "draft_market", "--input", cursorInput],
+    { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_STATE_DIR: cursorStateDir } },
+  );
+  const draft = JSON.parse(forwarded.stdout);
+  assert.equal(draft.status, "ok");
+  assert.ok(draft.result.review_message.includes("Which launcher leads June agents?"));
+});
+
 test("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
   const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
   const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
