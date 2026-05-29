@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -822,6 +822,51 @@ test("skill treats MCP as optional read-only context, not the production gate", 
       "../../../skill/forecast-os/.forecastos",
     );
   }
+});
+
+test("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
+  const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
+  const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
+  const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");
+  const hermesWorkflow = await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8");
+  const hermesReadme = await readFile(join(hermesRoot, "README.md"), "utf8");
+  const setupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
+  const pluginYaml = await readFile(join(hermesRoot, "forecast-os", "plugin.yaml"), "utf8");
+  const topLevel = (await readdir(hermesSkillRoot)).sort();
+  const combined = [hermesSkill, hermesWorkflow, hermesReadme].join("\n");
+
+  assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
+  assert.match(hermesSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(hermesSkill.includes("version: 0.1.0"));
+  assert.ok(hermesSkill.includes("author: ForecastOS"));
+  assert.ok(hermesSkill.includes("license: UNLICENSED"));
+  assert.ok(hermesSkill.includes("metadata:\n  hermes:"));
+  assert.ok(hermesSkill.includes("## When to Use"));
+  assert.ok(hermesSkill.includes("## Quick Reference"));
+  assert.ok(hermesSkill.includes("## Procedure"));
+  assert.ok(hermesSkill.includes("## Pitfalls"));
+  assert.ok(hermesSkill.includes("## Verification"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs"));
+  assert.ok(!hermesSkill.includes("required_environment_variables"));
+  assert.ok(!hermesSkill.includes("BANKR_API_KEY"));
+  assert.ok(combined.includes("~/.hermes/skills/prediction/forecast-os"));
+  assert.ok(combined.includes("skills.external_dirs"));
+  assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("approval rules"));
+  assert.ok(combined.includes("does not replace the skill package"));
+  assert.ok(pluginYaml.includes("provides_tools"));
+  assert.ok(pluginYaml.includes("forecastos_action"));
+  assert.ok(setupScript.includes("FORECASTOS_REPO_ROOT"));
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs")],
+    { cwd: monorepoRoot },
+  );
+  const setup = JSON.parse(stdout);
+  assert.equal(setup.ok, true);
+  assert.equal(setup.forecastos_repo_root, monorepoRoot);
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
