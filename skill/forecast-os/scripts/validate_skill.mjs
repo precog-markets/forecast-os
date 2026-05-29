@@ -339,6 +339,7 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertBaseMcpWalletAdapter(monorepoRoot);
   await assertClaudeHostAdapter(monorepoRoot);
   await assertBankrCompatibility(monorepoRoot);
+  await assertHermesHostAdapter(monorepoRoot);
   await assertMcpResourcesInSync(monorepoRoot);
   await assertGeneratedOutputsExcluded(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
@@ -508,6 +509,80 @@ async function assertClaudeHostAdapter(monorepoRoot) {
   assert(
     !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
     "Claude docs must not contain wallet-provider endpoint details",
+  );
+}
+
+async function assertHermesHostAdapter(monorepoRoot) {
+  const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
+  const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
+  const hermesPluginRoot = join(hermesRoot, "forecast-os");
+  await assertFile(join(hermesRoot, "README.md"));
+  await assertFile(join(hermesSkillRoot, "SKILL.md"));
+  await assertDir(join(hermesSkillRoot, "references"));
+  await assertDir(join(hermesSkillRoot, "scripts"));
+  await assertFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"));
+  await assertFile(join(hermesPluginRoot, "plugin.yaml"));
+  await assertFile(join(hermesPluginRoot, "__init__.py"));
+
+  const topLevel = (await readdir(hermesSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Hermes skill export package must contain only SKILL.md, references/, and scripts/",
+  );
+
+  const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");
+  assert(
+    /^---\nname: forecast-os\ndescription: [\s\S]+?\nversion: 0\.1\.0\nauthor: ForecastOS\nlicense: UNLICENSED\nmetadata:\n  hermes:/m.test(hermesSkill),
+    "Hermes SKILL.md must have Hermes-style frontmatter with version, author, license, and metadata.hermes",
+  );
+  assert(
+    ["## When to Use", "## Quick Reference", "## Procedure", "## Pitfalls", "## Verification"].every((text) =>
+      hermesSkill.includes(text),
+    ),
+    "Hermes SKILL.md must use the expected Hermes sections",
+  );
+  assert(
+    hermesSkill.includes("${HERMES_SKILL_DIR}") && hermesSkill.includes("check-hermes-setup.mjs"),
+    "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
+  );
+  assert(
+    !hermesSkill.includes("required_environment_variables") &&
+      !hermesSkill.includes("BANKR_API_KEY") &&
+      !hermesSkill.includes("PRIVY"),
+    "Hermes core skill must not prompt for wallet-provider secrets on load",
+  );
+
+  const hermesDocs = [
+    await readFile(join(hermesRoot, "README.md"), "utf8"),
+    await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8"),
+  ].join("\n");
+  assert(
+    hermesDocs.includes("Skill-First") &&
+      hermesDocs.includes("~/.hermes/skills/prediction/forecast-os") &&
+      hermesDocs.includes("skills.external_dirs"),
+    "Hermes docs must recommend the skill-first install path and external_dirs for repo development",
+  );
+  assert(
+    hermesDocs.includes("plugin wrapper") &&
+      hermesDocs.includes("optional") &&
+      hermesDocs.includes("does not replace the skill package"),
+    "Hermes docs must frame the Python plugin as optional advanced integration",
+  );
+  assert(
+    hermesDocs.includes("ForecastOS repo/runtime") &&
+      hermesDocs.includes("skill/forecast-os/scripts/forecastos_action.mjs"),
+    "Hermes docs must clearly require the ForecastOS runtime and action bridge",
+  );
+  assert(
+    hermesDocs.includes("does not replace the skill package") ||
+      hermesSkill.includes("plugin wrapper is only for users who"),
+    "Hermes docs must avoid plugin-only install language as the primary path",
+  );
+
+  const pluginYaml = await readFile(join(hermesPluginRoot, "plugin.yaml"), "utf8");
+  assert(
+    pluginYaml.includes("provides_tools") && pluginYaml.includes("forecastos_action"),
+    "Hermes plugin wrapper must remain separated as a tool provider",
   );
 }
 
