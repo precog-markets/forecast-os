@@ -948,6 +948,27 @@ test("skill treats MCP as optional read-only context, not the production gate", 
   }
 });
 
+test("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
+  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
+  const claudeConfig = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  const claudeReadme = await readFile(join(claudeRoot, "README.md"), "utf8");
+  const claudeSkill = await readFile(join(claudeRoot, "forecast-os", "SKILL.md"), "utf8");
+  const claudeWorkflow = await readFile(join(claudeRoot, "forecast-os", "references", "claude-workflow.md"), "utf8");
+  const combined = [claudeReadme, claudeSkill, claudeWorkflow].join("\n");
+
+  assert.ok(claudeConfig.mcpServers.forecastos);
+  assert.equal(claudeConfig.servers, undefined);
+  assert.ok(claudeConfig.mcpServers.forecastos.args.some((arg) => arg.includes("mcp/forecast-os-mcp-server/dist/stdio.js")));
+  assert.ok(claudeConfig.mcpServers.forecastos.env.FORECASTOS_STATE_DIR.includes("skill/forecast-os/.forecastos"));
+  assert.match(claudeSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(claudeSkill.includes("Use ForecastOS whenever"));
+  assert.ok(combined.includes("read-only"));
+  assert.ok(combined.includes("does not add wallet signing"));
+  assert.ok(combined.includes("wallet/action providers stay"));
+  assert.ok(!combined.includes("/wallet/sign"));
+  assert.ok(!combined.includes("/wallet/submit"));
+});
+
 test("create_market allows explicit collateral override while keeping config chain", async () => {
   const rootDir = join(skillRoot, "api-test-output", "collateral-override");
   const stateDir = join(rootDir, ".forecastos");

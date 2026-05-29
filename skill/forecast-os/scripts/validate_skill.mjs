@@ -299,6 +299,7 @@ process.stdout.write(
 async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "mcp", "forecast-os-mcp-server"));
   await assertDir(join(monorepoRoot, "adapters", "hosts"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts", "claude"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "bankr"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
@@ -312,6 +313,7 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertFile(join(monorepoRoot, "adapters", "wallets", "bankr", "resolve_funding.mjs"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
   await assertBaseMcpWalletAdapter(monorepoRoot);
+  await assertClaudeHostAdapter(monorepoRoot);
   await assertBankrCompatibility(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
@@ -386,6 +388,65 @@ async function exists(path) {
     if (error.code === "ENOENT") return false;
     throw error;
   }
+}
+
+async function assertClaudeHostAdapter(monorepoRoot) {
+  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
+  const claudeSkillRoot = join(claudeRoot, "forecast-os");
+  await assertFile(join(claudeRoot, ".mcp.json"));
+  await assertFile(join(claudeSkillRoot, "SKILL.md"));
+  await assertDir(join(claudeSkillRoot, "references"));
+  await assertDir(join(claudeSkillRoot, "scripts"));
+
+  const claudeMcp = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  assert(
+    Boolean(claudeMcp.mcpServers?.forecastos) && !claudeMcp.servers,
+    "Claude MCP template must use mcpServers and not Codex-style servers",
+  );
+  assert(
+    claudeMcp.mcpServers.forecastos.args?.some((arg) => String(arg).includes("mcp/forecast-os-mcp-server/dist/stdio.js")),
+    "Claude MCP template must point at the read-only ForecastOS stdio server",
+  );
+  assert(
+    claudeMcp.mcpServers.forecastos.env?.FORECASTOS_STATE_DIR?.includes("skill/forecast-os/.forecastos"),
+    "Claude MCP template must point FORECASTOS_STATE_DIR at the skill-local state dir",
+  );
+
+  const topLevel = (await readdir(claudeSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Claude export package must contain only SKILL.md, references/, and scripts/",
+  );
+  const claudeSkill = await readFile(join(claudeSkillRoot, "SKILL.md"), "utf8");
+  assert(
+    /^---\nname: forecast-os\ndescription: /m.test(claudeSkill),
+    "Claude SKILL.md must have valid skill frontmatter",
+  );
+  assert(
+    claudeSkill.includes("Use ForecastOS whenever") && claudeSkill.includes("prediction-market workflows"),
+    "Claude SKILL.md description must be specific enough to trigger ForecastOS workflows",
+  );
+  assert(
+    !claudeSkill.includes("/wallet/sign") && !claudeSkill.includes("/wallet/submit"),
+    "Claude SKILL.md must keep wallet-provider endpoint details out of host guidance",
+  );
+
+  const claudeDocs = [
+    await readFile(join(claudeRoot, "README.md"), "utf8"),
+    await readFile(join(claudeSkillRoot, "references", "claude-workflow.md"), "utf8"),
+  ].join("\n");
+  assert(
+    claudeDocs.includes("mcpServers") && claudeDocs.includes("project-scoped"),
+    "Claude docs must describe project-scoped MCP setup with mcpServers",
+  );
+  assert(
+    claudeDocs.includes("read-only") && claudeDocs.includes("does not add wallet signing"),
+    "Claude docs must preserve read-only MCP and wallet-boundary guidance",
+  );
+  assert(
+    !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
+    "Claude docs must not contain wallet-provider endpoint details",
+  );
 }
 
 async function assertBankrCompatibility(monorepoRoot) {
