@@ -28,6 +28,30 @@ const optionalReadOnlyMcpTools = [
   "forecastos_get_precog_capabilities",
   "forecastos_get_config_defaults",
 ];
+const mcpResourceCopies = [
+  ["SKILL.md", "docs/skill.md"],
+  ["references/architecture.md", "docs/architecture.md"],
+  ["references/workflow.md", "docs/workflow.md"],
+  ["references/safety.md", "docs/safety.md"],
+  ["references/memory.md", "docs/memory.md"],
+  ["references/mcp.md", "docs/mcp.md"],
+  ["references/install.md", "docs/install.md"],
+  ["references/remote-mcp.md", "docs/remote-mcp.md"],
+  ["references/actions.md", "docs/actions.md"],
+  ["references/action-policy.md", "docs/action-policy.md"],
+  ["references/precog-liquidity.md", "docs/precog-liquidity.md"],
+  ["references/tool-schemas.md", "docs/tool-schemas.md"],
+  ["references/wallet-adapters.md", "docs/wallet-adapters.md"],
+  ["references/external-markets.md", "docs/external-markets.md"],
+  ["references/providers/polymarket-read.md", "docs/providers/polymarket-read.md"],
+  ["references/providers/kalshi-read.md", "docs/providers/kalshi-read.md"],
+  ["assets/templates/multi-outcome-market.md", "templates/multi-outcome-market.md"],
+  ["assets/schemas/actions.json", "schemas/actions.json"],
+  ["references/examples/agent-launch.md", "examples/agent-launch.md"],
+  ["references/examples/funding-handoff.md", "examples/funding-handoff.md"],
+  ["references/examples/full-workflow.md", "examples/full-workflow.md"],
+  [".forecastos/config.json", "precog/config-defaults.json"],
+];
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
 
 assert(/^---\nname: forecast-os\n/m.test(skill), "SKILL.md needs hyphen-case forecast-os name frontmatter");
@@ -315,6 +339,8 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertBaseMcpWalletAdapter(monorepoRoot);
   await assertClaudeHostAdapter(monorepoRoot);
   await assertBankrCompatibility(monorepoRoot);
+  await assertMcpResourcesInSync(monorepoRoot);
+  await assertGeneratedOutputsExcluded(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
@@ -390,6 +416,36 @@ async function exists(path) {
   }
 }
 
+async function assertMcpResourcesInSync(monorepoRoot) {
+  const resourceRoot = join(monorepoRoot, "mcp", "forecast-os-mcp-server", "resources");
+  for (const [source, target] of mcpResourceCopies) {
+    const sourcePath = join(root, source);
+    const targetPath = join(resourceRoot, target);
+    const sourceText = await readFile(sourcePath, "utf8");
+    const targetText = await readFile(targetPath, "utf8");
+    assert(
+      sourceText === targetText,
+      `MCP resource ${target} is stale; run npm run sync:resources from mcp/forecast-os-mcp-server`,
+    );
+  }
+}
+
+async function assertGeneratedOutputsExcluded(monorepoRoot) {
+  const gitignore = await readTextOrNull(join(monorepoRoot, ".gitignore"));
+  assert(gitignore !== null, ".gitignore must exclude generated skill test outputs");
+  for (const ignoredPath of ["skill/forecast-os/test-output/", "skill/forecast-os/api-test-output/"]) {
+    assert(
+      gitignore.includes(ignoredPath),
+      `${ignoredPath} must stay ignored so generated test output is not packaged as skill content`,
+    );
+  }
+  const installDoc = await readFile(join(root, "references", "install.md"), "utf8");
+  assert(
+    installDoc.includes("Do not include generated test-output or api-test-output folders"),
+    "install docs must tell packagers to exclude generated test output folders",
+  );
+}
+
 async function assertClaudeHostAdapter(monorepoRoot) {
   const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
   const claudeSkillRoot = join(claudeRoot, "forecast-os");
@@ -444,6 +500,12 @@ async function assertClaudeHostAdapter(monorepoRoot) {
     "Claude docs must preserve read-only MCP and wallet-boundary guidance",
   );
   assert(
+    claudeDocs.includes("not a standalone ForecastOS runtime") &&
+      claudeDocs.includes("full ForecastOS repo/runtime") &&
+      claudeDocs.includes("installed equivalent"),
+    "Claude docs must clearly require the ForecastOS runtime or installed equivalent",
+  );
+  assert(
     !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
     "Claude docs must not contain wallet-provider endpoint details",
   );
@@ -471,13 +533,22 @@ async function assertBankrCompatibility(monorepoRoot) {
     "Bankr SKILL.md must include the required usage examples",
   );
   assert(
+    bankrSkill.includes("requires the ForecastOS repo/runtime") && bankrSkill.includes("not the full runtime by itself"),
+    "Bankr SKILL.md must clearly require the ForecastOS runtime or installed equivalent",
+  );
+  assert(
     !bankrSkill.toLowerCase().includes("codex") && !bankrSkill.toLowerCase().includes("restart"),
     "Bankr SKILL.md must avoid Codex-specific install/restart language",
   );
 
   const bankrDocs = [
+    await readFile(join(monorepoRoot, "adapters", "hosts", "bankr", "forecast-os", "references", "bankr-workflow.md"), "utf8"),
     await readFile(join(monorepoRoot, "adapters", "wallets", "bankr", "README.md"), "utf8"),
   ].join("\n");
+  assert(
+    bankrDocs.includes("ForecastOS repo/runtime") && bankrDocs.includes("adapters/wallets/bankr"),
+    "Bankr docs must clearly require the ForecastOS runtime and Bankr wallet adapter",
+  );
   assert(
     bankrDocs.includes("/wallet/sign") && bankrDocs.includes("/wallet/submit"),
     "Bankr docs must document current wallet endpoints",

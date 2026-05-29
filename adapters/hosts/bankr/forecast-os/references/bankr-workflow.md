@@ -4,6 +4,9 @@ This package is the Bankr-facing skill export. The full ForecastOS source repo
 contains the runtime and wallet adapters; this skill tells a Bankr-capable agent
 how to use those pieces safely.
 
+Use this folder with the ForecastOS repo/runtime or an installed equivalent that
+provides the action bridge, bundled config, and `adapters/wallets/bankr/`.
+
 ## Create Flow
 
 1. Generate and approve a ForecastOS draft.
