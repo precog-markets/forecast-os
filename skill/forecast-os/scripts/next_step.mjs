@@ -89,7 +89,7 @@ function guidanceFor(step, workflow) {
       ],
       suggested_command: commands.prepareCreateIntent,
       notes: [
-        "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Privy, another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+        "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) to create the market.",
         "Before creation, any wallet/action tool must allow EOA-compatible EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
@@ -123,7 +123,7 @@ function guidanceFor(step, workflow) {
       required_fields: ["amount", "wallet_or_action_tool availability", "funding_asset or collateral_symbol"],
       suggested_command: commands.prepareFundingIntent,
       notes: [
-        "Generate a wallet-agnostic funding intent, then ask what wallet or wallet/action tool should resolve funding. Options include Privy, Base MCP, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+        "Generate a wallet-agnostic funding intent, then ask what wallet or wallet/action tool should resolve funding. Options include Bankr, Privy, Base MCP, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
         "Do not ask for chain_id; ForecastOS reads the Base chain from the active .forecastos/config.json.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",

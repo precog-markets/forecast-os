@@ -15,6 +15,12 @@ import {
   normalizePreparedTransactions,
   resolveFunding,
 } from "../base-mcp/resolve_funding.mjs";
+import {
+  resolveCreate as resolveBankrCreate,
+} from "../bankr/resolve_create.mjs";
+import {
+  resolveFunding as resolveBankrFunding,
+} from "../bankr/resolve_funding.mjs";
 
 const walletAdaptersRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(walletAdaptersRoot));
@@ -371,6 +377,195 @@ test("Base MCP funding resolver accepts Base Account smart-wallet signatures", (
     "base_account_eip1271_erc6492_supported_for_precog_funding",
   );
   assert.equal(resolved.next_action, "fund_market");
+});
+
+test("Bankr create resolver signs EIP-712 typed data and returns run_skill_step output", async () => {
+  const requests = [];
+  const resolved = await resolveBankrCreate({
+    intent: buildCreateIntentFixture(),
+    apiKey: "bk_test",
+    apiRoot: "https://api.bankr.test",
+    nonce: "0x7",
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (String(url).endsWith("/wallet/me")) {
+        return jsonResponse({ address: "0x2222222222222222222222222222222222222222" });
+      }
+      if (String(url).endsWith("/wallet/sign")) {
+        assert.equal(requests.at(-1).body.signatureType, "eth_signTypedData_v4");
+        assert.equal(requests.at(-1).body.typedData.primaryType, "PrecogMarketAuthorization");
+        assert.equal(requests.at(-1).body.typedData.message.account, "0x2222222222222222222222222222222222222222");
+        assert.equal(requests.at(-1).body.typedData.message.nonce, 7);
+        return jsonResponse({
+          success: true,
+          signature: "0x" + "ab".repeat(65),
+          signer: "0x2222222222222222222222222222222222222222",
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+  });
+
+  assert.equal(resolved.next_action, "run_skill_step");
+  assert.equal(resolved.event.creator_address, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.event.creator_signature, "0x" + "ab".repeat(65));
+  assert.equal(resolved.event.wallet_audit.provider, "bankr");
+  assert.equal(resolved.event.wallet_audit.api_endpoint, "/wallet/sign");
+  assert.equal(requests[0].options.headers["X-API-Key"], "bk_test");
+});
+
+test("Bankr create resolver fails clearly for missing key and signing access errors", async () => {
+  await assert.rejects(
+    resolveBankrCreate({
+      intent: buildCreateIntentFixture(),
+      fetch: async () => {
+        throw new Error("must not call network without key");
+      },
+      env: {},
+    }),
+    /Bankr API key is required/,
+  );
+
+  await assert.rejects(
+    resolveBankrCreate({
+      intent: buildCreateIntentFixture(),
+      apiKey: "bk_read_only",
+      apiRoot: "https://api.bankr.test",
+      nonce: 1,
+      fetch: async (url) => {
+        if (String(url).endsWith("/wallet/me")) {
+          return jsonResponse({ address: "0x2222222222222222222222222222222222222222" });
+        }
+        if (String(url).endsWith("/wallet/sign")) {
+          return jsonResponse({ error: "read-only key or Wallet API write access missing" }, 403);
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    }),
+    /Bankr typed-data signing failed: 403.*read-only/,
+  );
+
+  await assert.rejects(
+    resolveBankrCreate({
+      intent: buildCreateIntentFixture(),
+      apiKey: "bk_test",
+      apiRoot: "https://api.bankr.test",
+      nonce: 1,
+      fetch: async (url) => {
+        if (String(url).endsWith("/wallet/me")) {
+          return jsonResponse({ address: "0x2222222222222222222222222222222222222222" });
+        }
+        if (String(url).endsWith("/wallet/sign")) {
+          return jsonResponse({ success: true, signer: "0x2222222222222222222222222222222222222222" });
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    }),
+    /did not include a signature/,
+  );
+});
+
+test("Bankr funding resolver signs typed data and submits prepared transactions in order", async () => {
+  const requests = [];
+  const resolved = await resolveBankrFunding({
+    intent: buildFundingIntentFixture(),
+    apiKey: "bk_test",
+    apiRoot: "https://api.bankr.test",
+    nonce: 8,
+    prepareResponse: {
+      transactions: [
+        {
+          step: "approve",
+          to: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          value: "0",
+          data: "0x095ea7b3",
+          chainId: 8453,
+        },
+        {
+          step: "fund",
+          to: "0x4444444444444444444444444444444444444444",
+          value: "0x0",
+          data: "0xfeedface",
+          chain: "base",
+        },
+      ],
+    },
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (String(url).endsWith("/wallet/me")) {
+        return jsonResponse({ wallet: { id: "bankr_wallet", address: "0x2222222222222222222222222222222222222222" } });
+      }
+      if (String(url).endsWith("/wallet/sign")) {
+        assert.equal(requests.at(-1).body.signatureType, "eth_signTypedData_v4");
+        assert.equal(requests.at(-1).body.typedData.message.action, "FUND_UPCOMING_MARKET");
+        return jsonResponse({
+          signature: "0x" + "cd".repeat(65),
+          signer: "0x2222222222222222222222222222222222222222",
+        });
+      }
+      if (String(url).endsWith("/wallet/submit")) {
+        const submitCount = requests.filter((request) => String(request.url).endsWith("/wallet/submit")).length;
+        return jsonResponse({
+          success: true,
+          transactionHash: submitCount === 1 ? "0xaaa1" : "0xbbb2",
+          signer: "0x2222222222222222222222222222222222222222",
+          chainId: 8453,
+        });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+  });
+
+  assert.deepEqual(resolved.funding_request, {
+    upcoming_market: 123,
+    amount: "1.5",
+    tx_hash: "0xbbb2",
+    funder_address: "0x2222222222222222222222222222222222222222",
+    funder_signature: "0x" + "cd".repeat(65),
+  });
+  assert.equal(resolved.wallet_audit.provider, "bankr");
+  assert.equal(resolved.wallet_audit.method, "bankr_wallet_sign_and_submit");
+  assert.deepEqual(resolved.wallet_audit.transaction_hashes, ["0xaaa1", "0xbbb2"]);
+  const submitBodies = requests.filter((request) => String(request.url).endsWith("/wallet/submit")).map((request) => request.body);
+  assert.equal(submitBodies.length, 2);
+  assert.equal(submitBodies[0].transaction.to, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+  assert.equal(submitBodies[1].transaction.to, "0x4444444444444444444444444444444444444444");
+  assert.equal(submitBodies[1].transaction.value, "0");
+  assert.equal(resolved.next_action, "fund_market");
+});
+
+test("Bankr funding resolver rejects missing calldata and wrong chains", async () => {
+  await assert.rejects(
+    resolveBankrFunding({
+      intent: buildFundingIntentFixture(),
+      apiKey: "bk_test",
+      prepareResponse: {},
+      fetch: async () => {
+        throw new Error("must not call network without calldata");
+      },
+    }),
+    /prepared unsigned calldata envelope/,
+  );
+
+  await assert.rejects(
+    resolveBankrFunding({
+      intent: buildFundingIntentFixture(),
+      apiKey: "bk_test",
+      prepareResponse: {
+        transactions: [
+          {
+            to: "0x4444444444444444444444444444444444444444",
+            data: "0xfeedface",
+            chainId: 1,
+          },
+        ],
+      },
+      fetch: async () => {
+        throw new Error("must not call network for wrong chain");
+      },
+    }),
+    /Unsupported Bankr chain id 1/,
+  );
 });
 
 function buildCreateIntentFixture() {

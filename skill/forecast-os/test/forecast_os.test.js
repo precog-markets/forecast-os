@@ -272,6 +272,7 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
   assert.ok(approved.result.agent_message.includes("What wallet or wallet/action tool"));
+  assert.ok(approved.result.agent_message.includes("Bankr"));
   assert.ok(approved.result.agent_message.includes("Privy"));
   assert.ok(approved.result.agent_message.includes("EOA-compatible"));
   assert.ok(approved.result.agent_message.includes("https://core.precog.markets/launchpad/"));
@@ -1379,6 +1380,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
       { provider, amount: "1", funding_asset: "MATE", chain_id: 999999 },
     );
     assert.equal(intent.wallet_provider, provider);
+    assert.equal(intent.wallet_tool_hint.includes("Bankr"), true);
     assert.equal(intent.wallet_tool_hint.includes("Privy"), true);
     assert.equal(intent.wallet_tool_hint.includes("Base MCP"), true);
     assert.equal(intent.launchpad_fallback_url, "https://core.precog.markets/launchpad/");
@@ -1401,6 +1403,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.token_approval_required_if_needed, true);
     assert.ok(intent.token_approval_note.includes("approve collateral token allowance"));
     assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
+    assert.ok(intent.notes.some((note) => note.includes("Bankr funding") && note.includes("Bankr adapter docs")));
     assert.ok(intent.notes.some((note) => note.includes("EIP-1271/ERC-6492") && note.includes("accepted for funding")));
     assert.equal(intent.precog_payload_template.amount, "1");
   }
@@ -1534,7 +1537,7 @@ test("skill guidance does not advertise unrelated named wallet provider support"
     "assets/schemas/actions.json",
   ];
   const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n").toLowerCase();
-  for (const provider of ["bank" + "r", "turn" + "key"]) {
+  for (const provider of ["turn" + "key"]) {
     assert.ok(!combined.includes(provider), `provider-specific guidance leaked: ${provider}`);
   }
 });
@@ -1591,6 +1594,7 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(!guidance.required_fields.includes("creator_address"));
   assert.ok(!guidance.required_fields.includes("creator_signature"));
   assert.ok(guidance.notes.some((note) => note.includes("What wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("Bankr")));
   assert.ok(guidance.notes.some((note) => note.includes("Privy") && note.includes("EOA-compatible")));
   assert.ok(guidance.notes.some((note) => note.includes("Base MCP smart-account/WebAuthn signatures")));
   assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
@@ -1618,7 +1622,7 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
 
   assert.equal(guidance.next_action, "prepare_funding_intent");
   assert.ok(guidance.notes.some((note) => note.includes("what wallet or wallet/action tool")));
-  assert.ok(guidance.notes.some((note) => note.includes("Privy") && note.includes("Base MCP")));
+  assert.ok(guidance.notes.some((note) => note.includes("Bankr") && note.includes("Privy") && note.includes("Base MCP")));
   assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));
   assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));

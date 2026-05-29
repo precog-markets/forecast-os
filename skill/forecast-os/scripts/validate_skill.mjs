@@ -301,17 +301,22 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertDir(join(monorepoRoot, "adapters", "hosts"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "codex"));
   await assertDir(join(monorepoRoot, "adapters", "hosts", "cursor"));
+  await assertDir(join(monorepoRoot, "adapters", "hosts", "bankr"));
   await assertDir(join(monorepoRoot, "adapters", "wallets"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "base-mcp"));
+  await assertDir(join(monorepoRoot, "adapters", "wallets", "bankr"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "privy"));
   await assertDir(join(monorepoRoot, "adapters", "wallets", "test"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "contract.md"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "base-mcp", "resolve_funding.mjs"));
+  await assertFile(join(monorepoRoot, "adapters", "wallets", "bankr", "resolve_create.mjs"));
+  await assertFile(join(monorepoRoot, "adapters", "wallets", "bankr", "resolve_funding.mjs"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
   await assertCursorHostAdapter(monorepoRoot);
   await assertHermesHostAdapter(monorepoRoot);
   await assertGeneratedOutputsExcluded(monorepoRoot);
   await assertBaseMcpWalletAdapter(monorepoRoot);
+  await assertBankrCompatibility(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
   await assertMissing(join(monorepoRoot, "mcp.json"), "root mcp.json should move to adapters/hosts/codex/mcp.json");
   await assertMissing(join(monorepoRoot, "agents"), "root agents/ should move to skill/forecast-os");
@@ -542,6 +547,57 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     pluginYaml.includes("provides_tools") && pluginYaml.includes("forecastos_action"),
     "Hermes plugin wrapper must remain separated as a tool provider",
+  );
+}
+
+async function assertBankrCompatibility(monorepoRoot) {
+  const bankrSkillRoot = join(monorepoRoot, "adapters", "hosts", "bankr", "forecast-os");
+  await assertFile(join(bankrSkillRoot, "SKILL.md"));
+  await assertDir(join(bankrSkillRoot, "references"));
+  await assertDir(join(bankrSkillRoot, "scripts"));
+  const topLevel = (await readdir(bankrSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Bankr export package must contain only SKILL.md, references/, and scripts/",
+  );
+  const bankrSkill = await readFile(join(bankrSkillRoot, "SKILL.md"), "utf8");
+  assert(
+    /^---\nname: forecast-os\ndescription: /m.test(bankrSkill),
+    "Bankr SKILL.md must have valid skill frontmatter",
+  );
+  assert(
+    ["Draft a market", "Publish through Bankr", "Check pending approval", "Fund after validation"].every((text) =>
+      bankrSkill.includes(text),
+    ),
+    "Bankr SKILL.md must include the required usage examples",
+  );
+  assert(
+    !bankrSkill.toLowerCase().includes("codex") && !bankrSkill.toLowerCase().includes("restart"),
+    "Bankr SKILL.md must avoid Codex-specific install/restart language",
+  );
+
+  const bankrDocs = [
+    await readFile(join(monorepoRoot, "adapters", "wallets", "bankr", "README.md"), "utf8"),
+  ].join("\n");
+  assert(
+    bankrDocs.includes("/wallet/sign") && bankrDocs.includes("/wallet/submit"),
+    "Bankr docs must document current wallet endpoints",
+  );
+  assert(
+    bankrDocs.includes("must not invent funding calldata") || bankrDocs.includes("does not invent funding calldata"),
+    "Bankr docs must guard against invented funding calldata",
+  );
+  const genericDocs = [
+    await readFile(join(root, "references", "actions.md"), "utf8"),
+    await readFile(join(root, "references", "action-policy.md"), "utf8"),
+    await readFile(join(root, "references", "safety.md"), "utf8"),
+    await readFile(join(root, "references", "tool-schemas.md"), "utf8"),
+    await readFile(join(root, "references", "wallet-adapters.md"), "utf8"),
+    await readFile(join(root, "scripts", "forecastos_runtime.mjs"), "utf8"),
+  ].join("\n");
+  assert(
+    !genericDocs.includes("/wallet/sign") && !genericDocs.includes("/wallet/submit"),
+    "Generic ForecastOS docs must keep Bankr endpoint details in Bankr-specific files",
   );
 }
 

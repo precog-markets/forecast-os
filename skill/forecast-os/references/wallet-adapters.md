@@ -15,6 +15,13 @@ adapters such as Codex, Claude, Hermes, or OpenClaw. See:
 adapters/wallets/base-mcp/
 ```
 
+[Bankr](https://bankr.bot) integration is a concrete wallet/action provider for
+ForecastOS create and funding handoffs. See:
+
+```txt
+adapters/wallets/bankr/
+```
+
 The [Base MCP](https://mcp.base.org) adapter includes a funding resolver that maps an explicit unsigned
 calldata envelope or ordered transaction batch into Base MCP `send_calls`, then
 returns the standard `fund_market` adapter output after [Base MCP](https://mcp.base.org) supplies the
@@ -58,6 +65,9 @@ The adapter output must contain `creator_address` and `creator_signature`, plus 
 
 When the same EVM wallet will create now and fund later, its policy should allow both `eth_signTypedData_v4` and `eth_sendTransaction` with tight chain, contract, and amount constraints. Provider adapters may refuse wallets missing either capability.
 
+Bankr create follows the shared adapter contract. Keep endpoint details in
+`adapters/wallets/bankr/README.md`.
+
 ## Funding Flow
 
 Funding adapters should consume `prepare_funding_intent` output and return a `funding_request` with `tx_hash`, `funder_address`, `funder_signature`, and the display-unit `amount`. Funding adapters must handle token approval outside ForecastOS when needed.
@@ -66,6 +76,9 @@ Base MCP funding intentionally accepts any hex EIP-712 signature returned by Bas
 Account, including non-65-byte smart-wallet/WebAuthn signatures. Do not apply
 the creation-path EOA signature restriction to funding unless Precog funding
 backend support changes.
+
+Bankr funding follows the shared adapter contract and must not invent funding
+calldata. Keep endpoint details in `adapters/wallets/bankr/README.md`.
 
 ## Legacy Skill Shim
 
