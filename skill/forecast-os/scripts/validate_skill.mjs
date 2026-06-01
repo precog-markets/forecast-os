@@ -592,6 +592,8 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertDir(join(hermesSkillRoot, "scripts"));
   await assertFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "forecastos-action.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "forecastos-runtime.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
   await assertFile(join(hermesPluginRoot, "__init__.py"));
@@ -618,7 +620,7 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
   );
   assert(
-    hermesSkill.includes("prepare_create_intent") &&
+    hermesSkill.includes("prepare-create-intent.mjs") &&
       hermesSkill.includes("resolve-privy-create.mjs") &&
       hermesSkill.includes("run_skill_step") &&
       hermesSkill.includes("--wallet-output") &&
@@ -655,12 +657,13 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes docs must clearly require the ForecastOS runtime and action bridge",
   );
   assert(
-    hermesDocs.includes("prepare_create_intent") &&
+    hermesDocs.includes("prepare-create-intent.mjs") &&
       hermesDocs.includes("resolve-privy-create.mjs") &&
       hermesDocs.includes("run_skill_step") &&
       hermesDocs.includes("--wallet-output") &&
       hermesDocs.includes("Do not call direct `create_market` before wallet resolution") &&
       hermesDocs.includes("Do not use `preview_market`") &&
+      hermesDocs.includes("FORECASTOS_REPO_ROOT") &&
       hermesDocs.includes("--input -"),
     "Hermes docs must document the publish sequence, stdin support, and unsupported preview/direct create path",
   );
@@ -679,6 +682,8 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     hermesSetupScript.includes("privy_create_adapter") &&
       hermesSetupScript.includes("hermes_action_wrapper") &&
+      hermesSetupScript.includes("hermes_prepare_create_wrapper") &&
+      hermesSetupScript.includes('actionBridgeSupportCheck("prepare_create_intent")') &&
       hermesSetupScript.includes("hermes_privy_wrapper"),
     "Hermes setup check must verify Privy adapter and Hermes wrapper paths",
   );

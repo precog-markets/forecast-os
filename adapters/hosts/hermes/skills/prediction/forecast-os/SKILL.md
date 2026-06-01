@@ -30,7 +30,7 @@ future-event probability context that should be grounded in prediction markets.
 | --- | --- |
 | Check local setup | `node ${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs` |
 | Draft/review workflow | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs run_skill_step --input <json-file>` |
-| Prepare create intent | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs prepare_create_intent --input <json-file>` |
+| Prepare create intent | `node ${HERMES_SKILL_DIR}/scripts/prepare-create-intent.mjs --input <json-file>` |
 | Resolve Privy create signature | `node ${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs --input <prepare-create-intent-json>` |
 | Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs run_skill_step --input <create-step-json> --wallet-output <wallet-output-json>` |
 | One-shot pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id>` |
@@ -39,6 +39,8 @@ future-event probability context that should be grounded in prediction markets.
 Set `FORECASTOS_REPO_ROOT` when this Hermes skill is copied away from the
 ForecastOS repo. Set `FORECASTOS_NODE_BIN` only when Hermes cannot run `node`
 from PATH.
+After every ForecastOS repo update, reinstall/symlink this Hermes skill export
+or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
 
 ## Procedure
 
@@ -48,8 +50,9 @@ from PATH.
 3. Keep questions at 65 characters or fewer and outcome labels at 32 characters
    or fewer. Do not put commas inside outcome labels.
 4. Show collateral token context during approval, for example `Token: USDC`.
-5. After approval, prepare the Precog create intent and ask which trusted
-   wallet/action adapter should resolve signing fields.
+5. After approval, prepare the Precog create intent with
+   `prepare-create-intent.mjs` and ask which trusted wallet/action adapter
+   should resolve signing fields.
 6. For Privy, run `resolve-privy-create.mjs` on the prepared create intent, then
    submit the stored `create_market` workflow step with
    `run_skill_step --wallet-output`. Do not call direct `create_market` first.

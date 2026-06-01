@@ -32,6 +32,10 @@ workflow commands:
 FORECASTOS_REPO_ROOT=/path/to/forecast-os
 ```
 
+After updating ForecastOS, either reinstall/symlink this Hermes skill export
+again or keep `FORECASTOS_REPO_ROOT` pointed at the updated repo root. Copied
+Hermes installs can otherwise keep calling an older action bridge.
+
 If `node` is not directly executable from the Hermes environment, set
 `FORECASTOS_NODE_BIN` to the full Node executable path.
 

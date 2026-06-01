@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Forward Hermes skill commands to the canonical ForecastOS action bridge.
+// Forward Hermes create-intent preparation to a verified canonical ForecastOS bridge.
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { assertActionBridgeSupports, printRuntimeError } from "./forecastos-runtime.mjs";
 
-const action = process.argv[2];
+const action = "prepare_create_intent";
 const nodeBin = process.env.FORECASTOS_NODE_BIN ?? "node";
 let runtime;
 try {
@@ -14,7 +14,7 @@ try {
   process.exit(1);
 }
 
-const child = spawn(nodeBin, [runtime.actionScript, ...process.argv.slice(2)], {
+const child = spawn(nodeBin, [runtime.actionScript, action, ...process.argv.slice(2)], {
   cwd: runtime.canonicalSkillDir,
   env: {
     ...process.env,

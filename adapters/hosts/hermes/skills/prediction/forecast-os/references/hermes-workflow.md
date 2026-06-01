@@ -16,12 +16,15 @@ provides:
 When this skill is used from inside the ForecastOS repo, the setup check can
 resolve the runtime path automatically. When copied elsewhere, set
 `FORECASTOS_REPO_ROOT` to the ForecastOS repo root.
+After updating ForecastOS, reinstall or symlink this Hermes skill export again,
+or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root so copied
+Hermes installs do not call an outdated bridge.
 
 ## Publish Flow
 
 After the user approves a draft, use this sequence:
 
-1. Run `prepare_create_intent` through `scripts/forecastos-action.mjs`.
+1. Run `scripts/prepare-create-intent.mjs --input <create-intent-json>`.
 2. Resolve wallet signing with the selected adapter. For Privy, run
    `scripts/resolve-privy-create.mjs --input <prepare-create-intent-json>`.
 3. Submit the stored `create_market` workflow step with

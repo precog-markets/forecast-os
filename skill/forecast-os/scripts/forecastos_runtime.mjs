@@ -233,6 +233,38 @@ class ForecastOSLocalRuntime {
     }
 
     if (current.step === "create_market") {
+      if (!event.creator_address || !event.creator_signature) {
+        try {
+          const intent = await this.prepareCreateIntent({
+            ...event,
+            draft_id: current.draft_id,
+            approved: true,
+            approved_by: current.approved_by ?? event.approved_by ?? "operator",
+            approval_text: current.approval_text,
+            approved_draft_id: current.approved_draft_id,
+            approved_draft_hash: current.approved_draft_hash,
+            state: current,
+          });
+          return this.#saveResult({
+            state: transition(current, {
+              ...current,
+              step: "create_market",
+              create_intent: intent,
+              last_result: intent,
+            }, "create_intent_prepared"),
+            tool_result: intent,
+            needs_human_input: true,
+            agent_message: "The draft is approved. Resolve this create intent with Privy, Bankr, or another EOA-compatible wallet/action adapter, then submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
+          });
+        } catch (error) {
+          return this.#saveResult({
+            state: markWorkflowError(current, error),
+            tool_result: serializeError(error),
+            needs_human_input: true,
+            agent_message: "The draft is approved, but preparing the wallet create intent failed. Confirm the image URL, ForecastOS config, and selected wallet/action adapter before retrying.",
+          });
+        }
+      }
       try {
         const result = await this.createMarket({
           ...event,
