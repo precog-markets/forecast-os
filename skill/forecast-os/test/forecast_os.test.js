@@ -873,6 +873,28 @@ test("draft_market turns missing info into human-friendly questions", async () =
   assert.ok(!draft.review_message.includes("hash_"));
 });
 
+test("draft_market accepts host market-shaped aliases", async () => {
+  const forecastos = await createIsolatedForecastOS("draft-host-aliases");
+  const draft = await forecastos.draftMarket({
+    question: "Who wins MDI China 2026?",
+    outcomes: ["Missed Count", "MON", "LGD", "Jigu", "Stamp Green", "Kronos", "Other"],
+    category: "esports",
+    close_time: "2026-06-08T00:00:00Z",
+    resolution_time: "2026-06-12T00:00:00Z",
+    resolution_criteria:
+      "Resolution source: Blizzard official MDI 2026 finals standings. Resolve to exactly one listed outcome.",
+  });
+
+  assert.equal(draft.status, "pass");
+  assert.deepEqual(draft.missing_fields, []);
+  assert.equal(draft.market.question, "Who wins MDI China 2026?");
+  assert.equal(draft.market.title, "Who wins MDI China 2026?");
+  assert.equal(draft.market.source_of_truth, "Blizzard official MDI 2026 finals standings");
+  assert.equal(draft.market.close_time, "2026-06-08T00:00:00.000Z");
+  assert.equal(draft.market.resolution_time, "2026-06-12T00:00:00.000Z");
+  assert.equal(draft.market.category, "esports");
+});
+
 test("skill docs tell agents to use the action bridge and split yes/no prompts", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const template = await readFile(

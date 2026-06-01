@@ -650,20 +650,25 @@ function buildDraft(input = {}, context = {}) {
   const outcomes = normalizeDraftOutcomes(input.requested_outcomes ?? input.outcomes ?? []);
   const missingFields = [];
   const warnings = [];
-  const closeTime = normalizeUtcIso(input.requested_close_time, "close_time", warnings);
+  const prompt = input.prompt ?? input.question;
+  const closeTime = normalizeUtcIso(input.requested_close_time ?? input.close_time, "close_time", warnings);
   const resolutionTime = normalizeUtcIso(
-    input.requested_resolution_time,
+    input.requested_resolution_time ?? input.resolution_time,
     "resolution_time",
     warnings,
   );
-  if (!input.prompt) missingFields.push("prompt");
+  const sourceOfTruth =
+    input.source_of_truth ??
+    input.source ??
+    input.source_hints?.[0] ??
+    extractResolutionSource(input.resolution_criteria);
+  if (!prompt) missingFields.push("prompt");
   if (!outcomes.length) missingFields.push("outcomes");
-  if (!input.source_hints?.length && !input.source_of_truth) missingFields.push("source_of_truth");
+  if (!sourceOfTruth) missingFields.push("source_of_truth");
   if (!closeTime) missingFields.push("close_time");
   if (!resolutionTime) missingFields.push("resolution_time");
 
   const question = input.question ?? input.prompt ?? "ForecastOS market question";
-  const sourceOfTruth = input.source_of_truth ?? input.source_hints?.[0] ?? null;
   const collateralContext = buildDraftCollateralContext(input, context.config);
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
   if (outcomes.length > 0 && outcomes.length < 3) {
@@ -688,7 +693,7 @@ function buildDraft(input = {}, context = {}) {
   const suggestNextQuestions = buildSuggestNextQuestions(missingFields);
   const market = {
     market_type: "multi_outcome",
-    title: input.title ?? titleFromPrompt(input.prompt),
+    title: input.title ?? titleFromPrompt(prompt),
     question,
     outcomes,
     description: input.description ?? "ForecastOS multi-outcome market draft.",
@@ -706,7 +711,7 @@ function buildDraft(input = {}, context = {}) {
     source_of_truth: sourceOfTruth,
     collateral_symbol: collateralContext.symbol,
     collateral_address: collateralContext.address,
-    category: input.preferred_category ?? "other",
+    category: input.preferred_category ?? input.category ?? "other",
     tags: ["forecastos", "multi_outcome"],
   };
 
@@ -775,6 +780,11 @@ function sanitizeOutcomeLabel(value) {
     .replace(/,/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractResolutionSource(criteria) {
+  const match = String(criteria ?? "").match(/(?:^|\n)\s*Resolution source:\s*([^\n.]+)/i);
+  return match?.[1]?.trim() || null;
 }
 
 function buildDefaultResolutionCriteria({

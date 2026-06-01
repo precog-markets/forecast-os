@@ -38,6 +38,16 @@ Do not call direct `create_market` before wallet resolution. Direct
 Prefer JSON input files. `scripts/forecastos-action.mjs --input -` also works
 for heredoc stdin when Hermes needs to pipe a payload through the terminal.
 
+## Draft Inputs
+
+Prefer the canonical draft fields: `prompt`, `requested_outcomes`,
+`source_hints`, `requested_close_time`, and `requested_resolution_time`.
+Host-style aliases are also accepted for copied skill runtimes:
+`question`, `outcomes`, `source`, `close_time`, `resolution_time`, and
+`category`. If using explicit `resolution_criteria`, include a first sentence
+like `Resolution source: <official source>.` so ForecastOS can display the
+source of truth.
+
 ## Skill-First Model
 
 Use this normal Hermes skill for default ForecastOS workflows. The older
