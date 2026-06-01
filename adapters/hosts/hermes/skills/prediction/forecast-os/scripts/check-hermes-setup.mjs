@@ -18,6 +18,9 @@ const checks = [
   await checkFile("forecastos_action", join(repoRoot, "skill", "forecast-os", "scripts", "forecastos_action.mjs")),
   await checkFile("skill_config", join(repoRoot, "skill", "forecast-os", ".forecastos", "config.json")),
   await checkDir("wallet_adapters", join(repoRoot, "adapters", "wallets")),
+  await checkFile("privy_create_adapter", join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs")),
+  await checkFile("hermes_action_wrapper", join(hermesSkillRoot, "scripts", "forecastos-action.mjs")),
+  await checkFile("hermes_privy_wrapper", join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs")),
   await checkFile("hermes_skill", join(hermesSkillRoot, "SKILL.md")),
 ];
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -320,6 +320,33 @@ test("forecastos_action accepts UTF-8 BOM input JSON", async () => {
 
   assert.equal(result.status, "ok");
   assert.equal(result.result.state.step, "await_approval");
+});
+
+test("forecastos_action accepts stdin input JSON", async () => {
+  const rootDir = join(skillRoot, "test-output", "stdin-input");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+
+  const stdout = await spawnWithInput(
+    process.execPath,
+    [join(skillRoot, "scripts", "forecastos_action.mjs"), "draft_market", "--input", "-"],
+    JSON.stringify({
+      prompt: "Which team wins the event?",
+      requested_outcomes: ["Team A", "Team B", "Other"],
+      source_hints: ["Official event results"],
+      requested_close_time: "2026-10-15T00:00:00Z",
+      requested_resolution_time: "2026-11-15T12:00:00Z",
+    }),
+    {
+      cwd: skillRoot,
+      env: { ...process.env, FORECASTOS_STATE_DIR: stateDir },
+    },
+  );
+  const result = JSON.parse(stdout);
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.result.market.question, "Which team wins the event?");
 });
 
 test("bundled runtime builds Precog create and fund requests from local config", async () => {
@@ -1043,9 +1070,11 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   const hermesWorkflow = await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8");
   const hermesReadme = await readFile(join(hermesRoot, "README.md"), "utf8");
   const setupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
+  const actionWrapper = await readFile(join(hermesSkillRoot, "scripts", "forecastos-action.mjs"), "utf8");
+  const privyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
   const pluginYaml = await readFile(join(hermesRoot, "forecast-os", "plugin.yaml"), "utf8");
   const topLevel = (await readdir(hermesSkillRoot)).sort();
-  const combined = [hermesSkill, hermesWorkflow, hermesReadme].join("\n");
+  const combined = [hermesSkill, hermesWorkflow, hermesReadme, setupScript, actionWrapper, privyWrapper].join("\n");
 
   assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
   assert.match(hermesSkill, /^---\nname: forecast-os\ndescription: /);
@@ -1059,11 +1088,25 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.ok(hermesSkill.includes("## Pitfalls"));
   assert.ok(hermesSkill.includes("## Verification"));
   assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs"));
   assert.ok(!hermesSkill.includes("required_environment_variables"));
   assert.ok(!hermesSkill.includes("BANKR_API_KEY"));
   assert.ok(combined.includes("~/.hermes/skills/prediction/forecast-os"));
   assert.ok(combined.includes("skills.external_dirs"));
   assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("prepare_create_intent"));
+  assert.ok(combined.includes("run_skill_step"));
+  assert.ok(combined.includes("--wallet-output"));
+  assert.ok(combined.includes("Do not call direct `create_market`"));
+  assert.ok(combined.includes("Do not use `preview_market`"));
+  assert.ok(combined.includes("--input -"));
+  assert.ok(setupScript.includes("privy_create_adapter"));
+  assert.ok(setupScript.includes("hermes_action_wrapper"));
+  assert.ok(setupScript.includes("hermes_privy_wrapper"));
+  assert.ok(actionWrapper.includes("FORECASTOS_REPO_ROOT"));
+  assert.ok(privyWrapper.includes("adapters"));
+  assert.ok(privyWrapper.includes("resolve_create.mjs"));
   assert.ok(combined.includes("approval rules"));
   assert.ok(combined.includes("does not replace the skill package"));
   assert.ok(pluginYaml.includes("provides_tools"));
@@ -1079,6 +1122,33 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.equal(setup.ok, true);
   assert.equal(setup.forecastos_repo_root, monorepoRoot);
   assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "privy_create_adapter" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_action_wrapper" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_privy_wrapper" && check.ok));
+
+  const hermesRootDir = join(skillRoot, "test-output", "hermes-adapter");
+  const hermesStateDir = join(hermesRootDir, ".forecastos");
+  const hermesInput = join(hermesRootDir, "draft-input.json");
+  await rm(hermesRootDir, { recursive: true, force: true });
+  await mkdir(hermesStateDir, { recursive: true });
+  await writeFile(
+    hermesInput,
+    JSON.stringify({
+      prompt: "Which team wins the event?",
+      requested_outcomes: ["Team A", "Team B", "Other"],
+      source_hints: ["Official event results"],
+      requested_close_time: "2026-10-15T00:00:00Z",
+      requested_resolution_time: "2026-11-15T12:00:00Z",
+    }),
+  );
+  const hermesForwarded = await execFileAsync(
+    process.execPath,
+    [join(hermesSkillRoot, "scripts", "forecastos-action.mjs"), "draft_market", "--input", hermesInput],
+    { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_STATE_DIR: hermesStateDir } },
+  );
+  const hermesDraft = JSON.parse(hermesForwarded.stdout);
+  assert.equal(hermesDraft.status, "ok");
+  assert.equal(hermesDraft.result.market.question, "Which team wins the event?");
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
@@ -1456,6 +1526,19 @@ test("legacy Privy skill shim delegates to top-level wallet adapter", async () =
   assert.equal(typedData.message.nonce, 12);
 });
 
+test("Privy skill shim reports FORECASTOS_REPO_ROOT adapter candidates", async () => {
+  const shim = await import("../scripts/wallets/privy_resolve_create.mjs");
+  const repoRoot = join(skillRoot, "test-output", "privy-shim-repo-root", "repo-root");
+  const candidates = shim.getPrivyAdapterCandidates({ FORECASTOS_REPO_ROOT: repoRoot });
+
+  assert.equal(
+    candidates[0],
+    join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"),
+  );
+  assert.ok(candidates.some((path) => path.includes("adapters")));
+  assert.ok(candidates.length >= 2);
+});
+
 test("draft validation blocks long questions and outcomes", async () => {
   const forecastos = await createIsolatedForecastOS("draft-length-limits");
   const baseInput = {
@@ -1773,6 +1856,34 @@ function envWithoutForecastState(extra = {}) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function spawnWithInput(command, args, input, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      reject(new Error(`Command failed with exit ${code}: ${stderr}`));
+    });
+    child.stdin.end(input);
+  });
 }
 
 async function exists(path) {

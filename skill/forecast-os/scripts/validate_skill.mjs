@@ -591,6 +591,8 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertDir(join(hermesSkillRoot, "references"));
   await assertDir(join(hermesSkillRoot, "scripts"));
   await assertFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "forecastos-action.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
   await assertFile(join(hermesPluginRoot, "__init__.py"));
 
@@ -614,6 +616,15 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     hermesSkill.includes("${HERMES_SKILL_DIR}") && hermesSkill.includes("check-hermes-setup.mjs"),
     "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
+  );
+  assert(
+    hermesSkill.includes("prepare_create_intent") &&
+      hermesSkill.includes("resolve-privy-create.mjs") &&
+      hermesSkill.includes("run_skill_step") &&
+      hermesSkill.includes("--wallet-output") &&
+      hermesSkill.includes("Do not call direct `create_market` first") &&
+      hermesSkill.includes("Do not use `preview_market`"),
+    "Hermes SKILL.md must document the wallet-resolved publish flow and forbid preview/direct create mistakes",
   );
   assert(
     !hermesSkill.includes("required_environment_variables") &&
@@ -644,6 +655,16 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes docs must clearly require the ForecastOS runtime and action bridge",
   );
   assert(
+    hermesDocs.includes("prepare_create_intent") &&
+      hermesDocs.includes("resolve-privy-create.mjs") &&
+      hermesDocs.includes("run_skill_step") &&
+      hermesDocs.includes("--wallet-output") &&
+      hermesDocs.includes("Do not call direct `create_market` before wallet resolution") &&
+      hermesDocs.includes("Do not use `preview_market`") &&
+      hermesDocs.includes("--input -"),
+    "Hermes docs must document the publish sequence, stdin support, and unsupported preview/direct create path",
+  );
+  assert(
     hermesDocs.includes("does not replace the skill package") ||
       hermesSkill.includes("plugin wrapper is only for users who"),
     "Hermes docs must avoid plugin-only install language as the primary path",
@@ -653,6 +674,13 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     pluginYaml.includes("provides_tools") && pluginYaml.includes("forecastos_action"),
     "Hermes plugin wrapper must remain separated as a tool provider",
+  );
+  const hermesSetupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
+  assert(
+    hermesSetupScript.includes("privy_create_adapter") &&
+      hermesSetupScript.includes("hermes_action_wrapper") &&
+      hermesSetupScript.includes("hermes_privy_wrapper"),
+    "Hermes setup check must verify Privy adapter and Hermes wrapper paths",
   );
 }
 
