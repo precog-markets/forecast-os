@@ -28,12 +28,12 @@ An agent may attempt `create_market` only when:
 - `.forecastos/config.json` includes `precog.open_api_key`
 - `image_url` is present
 - `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
-- the wallet policy allows EIP-712 typed-data signing
+- the wallet policy allows EOA-compatible EIP-712 typed-data signing
 - collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
 
 `create_market` always submits to the configured Precog API root. Polymarket, Kalshi, and similar external market providers are read-only context providers; they cannot receive ForecastOS creation or funding actions. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
-If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission, or send them to https://core.precog.markets/launchpad/.
+If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission. For creation, offer concrete options such as [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Do not offer [Base MCP](https://mcp.base.org) for creation unless it returns a 65-byte EOA signature; current Base Account smart-account/WebAuthn signatures are not accepted by the Precog create endpoint.
 
 ## Funding Policy
 
@@ -48,7 +48,7 @@ An agent may attempt `fund_market` only when:
 - collateral token approval has been handled by the wallet flow if allowance was insufficient
 - `.forecastos/config.json` includes `precog.open_api_key`
 
-Configured wallet/action tooling resolves a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
+Configured wallet/action tooling resolves a ForecastOS funding intent into token approval if needed, the funding transaction hash, and EIP-712 signature outside ForecastOS. ForecastOS only submits the approved signed funding payload to Precog. Bankr and Base MCP provider-specific signing/submission details live in their adapter docs; the generic policy is that adapters must use trusted prepared transaction payloads and must not invent funding calldata. The submitted `amount` must be a plain display-unit amount string such as `"1"`; do not submit wei/base-unit conversions, token symbols, commas, or exponent notation.
 
 Do not fund when Precog status is only `CREATED`. Funding becomes valid at `VALIDATED`.
 
@@ -79,4 +79,4 @@ Do not request or store:
 
 Use operator wallet references only, such as a label or account ID controlled outside this skill.
 
-ForecastOS may store public addresses, transaction hashes, and signatures returned by trusted wallet/action tooling for Precog submission. It must not ask users for raw signatures in normal chat, generate signatures, fetch nonces, approve tokens, sign/send transactions, or request signing secrets. If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/.
+ForecastOS may store public addresses, transaction hashes, and signatures returned by trusted wallet/action tooling for Precog submission. It must not ask users for raw signatures in normal chat, generate signatures, fetch nonces, approve tokens, sign/send transactions, or request signing secrets. Offer concrete wallet/action options such as [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).

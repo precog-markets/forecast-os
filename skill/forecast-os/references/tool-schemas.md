@@ -76,9 +76,9 @@ For concrete wallet providers, pass this intent to the matching top-level adapte
 
 For normal chat flows, the user can approve by replying `yes`; the workflow stores `approved_draft_hash` internally. Legacy `approval_text` is still accepted when it contains the draft id and hash.
 
-`creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. Ask which wallet or wallet/action tool the user wants to use; if none is available, send them to https://core.precog.markets/launchpad/. ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = CREATE_UPCOMING_MARKET`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce.
+`creator_address` and `creator_signature` are resolved outputs from trusted wallet/action tooling, not fields to request directly from the user in normal chat. Ask which wallet or wallet/action tool the user wants to use; useful creation options include [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). ForecastOS does not include signing helpers. Before creation, the wallet policy must allow EOA-compatible EIP-712 typed-data signatures. The wallet signs EIP-712 typed data using `message.action = CREATE_UPCOMING_MARKET`, `message.account = creator_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. Do not submit [Base MCP](https://mcp.base.org) smart-account/WebAuthn signatures for creation; the current Precog create endpoint requires a 65-byte EOA signature.
 
-Normal chat flow should feed the resolved fields back through `run_skill_step` with the stored `create_market` workflow state, so ForecastOS submits the Precog upcoming-market request and `.forecastos` advances to `await_precog_approval`. Use the direct `create_market` action only as a low-level API call when workflow persistence is not needed.
+Normal chat flow should feed the resolved fields back through `run_skill_step` with the stored `create_market` workflow state, preferably by passing the wallet adapter output file with `--wallet-output <wallet-adapter-output-json>`. This avoids losing signatures through unexported shell variables, submits the Precog upcoming-market request, and advances `.forecastos` to `await_precog_approval`. Use the direct `create_market` action only as a low-level API call when workflow persistence is not needed.
 
 `create_market` always submits to the configured Precog API root. `image_url` is required for the live Precog create endpoint. Prefer a square `image_url` when one is readily available, but keep non-square images valid when they are the most relevant trusted source. The bundled runtime validates only that `image_url` is an HTTP(S) URL; it does not inspect dimensions, crop, resize, or reject non-square images. If `category` is omitted, ForecastOS maps local draft categories to a Precog-compatible category; non-AI draft categories pass through unchanged. Collateral defaults to config Base USDC; include `collateral_address` only as an advanced override for non-default collateral. ForecastOS sends config chain ID as create payload `chain_id`, not as a chat-facing chain choice. The create payload `end_timestamp` is the market close time, not the resolution time.
 
@@ -114,7 +114,7 @@ Use this before wallet-specific funding. ForecastOS returns a wallet-agnostic in
 }
 ```
 
-The wallet/action tool checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields. If no wallet/action tool is configured, direct the user to https://core.precog.markets/launchpad/.
+The wallet/action tool checks collateral allowance, approves the token if needed, signs/sends the funding transaction, and returns `tx_hash`, `funder_address`, and `funder_signature`. Then call `fund_market` with those resolved fields. Useful options include [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Bankr and Base MCP provider-specific signing/submission rules live in their adapter docs.
 
 If the user asks what funding does economically, read `references/precog-liquidity.md`. LPs earn from 90% of the post-payout profit pool, plus trading fees when applicable, but LP positions are locked until market resolution and returns are not guaranteed.
 ## fund_market
@@ -138,7 +138,7 @@ Funding requires explicit operator approval. A configured wallet/action tool can
 }
 ```
 
-`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding.
+`funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding. Unlike creation, funding accepts Base Account smart-wallet signature shapes when returned by Base MCP.
 
 ## consume_prediction
 

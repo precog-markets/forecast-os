@@ -35,14 +35,18 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Do not hand-write or paste ForecastOS-looking JSON as the final user-facing answer. For draft/generate requests, run `scripts/forecastos_action.mjs run_skill_step`, then show only a short prose summary from `agent_message` / `review_message`.
 - Every draft response must end with a next-step prompt: ask the user to approve, request edits, or choose a wallet/action tool after approval.
 - Do not use only `Yes` / `No` outcomes in normal ForecastOS drafts. For yes/no-shaped prompts, split the negative side into concrete outcomes such as `Target event happens`, `Entity eliminated or fails before event`, `Entity does not qualify or participate`, and `Event cancelled / no official result`.
+- Write detailed resolution criteria for every draft. Criteria should name the source of truth, define how exactly one listed outcome wins, include the resolution time, and explain fallback/no official result handling when relevant.
+- Outcome labels must not contain commas because Precog creation sends outcomes as a comma-delimited payload. For date ranges, use labels like `June 1-15 2026`, not `June 1-15, 2026`.
+- Keep draft questions at 65 characters or fewer and outcome labels at 32 characters or fewer after comma sanitization; ask the user to shorten text that exceeds these Launchpad-friendly limits.
+- Draft approval summaries must show the configured collateral token, for example `Token: USDC`, including the collateral address when config provides it. Do not describe deployed market token details before deployment.
 - Normalize and present all market times in UTC. Label user-facing close/resolution times as UTC.
-- Read chain identity only from `.forecastos/config.json`; do not ask users to choose a chain or accept action-level chain overrides.
-- Default to Base USDC collateral from `.forecastos/config.json`; only use another `collateral_address` when the operator explicitly asks for it.
-- Use `.forecastos/` as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states.
+- Read chain identity only from the active ForecastOS config; by default scripts use the bundled `skill/forecast-os/.forecastos/config.json`, or the installed skill's own `.forecastos/config.json`. Do not ask users to choose a chain or accept action-level chain overrides.
+- Default to Base USDC collateral from the active ForecastOS config; only use another `collateral_address` when the operator explicitly asks for it.
+- Use the active `.forecastos/` state directory as structured workflow memory for drafts, approvals, created markets, funding, prediction consumption, and done states. `FORECASTOS_STATE_DIR` may override the bundled skill-local default.
 - Do not require MCP for normal drafting or creation. Use MCP only when extra read-only docs, templates, examples, capability metadata, or workflow inspection would help.
 - Use read-only external market MCP tools for market discovery, comparable market context, public prices, or public orderbook context. External markets are read-only; Polymarket, Kalshi, and similar providers can inform drafts but are never ForecastOS creation or funding targets. External market reads must never trade, place/cancel orders, authenticate users, sign, bridge, custody wallets, or mutate ForecastOS workflow state.
 - Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
-- For live Precog creation or funding, ask which wallet or wallet/action tool the user wants to use; do not ask for raw wallet addresses or signatures in normal chat. Do not ask which creation venue to use unless the user explicitly introduces a non-Precog venue; explain that ForecastOS can create through Precog and can only read external venues such as Polymarket or Kalshi. If no tooling is available, send them to https://core.precog.markets/launchpad/.
+- For live Precog creation or funding, ask which wallet or wallet/action tool the user wants to use. For creation, offer [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/); [Base MCP](https://mcp.base.org) smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint unless the signer returns a 65-byte EOA signature. For funding, [Bankr](https://bankr.bot), [Base MCP](https://mcp.base.org), or another configured wallet/action tool may be used after a prepared unsigned calldata envelope exists; Base Account smart-wallet signatures verified through EIP-1271/ERC-6492 are accepted for funding. Do not ask for raw wallet addresses or signatures in normal chat. Do not ask which creation venue to use unless the user explicitly introduces a non-Precog venue; explain that ForecastOS can create through Precog and can only read external venues such as Polymarket or Kalshi.
 - For creation, first generate a wallet-agnostic `prepare_create_intent`; it always prepares a Precog `CREATE_UPCOMING_MARKET` intent. The configured wallet/action tool resolves nonce lookup, EIP-712 typed-data signing for `CREATE_UPCOMING_MARKET`, creator account, and final signature.
 - After wallet creation fields are resolved, use `run_skill_step` with the current `create_market` workflow state so `.forecastos` advances to `await_precog_approval`; reserve direct `create_market` for low-level calls that do not need workflow memory updates.
 - For concrete wallet providers, read `references/wallet-adapters.md` and use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
@@ -57,9 +61,10 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 ```txt
 intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
+await_precog_approval -> rejected
 ```
 
-Present a friendly draft summary before Precog creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. After approval, ask what wallet or wallet/action tool the user wants to use for the Precog submission. Fund only after Precog status is `VALIDATED`. Consume prediction data only after the upcoming market is `DEPLOYED`.
+Present a friendly draft summary before Precog creation. Do not expose raw JSON, workflow IDs, draft IDs, hashes, file paths, or quality scores unless the user asks for debugging/operator detail. Ask the user to reply `yes` to approve or tell you what to change; keep draft IDs and hashes in `.forecastos/` memory. The review should include the collateral token context. After approval, ask what wallet or wallet/action tool the user wants to use for the Precog submission. Once Precog creation succeeds, return the created market title and generated launchpad share/check link to the user. Fund only after Precog status is `VALIDATED`. Use `scripts/check_pending_market.mjs` for one-shot pending checks that an external hourly scheduler can run. Treat `REJECTED`, `FAILED`, and `DENIED` as terminal rejected states. Consume prediction data only after the upcoming market is `DEPLOYED`.
 
 ## Read Next
 
@@ -80,6 +85,8 @@ Present a friendly draft summary before Precog creation. Do not expose raw JSON,
 
 ```txt
 node scripts/validate_skill.mjs
+node scripts/check_version.mjs
+node scripts/check_pending_market.mjs --workflow-id <workflow_id>
 node scripts/inspect_state.mjs
 node scripts/render_review.mjs --workflow-id <workflow_id>
 node scripts/next_step.mjs --workflow-id <workflow_id>

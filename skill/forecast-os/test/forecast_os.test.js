@@ -272,6 +272,9 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
   assert.ok(approved.result.agent_message.includes("What wallet or wallet/action tool"));
+  assert.ok(approved.result.agent_message.includes("Bankr"));
+  assert.ok(approved.result.agent_message.includes("Privy"));
+  assert.ok(approved.result.agent_message.includes("EOA-compatible"));
   assert.ok(approved.result.agent_message.includes("https://core.precog.markets/launchpad/"));
   assert.equal(approved.result.state.approved_draft_id, draftId);
   assert.equal(approved.result.state.approved_draft_hash, drafted.result.state.draft_hash);
@@ -423,6 +426,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     step: "await_precog_approval",
     market_id: created.market_id,
   });
+  const smartAccountFundingSignature = "0x" + "ab".repeat(96);
   const funded = await forecastos.fundMarket(
     { step: "fund", market_id: created.market_id, precog_approval: { status: "VALIDATED" } },
     {
@@ -431,7 +435,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
         amount: "1",
         tx_hash: "0xTransactionHash",
         funder_address: "0xFunder",
-        funder_signature: "0xFunderSignature",
+        funder_signature: smartAccountFundingSignature,
       },
     },
   );
@@ -473,6 +477,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
   assert.equal(requests[2].body.upcoming_market, 428);
   assert.equal(requests[2].body.amount, "1");
+  assert.equal(requests[2].body.funder_signature, smartAccountFundingSignature);
 });
 
 test("create_market sends comma-safe outcome labels", async () => {
@@ -544,6 +549,62 @@ test("create_market sends comma-safe outcome labels", async () => {
     "June 1-15 2026,June 16-30 2026,July 1-31 2026,No normal by Jul 31 2026",
   );
   assert.equal(requests[0].body.outcomes.split(",").length, 4);
+});
+
+test("bundled runtime rejects Base MCP smart-account create signatures before API submission", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "base-mcp-create-signature");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return { ok: true, status: 200, async text() { return "{}"; } };
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the test market resolve?",
+    requested_outcomes: ["Yes", "No", "Other"],
+    source_hints: ["Official source"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  await assert.rejects(
+    forecastos.createMarket({
+      draft_id: draft.draft_id,
+      approved: true,
+      approved_by: "operator",
+      approval_text: draft.approval_text,
+      image_url: "https://example.com/image.png",
+      creator_address: "0x2222222222222222222222222222222222222222",
+      creator_signature: "0x" + "ab".repeat(96),
+      wallet_provider: "base-mcp",
+    }),
+    (error) => {
+      assert.equal(error.code, "FORECASTOS_WALLET_SIGNATURE_UNSUPPORTED");
+      assert.match(error.message, /smart-account\/WebAuthn signature/);
+      return true;
+    },
+  );
+  assert.equal(requests.length, 0);
 });
 
 test("wallet-resolved create through run_skill_step persists await_precog_approval", async () => {
@@ -621,6 +682,69 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
       )
     ).market_id,
     456,
+  );
+});
+
+test("forecastos_action merges wallet output for create submission", async () => {
+  const rootDir = join(skillRoot, "test-output", "create-wallet-output-merge");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+  const inputPath = join(rootDir, "create.json");
+  const walletOutputPath = join(rootDir, "wallet-output.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      approved: true,
+      image_url: "https://example.com/image.png",
+      creator_address: "0xCreator",
+      approved_draft_hash: "hash",
+    }),
+  );
+  await writeFile(
+    walletOutputPath,
+    JSON.stringify({
+      event: {
+        creator_signature: "0xCreatorSignature",
+        wallet_provider: "privy",
+      },
+    }),
+  );
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "forecastos_action.mjs"),
+        "create_market",
+        "--input",
+        inputPath,
+        "--wallet-output",
+        walletOutputPath,
+      ],
+      { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+    ),
+    (error) => {
+      const stderr = String(error.stderr ?? "");
+      assert.ok(stderr.includes("Draft not found"));
+      assert.ok(!stderr.includes("creator_signature"));
+      return true;
+    },
   );
 });
 
@@ -934,6 +1058,27 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.equal(setup.ok, true);
   assert.equal(setup.forecastos_repo_root, monorepoRoot);
   assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
+});
+
+test("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
+  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
+  const claudeConfig = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  const claudeReadme = await readFile(join(claudeRoot, "README.md"), "utf8");
+  const claudeSkill = await readFile(join(claudeRoot, "forecast-os", "SKILL.md"), "utf8");
+  const claudeWorkflow = await readFile(join(claudeRoot, "forecast-os", "references", "claude-workflow.md"), "utf8");
+  const combined = [claudeReadme, claudeSkill, claudeWorkflow].join("\n");
+
+  assert.ok(claudeConfig.mcpServers.forecastos);
+  assert.equal(claudeConfig.servers, undefined);
+  assert.ok(claudeConfig.mcpServers.forecastos.args.some((arg) => arg.includes("mcp/forecast-os-mcp-server/dist/stdio.js")));
+  assert.ok(claudeConfig.mcpServers.forecastos.env.FORECASTOS_STATE_DIR.includes("skill/forecast-os/.forecastos"));
+  assert.match(claudeSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(claudeSkill.includes("Use ForecastOS whenever"));
+  assert.ok(combined.includes("read-only"));
+  assert.ok(combined.includes("does not add wallet signing"));
+  assert.ok(combined.includes("wallet/action providers stay"));
+  assert.ok(!combined.includes("/wallet/sign"));
+  assert.ok(!combined.includes("/wallet/submit"));
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
@@ -1256,7 +1401,9 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
       { provider, amount: "1", funding_asset: "MATE", chain_id: 999999 },
     );
     assert.equal(intent.wallet_provider, provider);
-    assert.equal(intent.wallet_tool_hint.includes("configured wallet/action tool"), true);
+    assert.equal(intent.wallet_tool_hint.includes("Bankr"), true);
+    assert.equal(intent.wallet_tool_hint.includes("Privy"), true);
+    assert.equal(intent.wallet_tool_hint.includes("Base MCP"), true);
     assert.equal(intent.launchpad_fallback_url, "https://core.precog.markets/launchpad/");
     assert.equal(intent.amount, "1");
     assert.equal(intent.chain_id, configChainId);
@@ -1277,6 +1424,8 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.token_approval_required_if_needed, true);
     assert.ok(intent.token_approval_note.includes("approve collateral token allowance"));
     assert.deepEqual(intent.wallet_resolution_required, ["tx_hash", "funder_address", "funder_signature"]);
+    assert.ok(intent.notes.some((note) => note.includes("Bankr funding") && note.includes("Bankr adapter docs")));
+    assert.ok(intent.notes.some((note) => note.includes("EIP-1271/ERC-6492") && note.includes("accepted for funding")));
     assert.equal(intent.precog_payload_template.amount, "1");
   }
 });
@@ -1409,7 +1558,7 @@ test("skill guidance does not advertise unrelated named wallet provider support"
     "assets/schemas/actions.json",
   ];
   const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n").toLowerCase();
-  for (const provider of ["bank" + "r", "turn" + "key"]) {
+  for (const provider of ["turn" + "key"]) {
     assert.ok(!combined.includes(provider), `provider-specific guidance leaked: ${provider}`);
   }
 });
@@ -1466,6 +1615,10 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(!guidance.required_fields.includes("creator_address"));
   assert.ok(!guidance.required_fields.includes("creator_signature"));
   assert.ok(guidance.notes.some((note) => note.includes("What wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("Bankr")));
+  assert.ok(guidance.notes.some((note) => note.includes("Privy") && note.includes("EOA-compatible")));
+  assert.ok(guidance.notes.some((note) => note.includes("Base MCP smart-account/WebAuthn signatures")));
+  assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
   assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
@@ -1490,6 +1643,8 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
 
   assert.equal(guidance.next_action, "prepare_funding_intent");
   assert.ok(guidance.notes.some((note) => note.includes("what wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("Bankr") && note.includes("Privy") && note.includes("Base MCP")));
+  assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));
   assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));
 });
