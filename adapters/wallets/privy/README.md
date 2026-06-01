@@ -40,3 +40,14 @@ Prefer `--wallet-output` over shell variables so the signature cannot be dropped
 by accidentally using an unexported environment value.
 
 The adapter converts ForecastOS canonical EIP-712 `primaryType` into Privy's required `primary_type` and does not include `caip2` in the Privy signing request.
+
+## Troubleshooting
+
+On failure, the adapter writes sanitized JSON to stderr. A
+`PRIVY_API_REQUEST_FAILED` error with `status: 403` means the runtime credentials
+cannot access the Privy API path shown in `endpoint`; confirm the local host has
+the intended `PRIVY_APP_ID` and `PRIVY_APP_SECRET` configured without printing
+their values in chat. A `PRIVY_WALLET_SELECTION_REQUIRED` error with
+`wallet_diagnostics` means Privy was reachable but no selected wallet exposed
+both required policy methods. Check `checked_wallets`, `allow_methods`, and
+`policy_read_failures` to confirm the wallet id and attached policy.
