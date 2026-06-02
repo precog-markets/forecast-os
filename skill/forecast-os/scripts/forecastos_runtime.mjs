@@ -948,10 +948,24 @@ function normalizeDraftOutcomes(value) {
 }
 
 function sanitizeOutcomeLabel(value) {
-  return String(value ?? "")
+  return extractOutcomeLabel(value)
     .replace(/,/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractOutcomeLabel(value) {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    for (const key of ["label", "name", "title", "value", "outcome"]) {
+      const candidate = value[key];
+      if (candidate === undefined || candidate === null) continue;
+      const label = String(candidate).trim();
+      if (label) return label;
+    }
+    return "";
+  }
+  return String(value ?? "");
 }
 
 function extractResolutionSource(criteria) {
@@ -1475,11 +1489,7 @@ function buildFriendlyReviewMessage(draft) {
 }
 
 function formatOutcomeForReview(outcome) {
-  if (typeof outcome === "string") return outcome;
-  if (outcome && typeof outcome === "object") {
-    return outcome.label ?? outcome.name ?? outcome.title ?? JSON.stringify(outcome);
-  }
-  return String(outcome ?? "");
+  return sanitizeOutcomeLabel(outcome) || JSON.stringify(outcome);
 }
 function formatTokenLine(market = {}) {
   if (market.collateral_symbol && market.collateral_address) {

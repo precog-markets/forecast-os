@@ -507,6 +507,33 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[2].body.funder_signature, smartAccountFundingSignature);
 });
 
+test("draft_market extracts labels from object outcomes before storage", async () => {
+  const forecastos = await createIsolatedForecastOS("object-outcome-draft-normalization");
+  const draft = await forecastos.draftMarket({
+    prompt: "When does the next Avatar series premiere?",
+    requested_outcomes: [
+      { label: "2026", desc: "Premieres during calendar year 2026" },
+      { label: "2027", description: "Premieres during calendar year 2027" },
+      { label: "2028-2029", probability: 0.25 },
+      { label: "2030 or later", notes: "Includes no official premiere by 2029" },
+      { label: "Not announced" },
+    ],
+    source_hints: ["Official Avatar Studios or Paramount announcements"],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+  });
+
+  assert.equal(draft.status, "pass");
+  assert.deepEqual(draft.market.outcomes, [
+    "2026",
+    "2027",
+    "2028-2029",
+    "2030 or later",
+    "Not announced",
+  ]);
+  assert.ok(draft.review_message.includes("Outcomes: 2026 / 2027 / 2028-2029 / 2030 or later / Not announced"));
+  assert.ok(!draft.review_message.includes("[object Object]"));
+});
 test("create_market sends comma-safe outcome labels", async () => {
   const rootDir = join(skillRoot, "api-test-output", "comma-safe-outcomes");
   const stateDir = join(rootDir, ".forecastos");
@@ -578,6 +605,75 @@ test("create_market sends comma-safe outcome labels", async () => {
   assert.equal(requests[0].body.outcomes.split(",").length, 4);
 });
 
+test("create_market extracts labels from object outcomes", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "object-outcome-create");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const requests = [];
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 519, status: "CREATED" });
+        },
+      };
+    },
+    now: () => new Date("2026-05-28T00:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "When does the next Avatar series premiere?",
+    requested_outcomes: [
+      { label: "2026", desc: "Premieres during calendar year 2026" },
+      { label: "2027", description: "Premieres during calendar year 2027" },
+      { label: "2028-2029", probability: 0.25 },
+      { label: "2030 or later", notes: "Includes no official premiere by 2029" },
+      { label: "Not announced" },
+    ],
+    source_hints: ["Official Avatar Studios or Paramount announcements"],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+  });
+
+  await forecastos.createMarket({
+    draft_id: draft.draft_id,
+    approved: true,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/avatar.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+
+  assert.deepEqual(draft.market.outcomes, [
+    "2026",
+    "2027",
+    "2028-2029",
+    "2030 or later",
+    "Not announced",
+  ]);
+  assert.equal(requests[0].body.outcomes, "2026,2027,2028-2029,2030 or later,Not announced");
+  assert.ok(!requests[0].body.outcomes.includes("[object Object]"));
+});
 test("bundled runtime submits Base MCP smart-account create signatures and records diagnostics on Precog rejection", async () => {
   const rootDir = join(skillRoot, "api-test-output", "base-mcp-create-signature");
   const stateDir = join(rootDir, ".forecastos");
