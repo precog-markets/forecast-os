@@ -1457,7 +1457,9 @@ function buildFriendlyReviewMessage(draft) {
     needs ? "I need a little more before this draft can be approved." : "Draft ready for review.",
     market.title ? `Market: ${market.title}` : null,
     market.question ? `Question: ${market.question}` : null,
-    Array.isArray(market.outcomes) ? `Outcomes: ${market.outcomes.join(" / ")}` : null,
+    Array.isArray(market.outcomes)
+      ? `Outcomes: ${market.outcomes.map(formatOutcomeForReview).join(" / ")}`
+      : null,
     market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
     market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
@@ -1472,6 +1474,13 @@ function buildFriendlyReviewMessage(draft) {
   return lines.join("\n");
 }
 
+function formatOutcomeForReview(outcome) {
+  if (typeof outcome === "string") return outcome;
+  if (outcome && typeof outcome === "object") {
+    return outcome.label ?? outcome.name ?? outcome.title ?? JSON.stringify(outcome);
+  }
+  return String(outcome ?? "");
+}
 function formatTokenLine(market = {}) {
   if (market.collateral_symbol && market.collateral_address) {
     return `Token: ${market.collateral_symbol} (${market.collateral_address})`;

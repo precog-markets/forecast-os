@@ -1035,6 +1035,55 @@ test("draft review is chat-facing and ends with next steps", async () => {
   assert.ok(!draft.review_message.includes("hash_"));
 });
 
+test("render_review formats object outcome labels", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "object-outcome-review");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(join(stateDir, "drafts"), { recursive: true });
+  await mkdir(join(stateDir, "workflows", "all"), { recursive: true });
+
+  const draftId = "draft_object_outcomes";
+  const workflowId = "workflow_object_outcomes";
+  await writeFile(
+    join(stateDir, "drafts", `${draftId}.json`),
+    JSON.stringify({
+      draft_id: draftId,
+      status: "pass",
+      market: {
+        title: "When does the next John Wick movie release?",
+        question: "When does the next John Wick movie release?",
+        outcomes: [
+          { label: "2026" },
+          { label: "2027" },
+          { label: "2028-2029" },
+          { label: "2030 or later" },
+          { label: "Not announced" },
+        ],
+        resolution_criteria: "Resolve using official Lionsgate announcements.",
+        close_time: "2026-12-31T23:59:59.000Z",
+        resolution_time: "2027-01-31T23:59:59.000Z",
+        source_of_truth: "Official Lionsgate announcements",
+        collateral_symbol: "USDC",
+        collateral_address: configCollateralAddress,
+      },
+      quality: { blocking_issues: [], warnings: [] },
+    }),
+  );
+  await writeFile(
+    join(stateDir, "workflows", "all", `${workflowId}.json`),
+    JSON.stringify({ workflow_id: workflowId, step: "await_approval", draft_id: draftId }),
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "render_review.mjs"), "--state-dir", stateDir, "--workflow-id", workflowId],
+    { cwd: skillRoot },
+  );
+  const review = JSON.parse(stdout);
+
+  assert.ok(review.review_message.includes("2026 / 2027 / 2028-2029 / 2030 or later / Not announced"));
+  assert.ok(!review.review_message.includes("[object Object]"));
+});
 test("draft_market generates detailed default resolution criteria", async () => {
   const forecastos = await createIsolatedForecastOS("detailed-resolution-criteria");
   const draft = await forecastos.draftMarket({
