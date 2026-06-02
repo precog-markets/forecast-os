@@ -18,6 +18,8 @@ const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "
 const configChainId = shippedConfig.precog.chain_id;
 const configCollateralAddress = shippedConfig.precog.default_collateral_address;
 const configSignatureActions = shippedConfig.precog.signature_actions;
+const lowerCreatorAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
+const checksumCreatorAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
 
 test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
   assert.equal(
@@ -446,7 +448,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
     approval_text: draft.approval_text,
     image_url: "https://example.com/image.png",
     chain_id: 999999,
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
   const approved = await forecastos.awaitPrecogApproval({
@@ -499,6 +501,8 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[0].body.chain_id, configChainId);
   assert.equal(requests[0].body.network, undefined);
   assert.equal(requests[0].body.collateral_address, configCollateralAddress);
+  assert.equal(requests[0].body.creator_address, checksumCreatorAddress);
+  assert.equal(created.creator_address, checksumCreatorAddress);
   assert.equal(requests[0].body.start_timestamp, Date.parse("2026-06-01T12:00:00Z") / 1000);
   assert.equal(requests[0].body.end_timestamp, Date.parse("2026-06-30T23:59:59Z") / 1000);
   assert.notEqual(requests[0].body.end_timestamp, Date.parse("2026-07-03T00:00:00Z") / 1000);
@@ -569,7 +573,7 @@ test("create_market rejects pure binary outcomes", async () => {
       approved_by: "operator",
       approval_text: draft.approval_text,
       image_url: "https://example.com/riot.png",
-      creator_address: "0xCreator",
+      creator_address: lowerCreatorAddress,
       creator_signature: "0xCreatorSignature",
       outcomes: ["Yes", "No"],
     }),
@@ -630,7 +634,7 @@ test("create_market sends comma-safe outcome labels", async () => {
     approved_by: "operator",
     approval_text: draft.approval_text,
     image_url: "https://example.com/image.png",
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
 
@@ -702,7 +706,7 @@ test("create_market extracts labels from object outcomes", async () => {
     approved_by: "operator",
     approval_text: draft.approval_text,
     image_url: "https://example.com/avatar.png",
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
 
@@ -834,7 +838,7 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
     },
     {
       image_url: "https://example.com/image.png",
-      creator_address: "0xCreator",
+      creator_address: lowerCreatorAddress,
       creator_signature: "0xCreatorSignature",
     },
   );
@@ -946,7 +950,7 @@ test("forecastos_action merges wallet output for create submission", async () =>
     JSON.stringify({
       approved: true,
       image_url: "https://example.com/image.png",
-      creator_address: "0xCreator",
+      creator_address: lowerCreatorAddress,
       approved_draft_hash: "hash",
     }),
   );
@@ -1037,7 +1041,7 @@ test("run_skill_step does not duplicate create when persisted workflow advanced"
   };
   const first = await forecastos.runSkillStep(createState, {
     image_url: "https://example.com/image.png",
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
   assert.equal(createCalls, 1);
@@ -1045,7 +1049,7 @@ test("run_skill_step does not duplicate create when persisted workflow advanced"
 
   const second = await forecastos.runSkillStep(createState, {
     image_url: "https://example.com/image.png",
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
   assert.equal(createCalls, 1);
@@ -1756,7 +1760,7 @@ test("create_market allows explicit collateral override while keeping config cha
     image_url: "https://example.com/image.png",
     collateral_address: "0xCustomCollateral",
     chain_id: 999999,
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
 
@@ -1812,7 +1816,7 @@ test("non-AI draft categories are not silently overwritten", async () => {
     approved_by: "operator",
     approval_text: draft.approval_text,
     image_url: "https://example.com/image.png",
-    creator_address: "0xCreator",
+    creator_address: lowerCreatorAddress,
     creator_signature: "0xCreatorSignature",
   });
 
@@ -1857,7 +1861,7 @@ test("create_market fails clearly without config default collateral or override"
       approved_by: "operator",
       approval_text: draft.approval_text,
       image_url: "https://example.com/image.png",
-      creator_address: "0xCreator",
+      creator_address: lowerCreatorAddress,
       creator_signature: "0xCreatorSignature",
     }),
     /Missing \.forecastos\/config\.json precog\.default_collateral_address/,

@@ -121,6 +121,7 @@ Creation payload hygiene:
 - Outcome labels must not contain commas because the Precog create API treats commas as outcome separators. Use labels such as `June 1-15 2026`, not `June 1-15, 2026`.
 - Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
+- `creator_address` must be a 20-byte EVM address and is normalized to EIP-55 checksum casing before ForecastOS sends the Precog create payload.
 - `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
