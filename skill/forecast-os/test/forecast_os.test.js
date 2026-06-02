@@ -534,6 +534,48 @@ test("draft_market extracts labels from object outcomes before storage", async (
   assert.ok(draft.review_message.includes("Outcomes: 2026 / 2027 / 2028-2029 / 2030 or later / Not announced"));
   assert.ok(!draft.review_message.includes("[object Object]"));
 });
+test("create_market rejects pure binary outcomes", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "create-binary-outcomes-rejected");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the Riot MMO be released in calendar year 2027?",
+    requested_outcomes: ["Released in 2027", "Released after 2027", "No official release"],
+    source_hints: ["Riot Games official announcements"],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+  });
+
+  await assert.rejects(
+    forecastos.createMarket({
+      draft_id: draft.draft_id,
+      approved: true,
+      approved_by: "operator",
+      approval_text: draft.approval_text,
+      image_url: "https://example.com/riot.png",
+      creator_address: "0xCreator",
+      creator_signature: "0xCreatorSignature",
+      outcomes: ["Yes", "No"],
+    }),
+    /does not publish pure Yes\/No outcome sets|at least three non-empty outcomes/,
+  );
+});
 test("create_market sends comma-safe outcome labels", async () => {
   const rootDir = join(skillRoot, "api-test-output", "comma-safe-outcomes");
   const stateDir = join(rootDir, ".forecastos");
@@ -940,6 +982,76 @@ test("forecastos_action merges wallet output for create submission", async () =>
   );
 });
 
+test("run_skill_step does not duplicate create when persisted workflow advanced", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "duplicate-create-guard");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0xMaster",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  let createCalls = 0;
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      if (url.endsWith("/create-upcoming-market/")) createCalls += 1;
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ upcoming_market: 428, status: "CREATED" });
+        },
+      };
+    },
+    now: () => new Date("2026-06-01T00:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launcher leads June agents?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Launchpad public rankings"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  const workflowId = "workflow_duplicate_create_guard";
+  const createState = {
+    workflow_id: workflowId,
+    step: "create_market",
+    draft_id: draft.draft_id,
+    draft_hash: draft.draft_hash,
+    approved_draft_id: draft.draft_id,
+    approved_draft_hash: draft.draft_hash,
+    approved_by: "operator",
+    approval_text: draft.approval_text,
+  };
+  const first = await forecastos.runSkillStep(createState, {
+    image_url: "https://example.com/image.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+  assert.equal(createCalls, 1);
+  assert.equal(first.state.step, "await_precog_approval");
+
+  const second = await forecastos.runSkillStep(createState, {
+    image_url: "https://example.com/image.png",
+    creator_address: "0xCreator",
+    creator_signature: "0xCreatorSignature",
+  });
+  assert.equal(createCalls, 1);
+  assert.equal(second.state.step, "await_precog_approval");
+  assert.ok(second.agent_message.includes("no duplicate create API call was sent"));
+});
 test("forecastos_action publish_approved_market loads persisted workflow and wallet output", async () => {
   const rootDir = join(skillRoot, "test-output", "publish-approved-market");
   const stateDir = join(rootDir, ".forecastos");
@@ -1051,7 +1163,7 @@ test("draft_market blocks binary yes/no drafts under multi-outcome default", asy
   assert.ok(draft.missing_fields.includes("at_least_three_outcomes"));
   assert.ok(
     draft.quality.blocking_issues.some((issue) =>
-      issue.includes("requires at least three explicit outcomes"),
+      issue.includes("requires at least three concrete outcomes"),
     ),
   );
 });
@@ -1179,6 +1291,61 @@ test("render_review formats object outcome labels", async () => {
 
   assert.ok(review.review_message.includes("2026 / 2027 / 2028-2029 / 2030 or later / Not announced"));
   assert.ok(!review.review_message.includes("[object Object]"));
+});
+test("draft_market formats default resolution criteria as labeled lines", async () => {
+  const forecastos = await createIsolatedForecastOS("labeled-resolution-criteria");
+  const source = "Riot Games official announcements at www.riotgames.com/en/";
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the Riot MMO be released in calendar year 2027?",
+    requested_outcomes: ["Released in 2027", "Released after 2027", "No official release"],
+    source_hints: [source],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+  });
+
+  const criteria = draft.market.resolution_criteria;
+  assert.ok(criteria.includes("Source of truth:"));
+  assert.ok(criteria.includes("Winning outcome rule:"));
+  assert.ok(criteria.includes("Resolution timing:"));
+  assert.ok(criteria.includes("Fallback:"));
+  assert.ok(criteria.split("\n").length >= 4);
+  assert.equal((criteria.match(/www\.riotgames\.com\/en\//g) ?? []).length, 1);
+  assert.ok(!criteria.includes(".Resolve"));
+  assert.ok(!criteria.includes(".If"));
+});
+
+test("draft_market normalizes explicit run-on resolution criteria", async () => {
+  const forecastos = await createIsolatedForecastOS("explicit-resolution-criteria-normalized");
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the Riot MMO be released in calendar year 2027?",
+    requested_outcomes: ["Released in 2027", "Released after 2027", "No official release"],
+    source_hints: ["Riot Games official announcements"],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+    resolution_criteria:
+      "Source of truth: Riot Games official announcements.Resolve to exactly one listed outcome: Released in 2027 / Released after 2027 / No official release.Resolution timing: Resolve after 2028-01-31.If no official result is available, resolve to No official release.",
+  });
+
+  const criteria = draft.market.resolution_criteria;
+  assert.ok(criteria.includes("Source of truth: Riot Games official announcements."));
+  assert.ok(criteria.includes("\nResolve to exactly one listed outcome:"));
+  assert.ok(criteria.includes("\nResolution timing:"));
+  assert.ok(criteria.includes("\nIf no official result"));
+});
+
+test("draft_market guides release questions away from pure yes/no outcomes", async () => {
+  const forecastos = await createIsolatedForecastOS("release-question-multi-outcome-guidance");
+  const draft = await forecastos.draftMarket({
+    prompt: "Will the Riot MMO be released in calendar year 2027?",
+    requested_outcomes: ["Yes", "No"],
+    source_hints: ["Riot Games official announcements"],
+    requested_close_time: "2027-12-31T00:00:00Z",
+    requested_resolution_time: "2028-01-31T00:00:00Z",
+  });
+
+  assert.equal(draft.status, "blocked");
+  assert.ok(draft.review_message.includes("at least three concrete outcomes"));
+  assert.ok(draft.suggest_next_questions.some((question) => question.includes("at least three concrete outcomes")));
 });
 test("draft_market generates detailed default resolution criteria", async () => {
   const forecastos = await createIsolatedForecastOS("detailed-resolution-criteria");

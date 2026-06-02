@@ -31,10 +31,10 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 
 ## Core Rules
 
-- Assume every market is `multi_outcome`; model yes/no ideas as explicit multi-outcome labels such as `Yes` and `No`.
+- Assume every market is `multi_outcome`; do not reduce yes/no-shaped ideas to only `Yes` and `No`.
 - Do not hand-write or paste ForecastOS-looking JSON as the final user-facing answer. For draft/generate requests, run `scripts/forecastos_action.mjs run_skill_step`, then show only a short prose summary from `agent_message` / `review_message`.
 - Every draft response must end with a next-step prompt: ask the user to approve, request edits, or choose a wallet/action tool after approval.
-- Do not use only `Yes` / `No` outcomes in normal ForecastOS drafts. For yes/no-shaped prompts, split the negative side into concrete outcomes such as `Target event happens`, `Entity eliminated or fails before event`, `Entity does not qualify or participate`, and `Event cancelled / no official result`.
+- Do not use only `Yes` / `No` outcomes in normal ForecastOS drafts. For yes/no-shaped prompts, create at least three concrete outcomes. For release/date questions, prefer time buckets such as `Released in 2027`, `Released before 2027`, `Released after 2027`, and `No official release / cancelled`.
 - Write detailed resolution criteria for every draft. Criteria should name the source of truth, define how exactly one listed outcome wins, include the resolution time, and explain fallback/no official result handling when relevant.
 - Outcome labels must not contain commas because Precog creation sends outcomes as a comma-delimited payload. For date ranges, use labels like `June 1-15 2026`, not `June 1-15, 2026`.
 - Keep draft questions at 65 characters or fewer and outcome labels at 32 characters or fewer after comma sanitization; ask the user to shorten text that exceeds these Launchpad-friendly limits.

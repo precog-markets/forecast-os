@@ -266,6 +266,22 @@ class ForecastOSLocalRuntime {
           });
         }
       }
+      const persistedWorkflow = await readPersistedWorkflow(this.store, current.workflow_id);
+      if (persistedWorkflow && persistedWorkflow.step !== "create_market") {
+        return {
+          state: persistedWorkflow,
+          tool_result: persistedWorkflow.last_result ?? {
+            already_submitted: true,
+            workflow_id: persistedWorkflow.workflow_id,
+            market_id: persistedWorkflow.market_id ?? persistedWorkflow.upcoming_market ?? null,
+            step: persistedWorkflow.step,
+          },
+          needs_human_input: false,
+          agent_message: persistedWorkflow.market_id || persistedWorkflow.upcoming_market
+            ? `This workflow was already submitted to Precog as market ${persistedWorkflow.market_id ?? persistedWorkflow.upcoming_market}. Continuing at ${persistedWorkflow.step}; no duplicate create API call was sent.`
+            : `This workflow already advanced to ${persistedWorkflow.step}; no duplicate create API call was sent.`,
+        };
+      }
       try {
         const result = await this.createMarket({
           ...event,
@@ -768,7 +784,7 @@ function buildDraft(input = {}, context = {}) {
   if (outcomes.length > 0 && outcomes.length < 3) {
     missingFields.push("at_least_three_outcomes");
     blockingIssues.push(
-      "ForecastOS defaults to multi-outcome markets and requires at least three explicit outcomes. Split yes/no-shaped prompts into concrete mutually exclusive outcomes.",
+      "ForecastOS requires at least three concrete outcomes. Do not use only Yes/No; split binary prompts into mutually exclusive outcomes such as target happens, target misses the date, or no official result.",
     );
   }
   if (question.length > MAX_QUESTION_LENGTH) {
@@ -792,7 +808,7 @@ function buildDraft(input = {}, context = {}) {
     outcomes,
     description: input.description ?? "ForecastOS multi-outcome market draft.",
     resolution_criteria:
-      input.resolution_criteria ??
+      normalizeResolutionCriteria(input.resolution_criteria) ??
       buildDefaultResolutionCriteria({
         question,
         outcomes,
@@ -983,19 +999,28 @@ function buildDefaultResolutionCriteria({
   const outcomeList = outcomes.length ? outcomes.join(" / ") : "the listed outcomes";
   const fallbackOutcome = outcomes.find(isFallbackOutcomeLabel);
   const lines = [
-    `Resolution source: ${source}.`,
-    `Resolve to exactly one listed outcome: ${outcomeList}.`,
-    `Use the first official result, announcement, or data update from ${source} that unambiguously answers: "${question}". Do not use unofficial reports, speculation, or secondary summaries unless ${source} cites them as official.`,
+    `Source of truth: ${source}.`,
+    `Winning outcome rule: Resolve to exactly one listed outcome: ${outcomeList}. Use only official results, announcements, or data updates from the source of truth that unambiguously answer: "${question}".`,
   ];
   if (resolutionTime) {
-    lines.push(`Resolve at or after ${formatUtcForReview(resolutionTime)} once the official result is available.`);
+    lines.push(`Resolution timing: Resolve at or after ${formatUtcForReview(resolutionTime)} once the official result is available.`);
   }
   if (fallbackOutcome) {
-    lines.push(`If no listed non-fallback outcome is confirmed by the resolution time, resolve to "${fallbackOutcome}".`);
+    lines.push(`Fallback: If no listed non-fallback outcome is confirmed by the resolution time, resolve to "${fallbackOutcome}".`);
   } else {
-    lines.push("If the official source does not confirm any listed outcome by the resolution time, resolve to the listed outcome that best matches the final official result.");
+    lines.push("Fallback: If the source of truth does not confirm any listed outcome by the resolution time, resolve to the listed outcome that best matches the final official result.");
   }
   return lines.join("\n");
+}
+
+function normalizeResolutionCriteria(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  return text
+    .replace(/([.?!])(?=(?:Source of truth|Resolution source|Winning outcome rule|Resolve to exactly one listed outcome|Resolution timing|Resolve at or after|Fallback|If no listed|If no official|If the official source|If the source of truth)\b)/g, "$1\n")
+    .replace(/\s+(?=(?:Source of truth|Resolution source|Winning outcome rule|Resolve to exactly one listed outcome|Resolution timing|Resolve at or after|Fallback|If no listed|If no official|If the official source|If the source of truth)\b)/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function isFallbackOutcomeLabel(value) {
@@ -1033,7 +1058,7 @@ function buildCreatePayload(draft, input, now) {
 
   const payload = withoutUndefined({
     question: normalizePrecogQuestion(input.question ?? draft.market.question),
-    resolution_criteria: input.resolution_criteria ?? draft.market.resolution_criteria,
+    resolution_criteria: normalizeResolutionCriteria(input.resolution_criteria ?? draft.market.resolution_criteria),
     image_url: normalizeUrl(input.image_url, "image_url"),
     category: normalizePrecogCategory(input.category ?? draft.market.category),
     outcomes: normalizePrecogOutcomes(input.outcomes ?? draft.market.outcomes),
@@ -1398,6 +1423,10 @@ function normalizeFundResponse(response, request) {
   };
 }
 
+async function readPersistedWorkflow(store, workflowId) {
+  if (!workflowId || typeof store.getWorkflow !== "function") return null;
+  return store.getWorkflow(workflowId);
+}
 async function resolveApprovalContext(store, input = {}) {
   if (input.state) return input.state;
   if (input.workflow) return input.workflow;
@@ -1528,10 +1557,19 @@ function normalizePrecogCategory(category) {
 function normalizePrecogOutcomes(outcomes) {
   const input = Array.isArray(outcomes) ? outcomes : String(outcomes ?? "").split(",");
   const normalized = input.map(sanitizeOutcomeLabel);
-  if (normalized.length < 2 || normalized.some((outcome) => !outcome)) {
-    fail("Precog create payload requires at least two non-empty outcomes.");
+  if (normalized.length < 3 || normalized.some((outcome) => !outcome)) {
+    fail("ForecastOS create_market requires at least three non-empty outcomes; split binary yes/no markets into concrete multi-outcome labels.");
+  }
+  if (isBinaryYesNoOutcomeSet(normalized)) {
+    fail("ForecastOS create_market does not publish pure Yes/No outcome sets. Split the prompt into at least three concrete outcomes.");
   }
   return normalized.join(",");
+}
+
+function isBinaryYesNoOutcomeSet(outcomes = []) {
+  if (outcomes.length !== 2) return false;
+  const labels = outcomes.map((outcome) => outcome.toLowerCase());
+  return labels.includes("yes") && labels.includes("no");
 }
 
 function normalizeUrl(value, label) {

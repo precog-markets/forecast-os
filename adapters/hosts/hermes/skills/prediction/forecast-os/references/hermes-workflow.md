@@ -46,9 +46,7 @@ Prefer the canonical draft fields: `prompt`, `requested_outcomes`,
 `source_hints`, `requested_close_time`, and `requested_resolution_time`.
 Host-style aliases are also accepted for copied skill runtimes:
 `question`, `outcomes`, `source`, `close_time`, `resolution_time`, and
-`category`. If using explicit `resolution_criteria`, include a first sentence
-like `Resolution source: <official source>.` so ForecastOS can display the
-source of truth.
+`category`. Do not use only `Yes` and `No`; for release/date prompts, use buckets such as `Released in 2027`, `Released before 2027`, `Released after 2027`, and `No official release / cancelled`. If using explicit `resolution_criteria`, prefer labeled lines for `Source of truth`, `Winning outcome rule`, `Resolution timing`, and `Fallback`.
 
 ## Skill-First Model
 
