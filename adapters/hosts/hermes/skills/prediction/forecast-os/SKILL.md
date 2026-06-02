@@ -33,7 +33,7 @@ future-event probability context that should be grounded in prediction markets.
 | Prepare create intent | `node ${HERMES_SKILL_DIR}/scripts/prepare-create-intent.mjs --input <json-file>` |
 | Resolve Privy create signature | `node ${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs --input <prepare-create-intent-json>` |
 | Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs run_skill_step --input <create-step-json> --wallet-output <wallet-output-json>` |
-| One-shot pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id>` |
+| Hourly pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id> --auto-redraft` |
 | Version check | `node <forecastos-repo>/skill/forecast-os/scripts/check_version.mjs` |
 
 Set `FORECASTOS_REPO_ROOT` when this Hermes skill is copied away from the
@@ -57,9 +57,12 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    submit the stored `create_market` workflow step with
    `run_skill_step --wallet-output`. Do not call direct `create_market` first.
 7. Return the created market title and generated launchpad share/check link
-   after successful creation.
-8. For pending markets, run the one-shot pending check hourly through an
-   external scheduler until `VALIDATED` or a terminal rejection.
+   after successful creation, then schedule the returned `pending_check` command
+   hourly through Hermes, cron, or another host scheduler.
+8. For pending markets, run the one-shot pending check hourly with
+   `--auto-redraft` until `VALIDATED` or a terminal rejection. If rejected,
+   ForecastOS creates a linked replacement draft for user approval; do not
+   auto-submit it.
 9. Fund only after Precog status is `VALIDATED` and a separate explicit funding
    approval exists.
 

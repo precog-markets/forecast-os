@@ -95,7 +95,7 @@ Normal chat flow should feed the resolved fields back through `run_skill_step` w
 }
 ```
 
-This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`. `CREATED`, `PENDING`, and unknown non-final statuses remain pending; `REJECTED`, `FAILED`, and `DENIED` are terminal rejected states. Use `scripts/check_pending_market.mjs --workflow-id <workflow_id>` as the one-shot command for hourly external checks.
+This checks `GET /api/v1/upcoming-markets/` using config `precog.chain_id` and `id`. Funding is allowed only when Precog returns `status: "VALIDATED"`. `CREATED`, `PENDING`, and unknown non-final statuses remain pending; `REJECTED`, `FAILED`, and `DENIED` are terminal rejected states. Use `scripts/check_pending_market.mjs --workflow-id <workflow_id> --auto-redraft` as the one-shot command for hourly external checks. The script returns `continue_schedule`; stop the host automation when it is false. With `--auto-redraft`, rejected markets preserve validator feedback and create a linked replacement draft for user approval without auto-submitting it.
 
 ## prepare_funding_intent
 

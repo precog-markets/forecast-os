@@ -26,7 +26,7 @@ await_precog_approval
 - `fund`: generate a wallet-agnostic funding intent, let configured wallet/action tooling resolve transaction and signature fields, then submit the operator-approved funding record to Precog.
 - `consume_prediction`: wait for the upcoming market to become `DEPLOYED`, then check the upcoming market using config `precog.chain_id` and `id`, then fetch the deployed market from `/api/v1/markets/` using config `deployed_master_address`.
 - `done`: workflow has fetched the deployed market and stored a compact planning signal.
-- `rejected`: Precog rejected or denied the upcoming market, or returned a failed terminal status. Keep the raw status in workflow memory.
+- `rejected`: Precog rejected or denied the upcoming market, or returned a failed terminal status. Keep the raw status and validator feedback in workflow memory. If the hourly check ran with `--auto-redraft`, ForecastOS creates a linked replacement workflow in `await_approval`; the replacement draft must be shown to the user and approved before any new create attempt.
 
 Funding is both a workflow step and a liquidity action. Read `references/precog-liquidity.md` before explaining creator earnings, LP returns, profit pools, funding risk, or virtual liquidity. Funding still requires explicit operator approval and the `VALIDATED` Precog approval state.
 
@@ -60,7 +60,7 @@ Use `scripts/next_step.mjs` to inspect a workflow and determine the next valid a
 - `needs_info`: ask the user the friendly questions from `suggest_next_questions`, then rerun `run_skill_step`.
 - `await_approval`: show `render_review`, then wait for a simple approval such as `yes`, `approved`, or `looks good`.
 - `create_market`: call `forecastos_action.mjs create_market` to submit the approved Precog upcoming market.
-- `await_precog_approval`: call `await_precog_approval` only after a market ID exists, or use `scripts/check_pending_market.mjs --workflow-id <workflow_id>` as the one-shot command for an external hourly scheduler.
+- `await_precog_approval`: call `await_precog_approval` only after a market ID exists, or use `scripts/check_pending_market.mjs --workflow-id <workflow_id> --auto-redraft` as the one-shot command for an external hourly scheduler. Creation results include a `pending_check` object with the exact hourly command, market id, workflow id, and stop conditions. The job should continue while `continue_schedule` is true and stop when the script returns false.
 - `fund`: require operator approval and a funding request.
 - `consume_prediction`: check upcoming deployment, then read the deployed market. Do not invent prices or probabilities.
 

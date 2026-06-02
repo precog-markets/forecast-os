@@ -220,6 +220,19 @@ assert(
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
 );
 assert(
+  skill.includes("pending_check") &&
+    skill.includes("--auto-redraft") &&
+    skill.includes("linked replacement draft for user approval"),
+  "SKILL.md must require hourly pending checks and approval-gated auto-redrafts",
+);
+assert(
+  actionsDoc.includes("pending_check") &&
+    actionsDoc.includes("continue_schedule") &&
+    actionsDoc.includes("--auto-redraft") &&
+    actionsDoc.includes("never auto-submits the replacement"),
+  "references/actions.md must document pending_check scheduling and no-auto-submit redrafts",
+);
+assert(
   actionPolicyDoc.includes("create_market` always submits to the configured Precog API root"),
   "references/action-policy.md must lock create_market to the configured Precog API root",
 );

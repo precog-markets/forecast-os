@@ -17,8 +17,11 @@ remain under `adapters/wallets/*`.
 3. After approval, prepare the Precog create intent.
 4. Let the selected wallet/action adapter resolve signing fields.
 5. Submit the approved create payload through the action bridge.
-6. Return the created market title and launchpad share/check link.
-7. Check pending Precog approval until `VALIDATED` or a terminal rejection.
+6. Return the created market title and launchpad share/check link, then
+   schedule the returned `pending_check` command hourly.
+7. Check pending Precog approval hourly with `--auto-redraft` until `VALIDATED`
+   or a terminal rejection. If rejected, create a linked replacement draft from
+   validator feedback for user approval; do not auto-submit it.
 8. Fund only after `VALIDATED` and a separate explicit approval.
 9. Consume prediction data only after the upcoming market is `DEPLOYED`.
 

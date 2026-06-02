@@ -692,12 +692,20 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
 
   assert.equal(result.state.step, "await_precog_approval");
   assert.equal(result.state.market_id, 456);
+  assert.equal(result.state.pending_check.cadence, "hourly");
+  assert.equal(result.state.pending_check.workflow_id, workflowId);
+  assert.equal(result.state.pending_check.market_id, 456);
+  assert.equal(result.state.pending_check.continue_schedule, true);
+  assert.ok(result.state.pending_check.command.includes(`--workflow-id ${workflowId}`));
+  assert.ok(result.state.pending_check.command.includes("--auto-redraft"));
+  assert.equal(result.tool_result.pending_check.market_id, 456);
   assert.equal(
     result.state.market_url,
     `https://core.precog.markets/launchpad/${configChainId}/456/which-launcher-gets-the-most-new-agents-in-june-2026`,
   );
   assert.ok(result.agent_message.includes("Which launcher gets the most new agents in June 2026?"));
   assert.ok(result.agent_message.includes(result.state.market_url));
+  assert.ok(result.agent_message.includes("Schedule hourly pending checks now"));
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
     "await_precog_approval",
@@ -1743,6 +1751,12 @@ test("check_pending_market classifies pending, approved, and rejected statuses",
         step: "await_precog_approval",
         market_id: 888,
         upcoming_market: 888,
+        pending_check: {
+          cadence: "hourly",
+          workflow_id: workflowId,
+          market_id: 888,
+          continue_schedule: true,
+        },
       }),
     );
 
@@ -1768,7 +1782,102 @@ test("check_pending_market classifies pending, approved, and rejected statuses",
     assert.equal(report.status, expectedStatus);
     assert.equal(report.precog_status, precogStatus);
     assert.equal(report.state.step, expectedStep);
+    assert.equal(report.continue_schedule, expectedStatus === "pending");
+    if (expectedStatus === "rejected") {
+      assert.equal(report.state.pending_check?.continue_schedule, false);
+    }
+    if (expectedStatus === "approved") {
+      assert.equal(report.state.pending_check?.continue_schedule, false);
+    }
   }
+});
+
+test("check_pending_market auto-redrafts rejected markets from validator feedback", async () => {
+  const rootDir = join(skillRoot, "test-output", "pending-auto-redraft");
+  const stateDir = join(rootDir, ".forecastos");
+  const workflowId = "workflow_pending_auto_redraft";
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const store = new DirectoryDraftStateStore(stateDir);
+  const forecastos = createForecastOS({ store });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which movie wins June 2026?",
+    requested_outcomes: ["Movie A", "Movie B", "Other"],
+    source_hints: ["Official box office report"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  await store.saveWorkflow({
+    workflow_id: workflowId,
+    step: "await_precog_approval",
+    draft_id: draft.draft_id,
+    draft_hash: draft.draft_hash,
+    approved_draft_id: draft.draft_id,
+    approved_draft_hash: draft.draft_hash,
+    market_id: 515,
+    upcoming_market: 515,
+    pending_check: {
+      cadence: "hourly",
+      workflow_id: workflowId,
+      market_id: 515,
+      continue_schedule: true,
+    },
+    created_at: "2026-06-01T00:00:00.000Z",
+    updated_at: "2026-06-01T00:00:00.000Z",
+    history: [],
+  });
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      join(skillRoot, "scripts", "check_pending_market.mjs"),
+      "--workflow-id",
+      workflowId,
+      "--auto-redraft",
+    ],
+    {
+      env: {
+        ...process.env,
+        FORECASTOS_STATE_DIR: stateDir,
+        FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+          {
+            id: 515,
+            chain_id: configChainId,
+            status: "REJECTED",
+            validator_notes: [
+              "Share the image for movies",
+              "Update the movies which can be winning in June",
+            ],
+          },
+        ]),
+      },
+    },
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.status, "rejected");
+  assert.equal(report.continue_schedule, false);
+  assert.deepEqual(report.validator_feedback, [
+    "Share the image for movies",
+    "Update the movies which can be winning in June",
+  ]);
+  assert.equal(report.auto_redraft.created, true);
+  assert.equal(report.auto_redraft.auto_submit, false);
+  assert.equal(report.auto_redraft.workflow.step, "await_approval");
+  assert.equal(report.auto_redraft.draft.replaces.workflow_id, workflowId);
+  assert.equal(report.auto_redraft.draft.replaces.market_id, 515);
+  assert.ok(report.auto_redraft.reflection_prompt.includes("Share the image for movies"));
+  assert.ok(report.auto_redraft.draft.review_message.includes("Auto-redraft prepared"));
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "all", `${report.auto_redraft.workflow.workflow_id}.json`))).step,
+    "await_approval",
+  );
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "rejected", `${workflowId}.json`))).step,
+    "rejected",
+  );
 });
 
 test("skill guidance does not advertise unrelated named wallet provider support", async () => {
