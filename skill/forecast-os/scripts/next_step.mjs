@@ -94,7 +94,7 @@ function guidanceFor(step, workflow) {
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) to create the market.",
         "Before creation, any wallet/action tool must allow EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
         "Base MCP smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.",
-        "After the wallet/action tool resolves creator_address and creator_signature, call run_skill_step with the current create_market state and pass the adapter result via --wallet-output <adapter-output-json> so workflow memory advances.",
+        "After the wallet/action tool resolves creator_address and creator_signature, prefer publish_approved_market with the existing workflow_id and --wallet-output <adapter-output-json> so the bridge loads persisted create_market state and workflow memory advances.",
         "Use the direct create_market action only as a low-level API call when you intentionally do not need workflow state advancement.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const ACTIONS = new Set([
   "draft_market",
   "run_skill_step",
+  "publish_approved_market",
   "create_market",
   "prepare_create_intent",
   "await_precog_approval",
@@ -96,7 +97,7 @@ function normalizeInput(actionName, input) {
       preferred_market_type: "multi_outcome",
     };
   }
-  if (actionName === "run_skill_step") {
+  if (actionName === "run_skill_step" || actionName === "publish_approved_market") {
     return {
       ...input,
       event: {
@@ -125,7 +126,7 @@ function mergeWalletOutput(actionName, input, walletOutput) {
   const event = resolved.event ?? {};
   const fundingRequest = resolved.funding_request ?? event.funding_request;
   const walletAudit = resolved.wallet_audit ?? event.wallet_audit;
-  if (actionName === "run_skill_step") {
+  if (actionName === "run_skill_step" || actionName === "publish_approved_market") {
     return {
       ...input,
       event: withoutUndefined({
@@ -180,6 +181,9 @@ async function dispatch(forecastos, actionName, input) {
   if (actionName === "run_skill_step") {
     return forecastos.runSkillStep(input.state, input.event ?? {});
   }
+  if (actionName === "publish_approved_market") {
+    return publishApprovedMarket(forecastos, input);
+  }
   if (actionName === "create_market") return forecastos.createMarket(input);
   if (actionName === "prepare_create_intent") return forecastos.prepareCreateIntent(input);
   if (actionName === "await_precog_approval") {
@@ -220,6 +224,43 @@ async function dispatch(forecastos, actionName, input) {
     return forecastos.consumePrediction(input.state, input.event ?? {});
   }
   fail(`Unhandled action '${actionName}'.`);
+}
+
+async function publishApprovedMarket(forecastos, input = {}) {
+  const workflowId = input.workflow_id ?? input.state?.workflow_id ?? input.workflow?.workflow_id;
+  if (!workflowId) fail("publish_approved_market requires workflow_id for the persisted create_market workflow.");
+
+  const state = input.state ?? input.workflow ?? await loadWorkflowState(workflowId);
+  if (!state) fail(`publish_approved_market could not find workflow ${workflowId} in ${stateDir}.`);
+  if (state.step !== "create_market") {
+    fail(`publish_approved_market requires workflow ${workflowId} to be at create_market, found ${state.step ?? "unknown"}.`);
+  }
+
+  const event = withoutUndefined({
+    ...(input.event ?? {}),
+    image_url: input.image_url ?? input.event?.image_url,
+    category: input.category ?? input.event?.category,
+    creator_address: input.creator_address ?? input.event?.creator_address,
+    creator_signature: input.creator_signature ?? input.event?.creator_signature,
+    creator_email: input.creator_email ?? input.event?.creator_email,
+    wallet_provider: input.wallet_provider ?? input.event?.wallet_provider,
+    wallet_audit: input.wallet_audit ?? input.event?.wallet_audit,
+  });
+  if (!event.creator_address || !event.creator_signature) {
+    fail("publish_approved_market requires wallet output containing creator_address and creator_signature. Pass --wallet-output <adapter-output-json>.");
+  }
+
+  return forecastos.runSkillStep(state, event);
+}
+
+async function loadWorkflowState(workflowId) {
+  const workflowPath = join(stateDir, "workflows", "all", `${workflowId}.json`);
+  try {
+    return parseJsonInput(await readFile(workflowPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 function print(value) {

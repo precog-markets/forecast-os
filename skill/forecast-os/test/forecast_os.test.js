@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
 import {
@@ -844,6 +844,96 @@ test("forecastos_action merges wallet output for create submission", async () =>
   );
 });
 
+test("forecastos_action publish_approved_market loads persisted workflow and wallet output", async () => {
+  const rootDir = join(skillRoot, "test-output", "publish-approved-market");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: "https://api.precog.test",
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: "0x00000000000c109080dfa976923384b97165a57a",
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+
+  const workflowId = "workflow_publish_approved";
+  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which AI app reaches most users by June 2026?",
+    requested_outcomes: ["Alpha", "Beta", "Other"],
+    source_hints: ["Official company reports"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  await forecastos.runSkillStep(
+    { workflow_id: workflowId, step: "await_approval", draft_id: draft.draft_id, draft_hash: draft.draft_hash, approval_text: draft.approval_text },
+    { approved: true, approval: "yes", approved_by: "operator" },
+  );
+
+  const inputPath = join(rootDir, "publish.json");
+  const walletOutputPath = join(rootDir, "wallet-output.json");
+  await writeFile(inputPath, JSON.stringify({ workflow_id: workflowId }));
+  await writeFile(
+    walletOutputPath,
+    JSON.stringify({
+      event: {
+        image_url: "https://example.com/image.png",
+        category: "AI",
+        creator_address: "0x2222222222222222222222222222222222222222",
+        creator_signature: "0x" + "ab".repeat(65),
+        wallet_provider: "privy",
+        wallet_audit: { provider: "privy", nonce: 4 },
+      },
+    }),
+  );
+
+  const helperPath = join(rootDir, "mock-fetch.mjs");
+  await writeFile(
+    helperPath,
+    "globalThis.fetch = async (url, options) => {\n" +
+      "  globalThis.__forecastosRequests = globalThis.__forecastosRequests ?? [];\n" +
+      "  globalThis.__forecastosRequests.push({ url: String(url), body: JSON.parse(options.body) });\n" +
+      "  return { ok: true, status: 200, async text() { return JSON.stringify({ upcoming_market: 428, status: \"CREATED\" }); } };\n" +
+      "};\n",
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(helperPath).href,
+      join(skillRoot, "scripts", "forecastos_action.mjs"),
+      "publish_approved_market",
+      "--input",
+      inputPath,
+      "--wallet-output",
+      walletOutputPath,
+    ],
+    { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+  );
+  const output = JSON.parse(stdout);
+
+  assert.equal(output.status, "ok");
+  assert.equal(output.action, "publish_approved_market");
+  assert.equal(output.result.state.step, "await_precog_approval");
+  assert.equal(output.result.state.market_id, 428);
+  assert.equal(output.result.state.creator_address, "0x2222222222222222222222222222222222222222");
+  assert.ok(output.result.agent_message.includes("Schedule hourly pending checks now"));
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "all", workflowId + ".json"))).step,
+    "await_precog_approval",
+  );
+});
+
 test("draft_market blocks binary yes/no drafts under multi-outcome default", async () => {
   const rootDir = join(skillRoot, "test-output", "binary-outcomes-blocked");
   const stateDir = join(rootDir, ".forecastos");
@@ -1200,6 +1290,7 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
   assert.ok(combined.includes("prepare-create-intent.mjs"));
   assert.ok(combined.includes("run_skill_step"));
+  assert.ok(combined.includes("publish_approved_market"));
   assert.ok(combined.includes("--wallet-output"));
   assert.ok(combined.includes("Do not call direct `create_market`"));
   assert.ok(combined.includes("Do not use `preview_market`"));
@@ -1208,6 +1299,7 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.ok(setupScript.includes("hermes_action_wrapper"));
   assert.ok(setupScript.includes("hermes_prepare_create_wrapper"));
   assert.ok(setupScript.includes('actionBridgeSupportCheck("prepare_create_intent")'));
+  assert.ok(setupScript.includes('actionBridgeSupportCheck("publish_approved_market")'));
   assert.ok(setupScript.includes("hermes_privy_wrapper"));
   assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
   assert.ok(actionWrapper.includes("assertActionBridgeSupports"));
@@ -1231,6 +1323,7 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.equal(setup.forecastos_repo_root, monorepoRoot);
   assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "forecastos_action_supports_prepare_create_intent" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action_supports_publish_approved_market" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "privy_create_adapter" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "hermes_action_wrapper" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "hermes_prepare_create_wrapper" && check.ok));

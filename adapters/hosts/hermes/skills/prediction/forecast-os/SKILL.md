@@ -32,7 +32,7 @@ future-event probability context that should be grounded in prediction markets.
 | Draft/review workflow | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs run_skill_step --input <json-file>` |
 | Prepare create intent | `node ${HERMES_SKILL_DIR}/scripts/prepare-create-intent.mjs --input <json-file>` |
 | Resolve Privy create signature | `node ${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs --input <prepare-create-intent-json>` |
-| Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs run_skill_step --input <create-step-json> --wallet-output <wallet-output-json>` |
+| Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>` |
 | Hourly pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id> --auto-redraft` |
 | Version check | `node <forecastos-repo>/skill/forecast-os/scripts/check_version.mjs` |
 
@@ -55,7 +55,8 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    should resolve signing fields.
 6. For Privy, run `resolve-privy-create.mjs` on the prepared create intent, then
    submit the stored `create_market` workflow step with
-   `run_skill_step --wallet-output`. Do not call direct `create_market` first.
+   `publish_approved_market --wallet-output`. Pass the existing workflow id so
+   the bridge loads persisted workflow state. Do not call direct `create_market` first.
 7. Return the created market title and generated launchpad share/check link
    after successful creation, then schedule the returned `pending_check` command
    hourly through Hermes, cron, or another host scheduler.

@@ -18,6 +18,7 @@ const checks = [
   await checkNode(nodeBin),
   await checkFile("forecastos_action", join(repoRoot, "skill", "forecast-os", "scripts", "forecastos_action.mjs")),
   await actionBridgeSupportCheck("prepare_create_intent"),
+  await actionBridgeSupportCheck("publish_approved_market"),
   await checkFile("skill_config", join(repoRoot, "skill", "forecast-os", ".forecastos", "config.json")),
   await checkDir("wallet_adapters", join(repoRoot, "adapters", "wallets")),
   await checkFile("privy_create_adapter", join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs")),

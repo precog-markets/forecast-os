@@ -3,6 +3,7 @@
 ACTIONS = (
     "draft_market",
     "run_skill_step",
+    "publish_approved_market",
     "prepare_create_intent",
     "create_market",
     "await_precog_approval",

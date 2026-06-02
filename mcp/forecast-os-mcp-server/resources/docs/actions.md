@@ -129,13 +129,13 @@ Normal chat Precog creation flow after approval:
 
 1. Call `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
-3. Call `run_skill_step` with the current `create_market` workflow state and `--wallet-output <wallet-adapter-output-json>`. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
+3. Prefer `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>`. It loads the persisted `create_market` workflow by `workflow_id`, submits the Precog upcoming-market request, and advances `.forecastos` to `await_precog_approval`. Use raw `run_skill_step --wallet-output` only when a host already has the exact stored state object in memory.
 
 After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market. The create result also includes a machine-readable `pending_check` request with hourly cadence, workflow id, market id, command, stop conditions, and `auto_redraft_on_rejection: true`; create the host automation or cron job from that object immediately.
 
 [Base MCP](https://mcp.base.org) creation note: Base Account signatures may be smart-wallet/WebAuthn signatures verified through EIP-1271/ERC-6492. They are valid Precog authorization signatures when Base MCP signs the canonical `PrecogMarketAuthorization` typed data with `CREATE_UPCOMING_MARKET`, the wallet account, config chain ID, config verifying contract, and the current pending nonce.
 
-Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
+`publish_approved_market` is the host-safe publish wrapper. Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
 
 For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads. Bankr support lives under `adapters/wallets/bankr/`; keep Bankr endpoint and setup details in the Bankr adapter docs. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 
