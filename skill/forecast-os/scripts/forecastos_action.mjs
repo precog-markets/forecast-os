@@ -28,7 +28,7 @@ if (!ACTIONS.has(action)) {
   fail(`Unsupported action '${action ?? ""}'. Supported actions: ${[...ACTIONS].join(", ")}`);
 }
 
-const rawInput = inputPath ? parseJsonInput(await readFile(inputPath, "utf8")) : {};
+const rawInput = inputPath ? parseJsonInput(await readInput(inputPath)) : {};
 const walletOutput = walletOutputPath ? parseJsonInput(await readFile(walletOutputPath, "utf8")) : undefined;
 const input = normalizeInput(action, mergeWalletOutput(action, rawInput, walletOutput));
 enforceApproval(action, input);
@@ -65,6 +65,19 @@ function argValue(name) {
 
 function parseJsonInput(text) {
   return JSON.parse(text.replace(/^\uFEFF/, ""));
+}
+
+async function readInput(path) {
+  if (path !== "-") return readFile(path, "utf8");
+  return new Promise((resolveInput, reject) => {
+    let text = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      text += chunk;
+    });
+    process.stdin.on("end", () => resolveInput(text));
+    process.stdin.on("error", reject);
+  });
 }
 
 function enforceApproval(actionName, input) {

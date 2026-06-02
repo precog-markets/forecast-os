@@ -39,7 +39,7 @@ By default, bundled scripts read and write the skill-local `.forecastos` directo
 
 The repo root `VERSION` is the canonical source. A skill-local `VERSION` is generated only for fixed-copy installs where the skill is detached from the repo; run `node scripts/sync_version.mjs` from the repo before copying if the install needs that artifact file. Run `node scripts/check_version.mjs` daily from the skill directory or repo to get JSON with current skill, repo, optional artifact, and version-drift fields. The script only reports; Codex automation, cron, or another scheduler owns the daily cadence.
 
-For markets waiting on Precog approval, run `node scripts/check_pending_market.mjs --workflow-id <workflow_id>` hourly. The script polls once per invocation, keeps `CREATED`, `PENDING`, and unknown non-final statuses in `await_precog_approval`, advances `VALIDATED` to funding readiness, and records `REJECTED`, `FAILED`, or `DENIED` as terminal rejected/error states.
+For markets waiting on Precog approval, schedule `node scripts/check_pending_market.mjs --workflow-id <workflow_id> --auto-redraft` hourly from the host automation system, cron, or another external scheduler. The script polls once per invocation, returns `continue_schedule: true` for `CREATED`, `PENDING`, and unknown non-final statuses, advances `VALIDATED` to funding readiness with `continue_schedule: false`, and records `REJECTED`, `FAILED`, or `DENIED` as terminal rejected/error states. With `--auto-redraft`, a rejected market extracts validator feedback, reflects on the feedback, and creates a linked replacement draft in `await_approval`; it never auto-submits the replacement.
 
 ## Precog Config
 
@@ -131,9 +131,9 @@ Normal chat Precog creation flow after approval:
 2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
 3. Call `run_skill_step` with the current `create_market` workflow state and `--wallet-output <wallet-adapter-output-json>`. This submits the Precog upcoming-market request and advances `.forecastos` to `await_precog_approval`.
 
-[Base MCP](https://mcp.base.org) creation caveat: current Base Account signatures are smart-account/WebAuthn signatures, and the Precog create endpoint currently validates EOA-style 65-byte EIP-712 signatures. Do not submit Base MCP smart-account signatures for creation; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/) unless Base MCP returns a 65-byte EOA signature.
+After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market. The create result also includes a machine-readable `pending_check` request with hourly cadence, workflow id, market id, command, stop conditions, and `auto_redraft_on_rejection: true`; create the host automation or cron job from that object immediately.
 
-After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market.
+[Base MCP](https://mcp.base.org) creation caveat: current Base Account signatures are smart-account/WebAuthn signatures, and the Precog create endpoint currently validates EOA-style 65-byte EIP-712 signatures. Do not submit Base MCP smart-account signatures for creation; use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/) unless Base MCP returns a 65-byte EOA signature.
 
 Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself.
 
@@ -203,7 +203,7 @@ Precog lifecycle is:
 CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 ```
 
-Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` and `PENDING` mean the market exists but is not approved for funding yet; check again later, typically hourly via `scripts/check_pending_market.mjs`. Treat `REJECTED`, `FAILED`, and `DENIED` as rejected terminal states and keep the raw Precog status in workflow memory.
+Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` and `PENDING` mean the market exists but is not approved for funding yet; keep the hourly `check_pending_market.mjs --auto-redraft` job running. Treat `REJECTED`, `FAILED`, and `DENIED` as rejected terminal states, stop the schedule, preserve validator feedback from Precog, and create an improved replacement draft for user approval before any new creation attempt.
 
 Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from the active `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
 

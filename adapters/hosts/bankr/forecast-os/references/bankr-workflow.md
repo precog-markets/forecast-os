@@ -13,7 +13,7 @@ provides the action bridge, bundled config, and `adapters/wallets/bankr/`.
 2. Generate `prepare_create_intent`.
 3. Resolve the intent through `adapters/wallets/bankr/resolve_create.mjs`.
 4. Pass the returned `event` to `run_skill_step` for the current create state.
-5. Return the generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link.
+5. Return the generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link and schedule the returned `pending_check` command hourly.
 
 The Bankr create adapter calls `GET /wallet/me` and `POST /wallet/sign` with
 `signatureType: "eth_signTypedData_v4"`. The current Precog create endpoint
@@ -22,8 +22,10 @@ requires an EOA-style 65-byte EIP-712 signature.
 ## Pending Checks
 
 Run a one-shot pending check for each market waiting on Precog approval.
-Schedule hourly checks outside ForecastOS. Treat `VALIDATED` as ready to fund
-and `REJECTED`, `FAILED`, or `DENIED` as terminal.
+Schedule `check_pending_market.mjs --auto-redraft` hourly outside ForecastOS.
+Treat `VALIDATED` as ready to fund and `REJECTED`, `FAILED`, or `DENIED` as
+terminal. On rejection, preserve validator feedback and create a linked
+replacement draft for user approval; do not auto-submit a replacement market.
 
 ## Funding Flow
 

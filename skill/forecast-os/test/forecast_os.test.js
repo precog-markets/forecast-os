@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -320,6 +320,33 @@ test("forecastos_action accepts UTF-8 BOM input JSON", async () => {
 
   assert.equal(result.status, "ok");
   assert.equal(result.result.state.step, "await_approval");
+});
+
+test("forecastos_action accepts stdin input JSON", async () => {
+  const rootDir = join(skillRoot, "test-output", "stdin-input");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+
+  const stdout = await spawnWithInput(
+    process.execPath,
+    [join(skillRoot, "scripts", "forecastos_action.mjs"), "draft_market", "--input", "-"],
+    JSON.stringify({
+      prompt: "Which team wins the event?",
+      requested_outcomes: ["Team A", "Team B", "Other"],
+      source_hints: ["Official event results"],
+      requested_close_time: "2026-10-15T00:00:00Z",
+      requested_resolution_time: "2026-11-15T12:00:00Z",
+    }),
+    {
+      cwd: skillRoot,
+      env: { ...process.env, FORECASTOS_STATE_DIR: stateDir },
+    },
+  );
+  const result = JSON.parse(stdout);
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.result.market.question, "Which team wins the event?");
 });
 
 test("bundled runtime builds Precog create and fund requests from local config", async () => {
@@ -665,12 +692,20 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
 
   assert.equal(result.state.step, "await_precog_approval");
   assert.equal(result.state.market_id, 456);
+  assert.equal(result.state.pending_check.cadence, "hourly");
+  assert.equal(result.state.pending_check.workflow_id, workflowId);
+  assert.equal(result.state.pending_check.market_id, 456);
+  assert.equal(result.state.pending_check.continue_schedule, true);
+  assert.ok(result.state.pending_check.command.includes(`--workflow-id ${workflowId}`));
+  assert.ok(result.state.pending_check.command.includes("--auto-redraft"));
+  assert.equal(result.tool_result.pending_check.market_id, 456);
   assert.equal(
     result.state.market_url,
     `https://core.precog.markets/launchpad/${configChainId}/456/which-launcher-gets-the-most-new-agents-in-june-2026`,
   );
   assert.ok(result.agent_message.includes("Which launcher gets the most new agents in June 2026?"));
   assert.ok(result.agent_message.includes(result.state.market_url));
+  assert.ok(result.agent_message.includes("Schedule hourly pending checks now"));
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
     "await_precog_approval",
@@ -682,6 +717,56 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
       )
     ).market_id,
     456,
+  );
+});
+
+test("create workflow step prepares create intent when wallet fields are missing", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "create-step-prepares-intent");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => {
+      throw new Error("prepare intent must not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launcher gets the most new agents in June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  const workflowId = "workflow_create_intent_missing_wallet";
+  const result = await forecastos.runSkillStep(
+    {
+      workflow_id: workflowId,
+      step: "create_market",
+      draft_id: draft.draft_id,
+      draft_hash: draft.draft_hash,
+      approval_text: draft.approval_text,
+      approved_by: "operator",
+      approved_draft_id: draft.draft_id,
+      approved_draft_hash: draft.draft_hash,
+    },
+    {
+      image_url: "https://example.com/image.png",
+    },
+  );
+
+  assert.equal(result.state.step, "create_market");
+  assert.equal(result.tool_result.intent_type, "forecastos.create_market");
+  assert.equal(result.tool_result.resolved_action, "create_market");
+  assert.equal(result.tool_result.chain_id, configChainId);
+  assert.equal(result.needs_human_input, true);
+  assert.ok(result.agent_message.includes("run_skill_step --wallet-output"));
+  assert.ok(result.agent_message.includes("wallet/action adapter"));
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
+    "create_market",
   );
 });
 
@@ -794,6 +879,28 @@ test("draft_market turns missing info into human-friendly questions", async () =
   assert.ok(!draft.review_message.includes("{"));
   assert.ok(!draft.review_message.includes("draft_"));
   assert.ok(!draft.review_message.includes("hash_"));
+});
+
+test("draft_market accepts host market-shaped aliases", async () => {
+  const forecastos = await createIsolatedForecastOS("draft-host-aliases");
+  const draft = await forecastos.draftMarket({
+    question: "Who wins MDI China 2026?",
+    outcomes: ["Missed Count", "MON", "LGD", "Jigu", "Stamp Green", "Kronos", "Other"],
+    category: "esports",
+    close_time: "2026-06-08T00:00:00Z",
+    resolution_time: "2026-06-12T00:00:00Z",
+    resolution_criteria:
+      "Resolution source: Blizzard official MDI 2026 finals standings. Resolve to exactly one listed outcome.",
+  });
+
+  assert.equal(draft.status, "pass");
+  assert.deepEqual(draft.missing_fields, []);
+  assert.equal(draft.market.question, "Who wins MDI China 2026?");
+  assert.equal(draft.market.title, "Who wins MDI China 2026?");
+  assert.equal(draft.market.source_of_truth, "Blizzard official MDI 2026 finals standings");
+  assert.equal(draft.market.close_time, "2026-06-08T00:00:00.000Z");
+  assert.equal(draft.market.resolution_time, "2026-06-12T00:00:00.000Z");
+  assert.equal(draft.market.category, "esports");
 });
 
 test("skill docs tell agents to use the action bridge and split yes/no prompts", async () => {
@@ -948,6 +1055,27 @@ test("skill treats MCP as optional read-only context, not the production gate", 
   }
 });
 
+test("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
+  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
+  const claudeConfig = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  const claudeReadme = await readFile(join(claudeRoot, "README.md"), "utf8");
+  const claudeSkill = await readFile(join(claudeRoot, "forecast-os", "SKILL.md"), "utf8");
+  const claudeWorkflow = await readFile(join(claudeRoot, "forecast-os", "references", "claude-workflow.md"), "utf8");
+  const combined = [claudeReadme, claudeSkill, claudeWorkflow].join("\n");
+
+  assert.ok(claudeConfig.mcpServers.forecastos);
+  assert.equal(claudeConfig.servers, undefined);
+  assert.ok(claudeConfig.mcpServers.forecastos.args.some((arg) => arg.includes("mcp/forecast-os-mcp-server/dist/stdio.js")));
+  assert.ok(claudeConfig.mcpServers.forecastos.env.FORECASTOS_STATE_DIR.includes("skill/forecast-os/.forecastos"));
+  assert.match(claudeSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.ok(claudeSkill.includes("Use ForecastOS whenever"));
+  assert.ok(combined.includes("read-only"));
+  assert.ok(combined.includes("does not add wallet signing"));
+  assert.ok(combined.includes("wallet/action providers stay"));
+  assert.ok(!combined.includes("/wallet/sign"));
+  assert.ok(!combined.includes("/wallet/submit"));
+});
+
 test("Cursor host adapter exposes a native Agent Skill package", async () => {
   const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
   const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
@@ -1022,9 +1150,22 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   const hermesWorkflow = await readFile(join(hermesSkillRoot, "references", "hermes-workflow.md"), "utf8");
   const hermesReadme = await readFile(join(hermesRoot, "README.md"), "utf8");
   const setupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
+  const actionWrapper = await readFile(join(hermesSkillRoot, "scripts", "forecastos-action.mjs"), "utf8");
+  const runtimeWrapper = await readFile(join(hermesSkillRoot, "scripts", "forecastos-runtime.mjs"), "utf8");
+  const prepareWrapper = await readFile(join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"), "utf8");
+  const privyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
   const pluginYaml = await readFile(join(hermesRoot, "forecast-os", "plugin.yaml"), "utf8");
   const topLevel = (await readdir(hermesSkillRoot)).sort();
-  const combined = [hermesSkill, hermesWorkflow, hermesReadme].join("\n");
+  const combined = [
+    hermesSkill,
+    hermesWorkflow,
+    hermesReadme,
+    setupScript,
+    actionWrapper,
+    runtimeWrapper,
+    prepareWrapper,
+    privyWrapper,
+  ].join("\n");
 
   assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
   assert.match(hermesSkill, /^---\nname: forecast-os\ndescription: /);
@@ -1038,11 +1179,31 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.ok(hermesSkill.includes("## Pitfalls"));
   assert.ok(hermesSkill.includes("## Verification"));
   assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/prepare-create-intent.mjs"));
+  assert.ok(hermesSkill.includes("${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs"));
   assert.ok(!hermesSkill.includes("required_environment_variables"));
   assert.ok(!hermesSkill.includes("BANKR_API_KEY"));
   assert.ok(combined.includes("~/.hermes/skills/prediction/forecast-os"));
   assert.ok(combined.includes("skills.external_dirs"));
   assert.ok(combined.includes("skill/forecast-os/scripts/forecastos_action.mjs"));
+  assert.ok(combined.includes("prepare-create-intent.mjs"));
+  assert.ok(combined.includes("run_skill_step"));
+  assert.ok(combined.includes("--wallet-output"));
+  assert.ok(combined.includes("Do not call direct `create_market`"));
+  assert.ok(combined.includes("Do not use `preview_market`"));
+  assert.ok(combined.includes("--input -"));
+  assert.ok(setupScript.includes("privy_create_adapter"));
+  assert.ok(setupScript.includes("hermes_action_wrapper"));
+  assert.ok(setupScript.includes("hermes_prepare_create_wrapper"));
+  assert.ok(setupScript.includes('actionBridgeSupportCheck("prepare_create_intent")'));
+  assert.ok(setupScript.includes("hermes_privy_wrapper"));
+  assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
+  assert.ok(actionWrapper.includes("assertActionBridgeSupports"));
+  assert.ok(runtimeWrapper.includes("outdated ForecastOS runtime"));
+  assert.ok(prepareWrapper.includes("prepare_create_intent"));
+  assert.ok(privyWrapper.includes("adapters"));
+  assert.ok(privyWrapper.includes("resolve_create.mjs"));
   assert.ok(combined.includes("approval rules"));
   assert.ok(combined.includes("does not replace the skill package"));
   assert.ok(pluginYaml.includes("provides_tools"));
@@ -1058,27 +1219,75 @@ test("Hermes host adapter exposes a normal skill package and optional plugin wra
   assert.equal(setup.ok, true);
   assert.equal(setup.forecastos_repo_root, monorepoRoot);
   assert.ok(setup.checks.some((check) => check.name === "forecastos_action" && check.ok));
-});
+  assert.ok(setup.checks.some((check) => check.name === "forecastos_action_supports_prepare_create_intent" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "privy_create_adapter" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_action_wrapper" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_prepare_create_wrapper" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_privy_wrapper" && check.ok));
 
-test("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
-  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
-  const claudeConfig = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
-  const claudeReadme = await readFile(join(claudeRoot, "README.md"), "utf8");
-  const claudeSkill = await readFile(join(claudeRoot, "forecast-os", "SKILL.md"), "utf8");
-  const claudeWorkflow = await readFile(join(claudeRoot, "forecast-os", "references", "claude-workflow.md"), "utf8");
-  const combined = [claudeReadme, claudeSkill, claudeWorkflow].join("\n");
+  const hermesRootDir = join(skillRoot, "test-output", "hermes-adapter");
+  const hermesStateDir = join(hermesRootDir, ".forecastos");
+  const hermesInput = join(hermesRootDir, "draft-input.json");
+  const hermesPrepareInput = join(hermesRootDir, "prepare-input.json");
+  await rm(hermesRootDir, { recursive: true, force: true });
+  await mkdir(hermesStateDir, { recursive: true });
+  await writeTestConfig(hermesStateDir);
+  await writeFile(
+    hermesInput,
+    JSON.stringify({
+      prompt: "Which team wins the event?",
+      requested_outcomes: ["Team A", "Team B", "Other"],
+      source_hints: ["Official event results"],
+      requested_close_time: "2026-10-15T00:00:00Z",
+      requested_resolution_time: "2026-11-15T12:00:00Z",
+    }),
+  );
+  const hermesForwarded = await execFileAsync(
+    process.execPath,
+    [join(hermesSkillRoot, "scripts", "forecastos-action.mjs"), "draft_market", "--input", hermesInput],
+    { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_STATE_DIR: hermesStateDir } },
+  );
+  const hermesDraft = JSON.parse(hermesForwarded.stdout);
+  assert.equal(hermesDraft.status, "ok");
+  assert.equal(hermesDraft.result.market.question, "Which team wins the event?");
 
-  assert.ok(claudeConfig.mcpServers.forecastos);
-  assert.equal(claudeConfig.servers, undefined);
-  assert.ok(claudeConfig.mcpServers.forecastos.args.some((arg) => arg.includes("mcp/forecast-os-mcp-server/dist/stdio.js")));
-  assert.ok(claudeConfig.mcpServers.forecastos.env.FORECASTOS_STATE_DIR.includes("skill/forecast-os/.forecastos"));
-  assert.match(claudeSkill, /^---\nname: forecast-os\ndescription: /);
-  assert.ok(claudeSkill.includes("Use ForecastOS whenever"));
-  assert.ok(combined.includes("read-only"));
-  assert.ok(combined.includes("does not add wallet signing"));
-  assert.ok(combined.includes("wallet/action providers stay"));
-  assert.ok(!combined.includes("/wallet/sign"));
-  assert.ok(!combined.includes("/wallet/submit"));
+  await writeFile(
+    hermesPrepareInput,
+    JSON.stringify({
+      draft_id: hermesDraft.result.draft_id,
+      approval_text: hermesDraft.result.approval_text,
+      image_url: "https://example.com/image.png",
+    }),
+  );
+  const hermesPrepared = await execFileAsync(
+    process.execPath,
+    [join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"), "--input", hermesPrepareInput],
+    { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_STATE_DIR: hermesStateDir } },
+  );
+  const createIntent = JSON.parse(hermesPrepared.stdout);
+  assert.equal(createIntent.status, "ok");
+  assert.equal(createIntent.action, "prepare_create_intent");
+  assert.equal(createIntent.result.intent_type, "forecastos.create_market");
+
+  const fakeRoot = join(hermesRootDir, "outdated-runtime");
+  const fakeBridge = join(fakeRoot, "skill", "forecast-os", "scripts", "forecastos_action.mjs");
+  await mkdir(dirname(fakeBridge), { recursive: true });
+  await writeFile(fakeBridge, 'const ACTIONS = new Set(["draft_market", "run_skill_step"]);\n');
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"), "--input", hermesPrepareInput],
+      { cwd: monorepoRoot, env: { ...process.env, FORECASTOS_REPO_ROOT: fakeRoot } },
+    ),
+    (error) => {
+      const report = JSON.parse(error.stderr);
+      assert.equal(report.code, "FORECASTOS_HERMES_RUNTIME_UNSUPPORTED");
+      assert.equal(report.action, "prepare_create_intent");
+      assert.ok(report.message.includes("outdated ForecastOS runtime"));
+      assert.ok(report.action_script.includes("forecastos_action.mjs"));
+      return true;
+    },
+  );
 });
 
 test("create_market allows explicit collateral override while keeping config chain", async () => {
@@ -1379,11 +1588,24 @@ test("consume_prediction requires deployed_master_address only before deployed m
   assert.ok(!requests[0].url.includes("deployed_master_address"));
 });
 test("prepare_funding_intent creates generic wallet-tool handoff intents", async () => {
-  const rootDir = join(skillRoot, "api-test-output", "generic-funding-intent");
+  const rootDir = join(skillRoot, "api-test-output", "prepare-funding-intent");
   const stateDir = join(rootDir, ".forecastos");
   await rm(rootDir, { recursive: true, force: true });
   await mkdir(stateDir, { recursive: true });
-  await writeTestConfig(stateDir);
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: configChainId,
+        deployed_master_address: shippedConfig.precog.deployed_master_address,
+        default_collateral_address: configCollateralAddress,
+        default_collateral_symbol: "USDC",
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
   const forecastos = createForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
@@ -1412,7 +1634,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
     assert.equal(intent.eip712_typed_data_template.domain.name, "Precog Markets");
     assert.equal(intent.eip712_typed_data_template.domain.chainId, configChainId);
-    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, "0xMaster");
+    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, shippedConfig.precog.deployed_master_address);
     assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
     assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
     assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");
@@ -1441,6 +1663,19 @@ test("legacy Privy skill shim delegates to top-level wallet adapter", async () =
   assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
   assert.equal(typedData.message.account, "0xCreator");
   assert.equal(typedData.message.nonce, 12);
+});
+
+test("Privy skill shim reports FORECASTOS_REPO_ROOT adapter candidates", async () => {
+  const shim = await import("../scripts/wallets/privy_resolve_create.mjs");
+  const repoRoot = join(skillRoot, "test-output", "privy-shim-repo-root", "repo-root");
+  const candidates = shim.getPrivyAdapterCandidates({ FORECASTOS_REPO_ROOT: repoRoot });
+
+  assert.equal(
+    candidates[0],
+    join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"),
+  );
+  assert.ok(candidates.some((path) => path.includes("adapters")));
+  assert.ok(candidates.length >= 2);
 });
 
 test("draft validation blocks long questions and outcomes", async () => {
@@ -1516,6 +1751,12 @@ test("check_pending_market classifies pending, approved, and rejected statuses",
         step: "await_precog_approval",
         market_id: 888,
         upcoming_market: 888,
+        pending_check: {
+          cadence: "hourly",
+          workflow_id: workflowId,
+          market_id: 888,
+          continue_schedule: true,
+        },
       }),
     );
 
@@ -1541,7 +1782,102 @@ test("check_pending_market classifies pending, approved, and rejected statuses",
     assert.equal(report.status, expectedStatus);
     assert.equal(report.precog_status, precogStatus);
     assert.equal(report.state.step, expectedStep);
+    assert.equal(report.continue_schedule, expectedStatus === "pending");
+    if (expectedStatus === "rejected") {
+      assert.equal(report.state.pending_check?.continue_schedule, false);
+    }
+    if (expectedStatus === "approved") {
+      assert.equal(report.state.pending_check?.continue_schedule, false);
+    }
   }
+});
+
+test("check_pending_market auto-redrafts rejected markets from validator feedback", async () => {
+  const rootDir = join(skillRoot, "test-output", "pending-auto-redraft");
+  const stateDir = join(rootDir, ".forecastos");
+  const workflowId = "workflow_pending_auto_redraft";
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const store = new DirectoryDraftStateStore(stateDir);
+  const forecastos = createForecastOS({ store });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which movie wins June 2026?",
+    requested_outcomes: ["Movie A", "Movie B", "Other"],
+    source_hints: ["Official box office report"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+  await store.saveWorkflow({
+    workflow_id: workflowId,
+    step: "await_precog_approval",
+    draft_id: draft.draft_id,
+    draft_hash: draft.draft_hash,
+    approved_draft_id: draft.draft_id,
+    approved_draft_hash: draft.draft_hash,
+    market_id: 515,
+    upcoming_market: 515,
+    pending_check: {
+      cadence: "hourly",
+      workflow_id: workflowId,
+      market_id: 515,
+      continue_schedule: true,
+    },
+    created_at: "2026-06-01T00:00:00.000Z",
+    updated_at: "2026-06-01T00:00:00.000Z",
+    history: [],
+  });
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      join(skillRoot, "scripts", "check_pending_market.mjs"),
+      "--workflow-id",
+      workflowId,
+      "--auto-redraft",
+    ],
+    {
+      env: {
+        ...process.env,
+        FORECASTOS_STATE_DIR: stateDir,
+        FORECASTOS_TEST_PRECOG_RESPONSE: JSON.stringify([
+          {
+            id: 515,
+            chain_id: configChainId,
+            status: "REJECTED",
+            validator_notes: [
+              "Share the image for movies",
+              "Update the movies which can be winning in June",
+            ],
+          },
+        ]),
+      },
+    },
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.status, "rejected");
+  assert.equal(report.continue_schedule, false);
+  assert.deepEqual(report.validator_feedback, [
+    "Share the image for movies",
+    "Update the movies which can be winning in June",
+  ]);
+  assert.equal(report.auto_redraft.created, true);
+  assert.equal(report.auto_redraft.auto_submit, false);
+  assert.equal(report.auto_redraft.workflow.step, "await_approval");
+  assert.equal(report.auto_redraft.draft.replaces.workflow_id, workflowId);
+  assert.equal(report.auto_redraft.draft.replaces.market_id, 515);
+  assert.ok(report.auto_redraft.reflection_prompt.includes("Share the image for movies"));
+  assert.ok(report.auto_redraft.draft.review_message.includes("Auto-redraft prepared"));
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "all", `${report.auto_redraft.workflow.workflow_id}.json`))).step,
+    "await_approval",
+  );
+  assert.equal(
+    (await readJson(join(stateDir, "workflows", "rejected", `${workflowId}.json`))).step,
+    "rejected",
+  );
 });
 
 test("skill guidance does not advertise unrelated named wallet provider support", async () => {
@@ -1760,6 +2096,34 @@ function envWithoutForecastState(extra = {}) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function spawnWithInput(command, args, input, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      reject(new Error(`Command failed with exit ${code}: ${stderr}`));
+    });
+    child.stdin.end(input);
+  });
 }
 
 async function exists(path) {

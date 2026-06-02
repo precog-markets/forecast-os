@@ -5,6 +5,7 @@ import { constants } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { actionBridgeSupportCheck } from "./forecastos-runtime.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const hermesSkillRoot = dirname(scriptDir);
@@ -16,8 +17,13 @@ const nodeBin = process.env.FORECASTOS_NODE_BIN ?? "node";
 const checks = [
   await checkNode(nodeBin),
   await checkFile("forecastos_action", join(repoRoot, "skill", "forecast-os", "scripts", "forecastos_action.mjs")),
+  await actionBridgeSupportCheck("prepare_create_intent"),
   await checkFile("skill_config", join(repoRoot, "skill", "forecast-os", ".forecastos", "config.json")),
   await checkDir("wallet_adapters", join(repoRoot, "adapters", "wallets")),
+  await checkFile("privy_create_adapter", join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs")),
+  await checkFile("hermes_action_wrapper", join(hermesSkillRoot, "scripts", "forecastos-action.mjs")),
+  await checkFile("hermes_prepare_create_wrapper", join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs")),
+  await checkFile("hermes_privy_wrapper", join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs")),
   await checkFile("hermes_skill", join(hermesSkillRoot, "SKILL.md")),
 ];
 

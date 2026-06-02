@@ -37,9 +37,12 @@ scripts. It is the host-facing guidance layer, not the full runtime by itself.
 4. Use Bankr `/wallet/sign` with `eth_signTypedData_v4` to resolve the create
    signature.
 5. Submit the approved Precog create payload.
-6. Return the created market title and launchpad link.
-7. Check pending Precog approval hourly until `VALIDATED`, `REJECTED`,
-   `FAILED`, or `DENIED`.
+6. Return the created market title and launchpad link, then schedule the
+   returned `pending_check` command hourly.
+7. Check pending Precog approval hourly with `--auto-redraft` until
+   `VALIDATED`, `REJECTED`, `FAILED`, or `DENIED`. If rejected, create a linked
+   replacement draft from validator feedback for user approval, but do not
+   auto-submit it.
 8. Fund only after `VALIDATED` and a separate user approval.
 9. For funding, use Bankr `/wallet/sign` for the ForecastOS funding
    authorization and `/wallet/submit` for prepared Base transactions.

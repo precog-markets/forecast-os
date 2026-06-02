@@ -43,8 +43,8 @@ export async function resolveCreate({
 
   const auth = buildPrivyAuth(env);
   const wallets = await listEthereumWallets(fetch, auth);
-  const eligibleWallets = await walletsWithPolicyCapabilities(fetch, auth, wallets);
-  const selected = selectWallet(eligibleWallets, { walletId, walletAddress });
+  const { eligibleWallets, diagnostics } = await walletsWithPolicyCapabilities(fetch, auth, wallets);
+  const selected = selectWallet(eligibleWallets, { walletId, walletAddress, diagnostics });
   const creatorAddress = selected.address;
   const chainId = intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId;
   if (Number(chainId) !== 8453) {
@@ -124,44 +124,75 @@ function buildPrivyAuth(env) {
 }
 
 async function listEthereumWallets(fetch, auth) {
-  const response = await fetch(`${PRIVY_API_ROOT}/wallets?chain_type=ethereum&limit=100`, {
+  const endpoint = `${PRIVY_API_ROOT}/wallets?chain_type=ethereum&limit=100`;
+  const response = await fetch(endpoint, {
     method: "GET",
     headers: auth.headers,
   });
   const body = await readJsonResponse(response);
-  if (!response.ok) fail(`Privy wallet list failed: ${response.status}`);
+  if (!response.ok) throw buildPrivyApiError("Privy wallet list failed", response, endpoint, body);
   return Array.isArray(body.data) ? body.data : [];
 }
 
 async function walletsWithPolicyCapabilities(fetch, auth, wallets) {
-  const result = [];
+  const eligibleWallets = [];
+  const diagnostics = {
+    total_wallets: wallets.length,
+    checked_wallets: [],
+    policy_read_failures: [],
+  };
   for (const wallet of wallets) {
     const policies = [];
     for (const policyId of wallet.policy_ids ?? []) {
-      const policy = await readPolicy(fetch, auth, policyId);
-      if (policy) policies.push(policy);
+      const result = await readPolicy(fetch, auth, policyId);
+      if (result.ok) {
+        policies.push(result.policy);
+      } else {
+        diagnostics.policy_read_failures.push({
+          wallet_id: wallet.id,
+          policy_id: policyId,
+          status: result.status,
+          endpoint: result.endpoint,
+          body: result.body,
+        });
+      }
     }
     const methods = policies
       .flatMap((policy) => policy.rules ?? [])
       .filter((rule) => String(rule.action ?? "").toUpperCase() === "ALLOW")
       .map((rule) => rule.method);
+    diagnostics.checked_wallets.push({
+      wallet_id: wallet.id,
+      address: wallet.address,
+      policy_ids: wallet.policy_ids ?? [],
+      allow_methods: [...new Set(methods)].sort(),
+    });
     if (allowsMethod(methods, "eth_signTypedData_v4") && allowsMethod(methods, "eth_sendTransaction")) {
-      result.push({ ...wallet, policies });
+      eligibleWallets.push({ ...wallet, policies });
     }
   }
-  return result;
+  return { eligibleWallets, diagnostics };
 }
 
 async function readPolicy(fetch, auth, policyId) {
-  const response = await fetch(`${PRIVY_API_ROOT}/policies/${policyId}`, {
+  const endpoint = `${PRIVY_API_ROOT}/policies/${policyId}`;
+  const response = await fetch(endpoint, {
     method: "GET",
     headers: auth.headers,
   });
-  if (!response.ok) return null;
-  return readJsonResponse(response);
+  const body = await readJsonResponse(response);
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      endpoint,
+      body: summarizeBody(body),
+    };
+  }
+  return { ok: true, policy: body };
 }
 
-function selectWallet(wallets, { walletId, walletAddress } = {}) {
+function selectWallet(wallets, { walletId, walletAddress, diagnostics } = {}) {
   let filtered = wallets;
   if (walletId) filtered = filtered.filter((wallet) => wallet.id === walletId);
   if (walletAddress) {
@@ -169,7 +200,10 @@ function selectWallet(wallets, { walletId, walletAddress } = {}) {
   }
   if (filtered.length === 1) return filtered[0];
   if (filtered.length === 0) {
-    fail("No Privy Ethereum wallet with ALLOW eth_signTypedData_v4 and eth_sendTransaction policy permissions matched the selector.");
+    const error = new Error("No Privy Ethereum wallet with ALLOW eth_signTypedData_v4 and eth_sendTransaction policy permissions matched the selector.");
+    error.code = "PRIVY_WALLET_SELECTION_REQUIRED";
+    error.wallet_diagnostics = diagnostics;
+    throw error;
   }
   const choices = filtered.map((wallet) => ({
     wallet_id: wallet.id,
@@ -199,7 +233,8 @@ async function fetchPendingNonce(fetch, rpcUrl, address) {
 }
 
 async function signTypedData(fetch, auth, walletId, typedData) {
-  const response = await fetch(`${PRIVY_API_ROOT}/wallets/${walletId}/rpc`, {
+  const endpoint = `${PRIVY_API_ROOT}/wallets/${walletId}/rpc`;
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: auth.headers,
     body: JSON.stringify({
@@ -210,7 +245,7 @@ async function signTypedData(fetch, auth, walletId, typedData) {
     }),
   });
   const body = await readJsonResponse(response);
-  if (!response.ok) fail(`Privy typed-data signing failed: ${response.status}`);
+  if (!response.ok) throw buildPrivyApiError("Privy typed-data signing failed", response, endpoint, body);
   const signature = body.data?.signature ?? body.data?.result ?? body.signature ?? body.result;
   if (!signature) fail("Privy typed-data signing response did not include a signature.");
   return signature;
@@ -252,12 +287,29 @@ function fail(message) {
   throw error;
 }
 
+function buildPrivyApiError(message, response, endpoint, body) {
+  const error = new Error(`${message}: ${response.status}`);
+  error.code = "PRIVY_API_REQUEST_FAILED";
+  error.status = response.status;
+  error.endpoint = endpoint;
+  error.body = summarizeBody(body);
+  return error;
+}
+
+function summarizeBody(body) {
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  return text.length > 500 ? `${text.slice(0, 500)}...` : text;
+}
+
 function serializeError(error) {
   return withoutUndefined({
     name: error?.name ?? "Error",
     message: error?.message ?? String(error),
     code: error?.code,
     status: error?.status,
+    endpoint: error?.endpoint,
+    body: error?.body,
     wallets: error?.wallets,
+    wallet_diagnostics: error?.wallet_diagnostics,
   });
 }

@@ -233,6 +233,38 @@ class ForecastOSLocalRuntime {
     }
 
     if (current.step === "create_market") {
+      if (!event.creator_address || !event.creator_signature) {
+        try {
+          const intent = await this.prepareCreateIntent({
+            ...event,
+            draft_id: current.draft_id,
+            approved: true,
+            approved_by: current.approved_by ?? event.approved_by ?? "operator",
+            approval_text: current.approval_text,
+            approved_draft_id: current.approved_draft_id,
+            approved_draft_hash: current.approved_draft_hash,
+            state: current,
+          });
+          return this.#saveResult({
+            state: transition(current, {
+              ...current,
+              step: "create_market",
+              create_intent: intent,
+              last_result: intent,
+            }, "create_intent_prepared"),
+            tool_result: intent,
+            needs_human_input: true,
+            agent_message: "The draft is approved. Resolve this create intent with Privy, Bankr, or another EOA-compatible wallet/action adapter, then submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
+          });
+        } catch (error) {
+          return this.#saveResult({
+            state: markWorkflowError(current, error),
+            tool_result: serializeError(error),
+            needs_human_input: true,
+            agent_message: "The draft is approved, but preparing the wallet create intent failed. Confirm the image URL, ForecastOS config, and selected wallet/action adapter before retrying.",
+          });
+        }
+      }
       try {
         const result = await this.createMarket({
           ...event,
@@ -244,6 +276,15 @@ class ForecastOSLocalRuntime {
           approved_draft_hash: current.approved_draft_hash,
           state: current,
         });
+        const pendingCheck = buildPendingCheck({
+          workflowId: current.workflow_id,
+          marketId: result.market_id,
+          upcomingMarket: result.upcoming_market,
+        });
+        const createdResult = {
+          ...result,
+          pending_check: pendingCheck,
+        };
         return this.#saveResult({
           state: transition(current, {
             ...current,
@@ -255,14 +296,16 @@ class ForecastOSLocalRuntime {
             chain_id: result.chain_id,
             collateral_address: result.collateral_address,
             creator_address: result.creator_address,
-            last_result: result,
+            pending_check: pendingCheck,
+            last_result: createdResult,
           }, "market_created"),
-          tool_result: result,
+          tool_result: createdResult,
           needs_human_input: false,
           agent_message: [
             "Precog upcoming market created.",
             `Title: ${result.title}`,
             `Link: ${result.url}`,
+            `Schedule hourly pending checks now: ${pendingCheck.command}`,
             "Next step is await_precog_approval.",
           ].join("\n"),
         });
@@ -289,6 +332,7 @@ class ForecastOSLocalRuntime {
               step: "fund",
               precog_approval: result,
               precog_status: result.precog_status,
+              pending_check: updatePendingCheck(current.pending_check, result),
               last_result: result,
             }, "precog_approval_validated"),
             tool_result: result,
@@ -303,6 +347,8 @@ class ForecastOSLocalRuntime {
               step: "rejected",
               precog_approval: result,
               precog_status: result.precog_status,
+              validator_feedback: result.validator_feedback,
+              pending_check: updatePendingCheck(current.pending_check, result),
               last_result: result,
             }, "precog_approval_rejected"),
             tool_result: result,
@@ -316,6 +362,7 @@ class ForecastOSLocalRuntime {
             step: "await_precog_approval",
             precog_approval: result,
             precog_status: result.precog_status,
+            pending_check: updatePendingCheck(current.pending_check, result),
             last_result: result,
           }, "precog_approval_checked"),
           tool_result: result,
@@ -415,6 +462,77 @@ class ForecastOSLocalRuntime {
       id: upcomingMarket,
     }, config);
     return normalizeApprovalResponse(response, upcomingMarket);
+  }
+
+  async autoRedraftFromRejection(state = {}, approvalResult = {}) {
+    if (!approvalResult.rejected) fail("auto_redraft requires a rejected Precog approval result.");
+    const originalDraftId = state.approved_draft_id ?? state.draft_id;
+    const originalDraft = await this.store.get(originalDraftId);
+    if (!originalDraft) fail(`Original draft not found: ${originalDraftId}`);
+    const validatorFeedback = approvalResult.validator_feedback?.length
+      ? approvalResult.validator_feedback
+      : extractValidatorFeedback(approvalResult.precog_response);
+    const reflectionPrompt = buildRejectionReflectionPrompt({
+      originalDraft,
+      validatorFeedback,
+      marketId: approvalResult.market_id ?? state.market_id ?? state.upcoming_market,
+    });
+    const config = typeof this.store.getConfig === "function"
+      ? await this.store.getConfig()
+      : {};
+    const replacementInput = buildReplacementDraftInput(originalDraft, {
+      validatorFeedback,
+      reflectionPrompt,
+    });
+    const replacementDraft = buildDraft(replacementInput, { config });
+    replacementDraft.replaces = {
+      workflow_id: state.workflow_id,
+      draft_id: originalDraft.draft_id,
+      market_id: approvalResult.market_id ?? state.market_id ?? state.upcoming_market,
+      precog_status: approvalResult.precog_status,
+      validator_feedback: validatorFeedback,
+      reflection_prompt: reflectionPrompt,
+    };
+    replacementDraft.review_message = [
+      "Auto-redraft prepared after Precog rejection.",
+      validatorFeedback.length ? `Validator feedback: ${validatorFeedback.join(" ")}` : null,
+      replacementDraft.review_message,
+    ].filter(Boolean).join("\n");
+    await this.store.save(replacementDraft);
+    const timestamp = new Date().toISOString();
+    const replacementWorkflow = await this.store.saveWorkflow({
+      workflow_id: `workflow_${randomUUID()}`,
+      step: "await_approval",
+      prompt: replacementInput.prompt,
+      draft_id: replacementDraft.draft_id,
+      draft_hash: replacementDraft.draft_hash,
+      approval_prompt: replacementDraft.approval_prompt,
+      approval_text: replacementDraft.approval_text,
+      last_result: replacementDraft,
+      replaces: replacementDraft.replaces,
+      created_at: timestamp,
+      updated_at: timestamp,
+      history: [
+        {
+          event: "auto_redraft_created",
+          at: timestamp,
+          previous_workflow_id: state.workflow_id,
+          previous_market_id: replacementDraft.replaces.market_id,
+        },
+      ],
+    });
+    return {
+      action: "auto_redraft",
+      created: true,
+      original_workflow_id: state.workflow_id,
+      original_market_id: replacementDraft.replaces.market_id,
+      validator_feedback: validatorFeedback,
+      reflection_prompt: reflectionPrompt,
+      draft: replacementDraft,
+      workflow: replacementWorkflow,
+      next_step: "show_replacement_draft_for_user_approval",
+      auto_submit: false,
+    };
   }
 
   async prepareFundingIntent(state, event = {}) {
@@ -618,20 +736,25 @@ function buildDraft(input = {}, context = {}) {
   const outcomes = normalizeDraftOutcomes(input.requested_outcomes ?? input.outcomes ?? []);
   const missingFields = [];
   const warnings = [];
-  const closeTime = normalizeUtcIso(input.requested_close_time, "close_time", warnings);
+  const prompt = input.prompt ?? input.question;
+  const closeTime = normalizeUtcIso(input.requested_close_time ?? input.close_time, "close_time", warnings);
   const resolutionTime = normalizeUtcIso(
-    input.requested_resolution_time,
+    input.requested_resolution_time ?? input.resolution_time,
     "resolution_time",
     warnings,
   );
-  if (!input.prompt) missingFields.push("prompt");
+  const sourceOfTruth =
+    input.source_of_truth ??
+    input.source ??
+    input.source_hints?.[0] ??
+    extractResolutionSource(input.resolution_criteria);
+  if (!prompt) missingFields.push("prompt");
   if (!outcomes.length) missingFields.push("outcomes");
-  if (!input.source_hints?.length && !input.source_of_truth) missingFields.push("source_of_truth");
+  if (!sourceOfTruth) missingFields.push("source_of_truth");
   if (!closeTime) missingFields.push("close_time");
   if (!resolutionTime) missingFields.push("resolution_time");
 
   const question = input.question ?? input.prompt ?? "ForecastOS market question";
-  const sourceOfTruth = input.source_of_truth ?? input.source_hints?.[0] ?? null;
   const collateralContext = buildDraftCollateralContext(input, context.config);
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
   if (outcomes.length > 0 && outcomes.length < 3) {
@@ -656,7 +779,7 @@ function buildDraft(input = {}, context = {}) {
   const suggestNextQuestions = buildSuggestNextQuestions(missingFields);
   const market = {
     market_type: "multi_outcome",
-    title: input.title ?? titleFromPrompt(input.prompt),
+    title: input.title ?? titleFromPrompt(prompt),
     question,
     outcomes,
     description: input.description ?? "ForecastOS multi-outcome market draft.",
@@ -674,7 +797,7 @@ function buildDraft(input = {}, context = {}) {
     source_of_truth: sourceOfTruth,
     collateral_symbol: collateralContext.symbol,
     collateral_address: collateralContext.address,
-    category: input.preferred_category ?? "other",
+    category: input.preferred_category ?? input.category ?? "other",
     tags: ["forecastos", "multi_outcome"],
   };
 
@@ -700,6 +823,84 @@ function buildDraft(input = {}, context = {}) {
     }),
     created_at: new Date().toISOString(),
   };
+}
+
+function buildPendingCheck({ workflowId, marketId, upcomingMarket } = {}) {
+  const id = marketId ?? upcomingMarket;
+  return {
+    type: "forecastos.pending_check",
+    cadence: "hourly",
+    interval_minutes: 60,
+    workflow_id: workflowId,
+    market_id: id,
+    upcoming_market: id,
+    command: `node scripts/check_pending_market.mjs --workflow-id ${workflowId} --auto-redraft`,
+    continue_when: ["CREATED", "PENDING", "UNKNOWN_NON_FINAL"],
+    stop_when: ["VALIDATED", "REJECTED", "FAILED", "DENIED"],
+    auto_redraft_on_rejection: true,
+    continue_schedule: true,
+  };
+}
+
+function updatePendingCheck(pendingCheck = null, approvalResult = {}) {
+  if (!pendingCheck) return pendingCheck;
+  return {
+    ...pendingCheck,
+    last_checked_status: approvalResult.precog_status ?? approvalResult.status ?? null,
+    continue_schedule: !approvalResult.ready_to_fund && !approvalResult.rejected,
+    stopped_reason: approvalResult.ready_to_fund
+      ? "validated"
+      : approvalResult.rejected
+        ? "rejected"
+        : undefined,
+  };
+}
+
+function buildReplacementDraftInput(originalDraft, { validatorFeedback = [], reflectionPrompt } = {}) {
+  const market = originalDraft.market ?? {};
+  const feedbackText = validatorFeedback.length
+    ? validatorFeedback.join(" ")
+    : "Precog rejected the prior submission without structured validator notes.";
+  return {
+    prompt: market.question,
+    question: market.question,
+    title: market.title,
+    requested_outcomes: market.outcomes ?? [],
+    source_of_truth: market.source_of_truth,
+    requested_close_time: market.close_time,
+    requested_resolution_time: market.resolution_time,
+    preferred_category: market.category,
+    collateral_symbol: market.collateral_symbol,
+    collateral_address: market.collateral_address,
+    description: [
+      market.description,
+      `Revision context: this replacement draft addresses Precog validator feedback: ${feedbackText}`,
+    ].filter(Boolean).join("\n\n"),
+    resolution_criteria: improveResolutionCriteria(market.resolution_criteria, {
+      validatorFeedback,
+      reflectionPrompt,
+    }),
+  };
+}
+
+function improveResolutionCriteria(criteria, { validatorFeedback = [], reflectionPrompt } = {}) {
+  const feedbackText = validatorFeedback.length
+    ? validatorFeedback.map((note) => `- ${note}`).join("\n")
+    : "- Precog rejected the previous submission without structured validator notes.";
+  return [
+    String(criteria ?? "").trim(),
+    "Revision notes for Precog validator feedback:",
+    feedbackText,
+    `Reflection: ${reflectionPrompt}`,
+  ].filter(Boolean).join("\n");
+}
+
+function buildRejectionReflectionPrompt({ originalDraft, validatorFeedback = [], marketId } = {}) {
+  const question = originalDraft?.market?.question ?? "the rejected market";
+  const feedback = validatorFeedback.length
+    ? validatorFeedback.join(" ")
+    : "No structured validator notes were provided; inspect the raw Precog response before approval.";
+  return `Revise the ForecastOS draft for market ${marketId ?? "unknown"} (${question}) to directly address this Precog validator feedback: ${feedback}. Keep the market multi-outcome, preserve wallet safety boundaries, and present the replacement draft for user approval before any new create submission.`;
 }
 
 function buildSuggestNextQuestions(missingFields = []) {
@@ -743,6 +944,11 @@ function sanitizeOutcomeLabel(value) {
     .replace(/,/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractResolutionSource(criteria) {
+  const match = String(criteria ?? "").match(/(?:^|\n)\s*Resolution source:\s*([^\n.]+)/i);
+  return match?.[1]?.trim() || null;
 }
 
 function buildDefaultResolutionCriteria({
@@ -884,6 +1090,9 @@ function normalizeApprovalResponse(response, expectedId) {
       });
     }
     const status = normalizePrecogStatus(market.status);
+    const validatorFeedback = isRejectedPrecogStatus(status)
+      ? extractValidatorFeedback(market)
+      : [];
     return {
       ready_to_fund: status === "VALIDATED",
       rejected: isRejectedPrecogStatus(status),
@@ -894,6 +1103,7 @@ function normalizeApprovalResponse(response, expectedId) {
       status: status,
       upcoming_market_status: market,
       precog_response: market,
+      validator_feedback: validatorFeedback,
     };
   }
   if (response?.detail) {
@@ -920,6 +1130,47 @@ function isRejectedPrecogStatus(status) {
 function isFinalPrecogApprovalStatus(status) {
   const normalized = normalizePrecogStatus(status);
   return normalized === "VALIDATED" || isRejectedPrecogStatus(normalized);
+}
+
+function extractValidatorFeedback(value) {
+  const fields = [
+    "validator_notes",
+    "validation_notes",
+    "rejection_reason",
+    "rejection_notes",
+    "validator_feedback",
+    "feedback",
+    "reason",
+    "notes",
+  ];
+  const notes = [];
+  if (value && typeof value === "object") {
+    for (const field of fields) {
+      notes.push(...normalizeFeedbackEntries(value[field]));
+    }
+  } else {
+    notes.push(...normalizeFeedbackEntries(value));
+  }
+  const unique = [...new Set(notes.map((note) => note.trim()).filter(Boolean))];
+  if (unique.length) return unique;
+  if (value && typeof value === "object" && isRejectedPrecogStatus(value.status)) {
+    return [`Raw Precog response: ${truncateText(JSON.stringify(value), 500)}`];
+  }
+  return [];
+}
+
+function normalizeFeedbackEntries(value) {
+  if (value === undefined || value === null || value === "") return [];
+  if (Array.isArray(value)) return value.flatMap(normalizeFeedbackEntries);
+  if (typeof value === "object") {
+    return [truncateText(JSON.stringify(value), 500)];
+  }
+  return [String(value)];
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value ?? "");
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
 function normalizeDeploymentResponse(response, expectedId) {

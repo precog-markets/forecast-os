@@ -189,6 +189,76 @@ test("Privy create resolver ignores DENY typed-data policy rules", async () => {
   );
 });
 
+test("Privy create resolver surfaces sanitized API authorization failures", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({ error: "Forbidden", message: "Invalid credentials" }, 403);
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_API_REQUEST_FAILED");
+      assert.equal(error.status, 403);
+      assert.ok(error.endpoint.includes("/wallets?chain_type=ethereum"));
+      assert.ok(error.body.includes("Forbidden"));
+      assert.ok(!JSON.stringify(error).includes("secret"));
+      return true;
+    },
+  );
+});
+
+test("Privy create resolver reports wallet policy diagnostics when no wallet matches", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_sign_only",
+            address: "0x1111111111111111111111111111111111111111",
+            chain_type: "ethereum",
+            policy_ids: ["policy_sign_only", "policy_missing"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_sign_only")) {
+      return jsonResponse({
+        id: "policy_sign_only",
+        rules: [{ method: "eth_signTypedData_v4", action: "ALLOW" }],
+      });
+    }
+    if (String(url).includes("/policies/policy_missing")) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      walletId: "wallet_sign_only",
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_WALLET_SELECTION_REQUIRED");
+      assert.equal(error.wallet_diagnostics.total_wallets, 1);
+      assert.deepEqual(error.wallet_diagnostics.checked_wallets[0].allow_methods, ["eth_signTypedData_v4"]);
+      assert.equal(error.wallet_diagnostics.policy_read_failures[0].policy_id, "policy_missing");
+      assert.equal(error.wallet_diagnostics.policy_read_failures[0].status, 403);
+      assert.ok(!JSON.stringify(error).includes("secret"));
+      return true;
+    },
+  );
+});
+
 test("Privy create resolver requires transaction-send policy for future funding", async () => {
   const fetch = async (url) => {
     if (String(url).includes("/wallets?")) {

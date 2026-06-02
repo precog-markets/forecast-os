@@ -220,6 +220,19 @@ assert(
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
 );
 assert(
+  skill.includes("pending_check") &&
+    skill.includes("--auto-redraft") &&
+    skill.includes("linked replacement draft for user approval"),
+  "SKILL.md must require hourly pending checks and approval-gated auto-redrafts",
+);
+assert(
+  actionsDoc.includes("pending_check") &&
+    actionsDoc.includes("continue_schedule") &&
+    actionsDoc.includes("--auto-redraft") &&
+    actionsDoc.includes("never auto-submits the replacement"),
+  "references/actions.md must document pending_check scheduling and no-auto-submit redrafts",
+);
+assert(
   actionPolicyDoc.includes("create_market` always submits to the configured Precog API root"),
   "references/action-policy.md must lock create_market to the configured Precog API root",
 );
@@ -337,11 +350,11 @@ async function assertMonorepoShape(monorepoRoot) {
   await assertFile(join(monorepoRoot, "adapters", "wallets", "bankr", "resolve_create.mjs"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "bankr", "resolve_funding.mjs"));
   await assertFile(join(monorepoRoot, "adapters", "wallets", "privy", "resolve_create.mjs"));
-  await assertCursorHostAdapter(monorepoRoot);
-  await assertHermesHostAdapter(monorepoRoot);
   await assertBaseMcpWalletAdapter(monorepoRoot);
   await assertClaudeHostAdapter(monorepoRoot);
+  await assertCursorHostAdapter(monorepoRoot);
   await assertBankrCompatibility(monorepoRoot);
+  await assertHermesHostAdapter(monorepoRoot);
   await assertMcpResourcesInSync(monorepoRoot);
   await assertGeneratedOutputsExcluded(monorepoRoot);
   await assertMissing(join(monorepoRoot, "SKILL.md"), "root SKILL.md should move to skill/forecast-os");
@@ -449,6 +462,71 @@ async function assertGeneratedOutputsExcluded(monorepoRoot) {
   );
 }
 
+async function assertClaudeHostAdapter(monorepoRoot) {
+  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
+  const claudeSkillRoot = join(claudeRoot, "forecast-os");
+  await assertFile(join(claudeRoot, ".mcp.json"));
+  await assertFile(join(claudeSkillRoot, "SKILL.md"));
+  await assertDir(join(claudeSkillRoot, "references"));
+  await assertDir(join(claudeSkillRoot, "scripts"));
+
+  const claudeMcp = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  assert(
+    Boolean(claudeMcp.mcpServers?.forecastos) && !claudeMcp.servers,
+    "Claude MCP template must use mcpServers and not Codex-style servers",
+  );
+  assert(
+    claudeMcp.mcpServers.forecastos.args?.some((arg) => String(arg).includes("mcp/forecast-os-mcp-server/dist/stdio.js")),
+    "Claude MCP template must point at the read-only ForecastOS stdio server",
+  );
+  assert(
+    claudeMcp.mcpServers.forecastos.env?.FORECASTOS_STATE_DIR?.includes("skill/forecast-os/.forecastos"),
+    "Claude MCP template must point FORECASTOS_STATE_DIR at the skill-local state dir",
+  );
+
+  const topLevel = (await readdir(claudeSkillRoot)).sort();
+  assert(
+    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
+    "Claude export package must contain only SKILL.md, references/, and scripts/",
+  );
+  const claudeSkill = await readFile(join(claudeSkillRoot, "SKILL.md"), "utf8");
+  assert(
+    /^---\nname: forecast-os\ndescription: /m.test(claudeSkill),
+    "Claude SKILL.md must have valid skill frontmatter",
+  );
+  assert(
+    claudeSkill.includes("Use ForecastOS whenever") && claudeSkill.includes("prediction-market workflows"),
+    "Claude SKILL.md description must be specific enough to trigger ForecastOS workflows",
+  );
+  assert(
+    !claudeSkill.includes("/wallet/sign") && !claudeSkill.includes("/wallet/submit"),
+    "Claude SKILL.md must keep wallet-provider endpoint details out of host guidance",
+  );
+
+  const claudeDocs = [
+    await readFile(join(claudeRoot, "README.md"), "utf8"),
+    await readFile(join(claudeSkillRoot, "references", "claude-workflow.md"), "utf8"),
+  ].join("\n");
+  assert(
+    claudeDocs.includes("mcpServers") && claudeDocs.includes("project-scoped"),
+    "Claude docs must describe project-scoped MCP setup with mcpServers",
+  );
+  assert(
+    claudeDocs.includes("read-only") && claudeDocs.includes("does not add wallet signing"),
+    "Claude docs must preserve read-only MCP and wallet-boundary guidance",
+  );
+  assert(
+    claudeDocs.includes("not a standalone ForecastOS runtime") &&
+      claudeDocs.includes("full ForecastOS repo/runtime") &&
+      claudeDocs.includes("installed equivalent"),
+    "Claude docs must clearly require the ForecastOS runtime or installed equivalent",
+  );
+  assert(
+    !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
+    "Claude docs must not contain wallet-provider endpoint details",
+  );
+}
+
 async function assertCursorHostAdapter(monorepoRoot) {
   const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
   await assertFile(join(cursorSkillRoot, "SKILL.md"));
@@ -526,6 +604,10 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertDir(join(hermesSkillRoot, "references"));
   await assertDir(join(hermesSkillRoot, "scripts"));
   await assertFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "forecastos-action.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "forecastos-runtime.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
   await assertFile(join(hermesPluginRoot, "__init__.py"));
 
@@ -549,6 +631,15 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     hermesSkill.includes("${HERMES_SKILL_DIR}") && hermesSkill.includes("check-hermes-setup.mjs"),
     "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
+  );
+  assert(
+    hermesSkill.includes("prepare-create-intent.mjs") &&
+      hermesSkill.includes("resolve-privy-create.mjs") &&
+      hermesSkill.includes("run_skill_step") &&
+      hermesSkill.includes("--wallet-output") &&
+      hermesSkill.includes("Do not call direct `create_market` first") &&
+      hermesSkill.includes("Do not use `preview_market`"),
+    "Hermes SKILL.md must document the wallet-resolved publish flow and forbid preview/direct create mistakes",
   );
   assert(
     !hermesSkill.includes("required_environment_variables") &&
@@ -579,6 +670,17 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes docs must clearly require the ForecastOS runtime and action bridge",
   );
   assert(
+    hermesDocs.includes("prepare-create-intent.mjs") &&
+      hermesDocs.includes("resolve-privy-create.mjs") &&
+      hermesDocs.includes("run_skill_step") &&
+      hermesDocs.includes("--wallet-output") &&
+      hermesDocs.includes("Do not call direct `create_market` before wallet resolution") &&
+      hermesDocs.includes("Do not use `preview_market`") &&
+      hermesDocs.includes("FORECASTOS_REPO_ROOT") &&
+      hermesDocs.includes("--input -"),
+    "Hermes docs must document the publish sequence, stdin support, and unsupported preview/direct create path",
+  );
+  assert(
     hermesDocs.includes("does not replace the skill package") ||
       hermesSkill.includes("plugin wrapper is only for users who"),
     "Hermes docs must avoid plugin-only install language as the primary path",
@@ -589,70 +691,14 @@ async function assertHermesHostAdapter(monorepoRoot) {
     pluginYaml.includes("provides_tools") && pluginYaml.includes("forecastos_action"),
     "Hermes plugin wrapper must remain separated as a tool provider",
   );
-}
-
-async function assertClaudeHostAdapter(monorepoRoot) {
-  const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
-  const claudeSkillRoot = join(claudeRoot, "forecast-os");
-  await assertFile(join(claudeRoot, ".mcp.json"));
-  await assertFile(join(claudeSkillRoot, "SKILL.md"));
-  await assertDir(join(claudeSkillRoot, "references"));
-  await assertDir(join(claudeSkillRoot, "scripts"));
-
-  const claudeMcp = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
+  const hermesSetupScript = await readFile(join(hermesSkillRoot, "scripts", "check-hermes-setup.mjs"), "utf8");
   assert(
-    Boolean(claudeMcp.mcpServers?.forecastos) && !claudeMcp.servers,
-    "Claude MCP template must use mcpServers and not Codex-style servers",
-  );
-  assert(
-    claudeMcp.mcpServers.forecastos.args?.some((arg) => String(arg).includes("mcp/forecast-os-mcp-server/dist/stdio.js")),
-    "Claude MCP template must point at the read-only ForecastOS stdio server",
-  );
-  assert(
-    claudeMcp.mcpServers.forecastos.env?.FORECASTOS_STATE_DIR?.includes("skill/forecast-os/.forecastos"),
-    "Claude MCP template must point FORECASTOS_STATE_DIR at the skill-local state dir",
-  );
-
-  const topLevel = (await readdir(claudeSkillRoot)).sort();
-  assert(
-    topLevel.every((entry) => ["SKILL.md", "references", "scripts"].includes(entry)),
-    "Claude export package must contain only SKILL.md, references/, and scripts/",
-  );
-  const claudeSkill = await readFile(join(claudeSkillRoot, "SKILL.md"), "utf8");
-  assert(
-    /^---\nname: forecast-os\ndescription: /m.test(claudeSkill),
-    "Claude SKILL.md must have valid skill frontmatter",
-  );
-  assert(
-    claudeSkill.includes("Use ForecastOS whenever") && claudeSkill.includes("prediction-market workflows"),
-    "Claude SKILL.md description must be specific enough to trigger ForecastOS workflows",
-  );
-  assert(
-    !claudeSkill.includes("/wallet/sign") && !claudeSkill.includes("/wallet/submit"),
-    "Claude SKILL.md must keep wallet-provider endpoint details out of host guidance",
-  );
-
-  const claudeDocs = [
-    await readFile(join(claudeRoot, "README.md"), "utf8"),
-    await readFile(join(claudeSkillRoot, "references", "claude-workflow.md"), "utf8"),
-  ].join("\n");
-  assert(
-    claudeDocs.includes("mcpServers") && claudeDocs.includes("project-scoped"),
-    "Claude docs must describe project-scoped MCP setup with mcpServers",
-  );
-  assert(
-    claudeDocs.includes("read-only") && claudeDocs.includes("does not add wallet signing"),
-    "Claude docs must preserve read-only MCP and wallet-boundary guidance",
-  );
-  assert(
-    claudeDocs.includes("not a standalone ForecastOS runtime") &&
-      claudeDocs.includes("full ForecastOS repo/runtime") &&
-      claudeDocs.includes("installed equivalent"),
-    "Claude docs must clearly require the ForecastOS runtime or installed equivalent",
-  );
-  assert(
-    !claudeDocs.includes("/wallet/sign") && !claudeDocs.includes("/wallet/submit"),
-    "Claude docs must not contain wallet-provider endpoint details",
+    hermesSetupScript.includes("privy_create_adapter") &&
+      hermesSetupScript.includes("hermes_action_wrapper") &&
+      hermesSetupScript.includes("hermes_prepare_create_wrapper") &&
+      hermesSetupScript.includes('actionBridgeSupportCheck("prepare_create_intent")') &&
+      hermesSetupScript.includes("hermes_privy_wrapper"),
+    "Hermes setup check must verify Privy adapter and Hermes wrapper paths",
   );
 }
 

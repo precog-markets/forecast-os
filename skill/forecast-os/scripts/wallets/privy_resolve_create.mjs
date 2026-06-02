@@ -42,23 +42,44 @@ export async function buildCreateTypedData(...args) {
 }
 
 async function loadPrivyAdapter() {
-  const adapterPath = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "../../../../adapters/wallets/privy/resolve_create.mjs",
-  );
-  try {
-    return await import(pathToFileURL(adapterPath).href);
-  } catch (error) {
-    const message = [
-      "ForecastOS Privy wallet support moved to the top-level adapter:",
-      "adapters/wallets/privy/resolve_create.mjs",
-      "Run that adapter from the ForecastOS repo, or install/sync the wallet adapters next to this skill source.",
-    ].join(" ");
-    const wrapped = new Error(message);
-    wrapped.code = "FORECASTOS_WALLET_ADAPTER_NOT_FOUND";
-    wrapped.cause = error;
-    throw wrapped;
+  const checkedPaths = getPrivyAdapterCandidates();
+  let lastError;
+  for (const adapterPath of checkedPaths) {
+    try {
+      return await import(pathToFileURL(adapterPath).href);
+    } catch (error) {
+      lastError = error;
+    }
   }
+  const message = [
+    "ForecastOS Privy wallet support moved to the top-level adapter:",
+    "adapters/wallets/privy/resolve_create.mjs",
+    "Checked paths:",
+    ...checkedPaths.map((path) => `- ${path}`),
+    "If this skill was copied into Hermes, set FORECASTOS_REPO_ROOT to the ForecastOS repo root.",
+    "Alternatively, run the adapter directly from the ForecastOS repo or install/sync wallet adapters next to this skill source.",
+  ].join(" ");
+  const wrapped = new Error(message);
+  wrapped.code = "FORECASTOS_WALLET_ADAPTER_NOT_FOUND";
+  wrapped.checked_paths = checkedPaths;
+  wrapped.cause = lastError;
+  throw wrapped;
+}
+
+export function getPrivyAdapterCandidates(env = process.env) {
+  const candidates = [];
+  if (env.FORECASTOS_REPO_ROOT) {
+    candidates.push(
+      resolve(env.FORECASTOS_REPO_ROOT, "adapters", "wallets", "privy", "resolve_create.mjs"),
+    );
+  }
+  candidates.push(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../../adapters/wallets/privy/resolve_create.mjs",
+    ),
+  );
+  return [...new Set(candidates)];
 }
 
 function argValue(name) {
@@ -84,6 +105,7 @@ function serializeError(error) {
       code: error?.code,
       status: error?.status,
       wallets: error?.wallets,
+      checked_paths: error?.checked_paths,
     }).filter(([, value]) => value !== undefined),
   );
 }

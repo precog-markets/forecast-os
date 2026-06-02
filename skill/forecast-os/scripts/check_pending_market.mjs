@@ -13,9 +13,13 @@ const defaultStateDir = join(skillRoot, ".forecastos");
 const stateDir = process.env.FORECASTOS_STATE_DIR ?? argValue("--state-dir") ?? defaultStateDir;
 const workflowId = argValue("--workflow-id");
 const marketId = argValue("--market-id");
+const autoRedraft = hasArg("--auto-redraft");
 
 if (!workflowId && !marketId) {
   fail("check_pending_market requires --workflow-id <workflow_id> or --market-id <upcoming_market_id>.");
+}
+if (autoRedraft && !workflowId) {
+  fail("check_pending_market --auto-redraft requires --workflow-id so the replacement draft can link to workflow memory.");
 }
 
 const store = new DirectoryDraftStateStore(stateDir);
@@ -34,11 +38,20 @@ if (workflowId) {
     },
     {},
   );
-  print({
+  const summary = {
     ...summarizeApproval(result.tool_result),
     workflow_id: workflowId,
     state: result.state,
     agent_message: result.agent_message,
+  };
+  if (autoRedraft && summary.rejected) {
+    summary.auto_redraft = await runtime.autoRedraftFromRejection(
+      result.state,
+      result.tool_result,
+    );
+  }
+  print({
+    ...summary,
   });
 } else {
   const result = await runtime.awaitPrecogApproval(
@@ -55,8 +68,10 @@ function summarizeApproval(result = {}) {
     ready_to_fund: Boolean(result.ready_to_fund),
     rejected: Boolean(result.rejected),
     pending: !result.ready_to_fund && !result.rejected,
+    continue_schedule: !result.ready_to_fund && !result.rejected,
     precog_status: result.precog_status ?? result.status ?? null,
     market_id: result.market_id ?? result.upcoming_market ?? null,
+    validator_feedback: result.validator_feedback ?? [],
     precog_response: result.precog_response ?? null,
   };
 }
@@ -76,6 +91,10 @@ function testFetchFromEnv() {
 function argValue(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function hasArg(name) {
+  return process.argv.includes(name);
 }
 
 function print(value) {
