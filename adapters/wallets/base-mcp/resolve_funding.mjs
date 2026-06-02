@@ -48,19 +48,40 @@ export function resolveFunding({
   const chain = chainNameFor(intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId);
   const transactions = normalizePreparedTransactions(prepareResponse, chain);
   const sendCalls = buildSendCallsRequest(transactions, chain);
-  const typedData = buildFundingTypedData(intent.eip712_typed_data_template, walletAddress, nonce);
+  const hasTxHash = Boolean(txHash);
+  const typedData = hasTxHash || funderSignature
+    ? buildFundingTypedData(intent.eip712_typed_data_template, walletAddress, nonce)
+    : null;
   const walletAudit = withoutUndefined({
     provider: "base-mcp",
     wallet_id: walletId ?? walletAddress,
     wallet_address: walletAddress,
     policy_ids: [],
     chain_id: BASE_CHAIN_ID,
-    nonce: typedData.message?.nonce,
-    method: "base_mcp_sign_and_send_calls",
-    signature_compatibility: "base_account_eip1271_erc6492_supported_for_precog_funding",
-    typed_data_primary_type: typedData.primaryType,
+    nonce: typedData?.message?.nonce,
+    method: hasTxHash ? "base_mcp_post_tx_sign" : "base_mcp_send_calls",
+    signature_compatibility: "base_account_eip1271_erc6492_supported_for_precog_funding_post_tx_nonce",
+    typed_data_primary_type: typedData?.primaryType,
     transaction_steps: transactions.map((tx) => tx.step).filter(Boolean),
   });
+
+  if (!txHash) {
+    return {
+      status: "base_mcp_send_calls_required",
+      base_mcp: {
+        onboarding_required: ["get_wallets", "present_wallet_status_and_disclaimer"],
+        send_calls: sendCalls,
+      },
+      wallet_audit: walletAudit,
+      notes: [
+        "Run Base MCP send_calls first with the prepared unsigned funding calldata.",
+        "After Base MCP returns tx_hash, fetch the wallet's new pending nonce and run this resolver again with --tx-hash and --nonce to request the FUND_UPCOMING_MARKET signature.",
+      ],
+      next_action: "base_mcp_send_calls",
+    };
+  }
+
+  assertHex(txHash, "txHash");
 
   const baseMcp = {
     onboarding_required: ["get_wallets", "present_wallet_status_and_disclaimer"],
@@ -72,23 +93,29 @@ export function resolveFunding({
     send_calls: sendCalls,
   };
 
-  if (!funderSignature || !txHash) {
+  if (!funderSignature) {
     return {
-      status: "base_mcp_actions_required",
-      base_mcp: baseMcp,
+      status: "base_mcp_post_tx_signature_required",
+      base_mcp: {
+        onboarding_required: baseMcp.onboarding_required,
+        sign: baseMcp.sign,
+      },
       wallet_audit: walletAudit,
       funding_request_template: {
         upcoming_market: intent.upcoming_market,
         amount: intent.amount,
-        tx_hash: "<tx_hash_from_base_mcp_send_calls>",
+        tx_hash: txHash,
         funder_address: walletAddress,
-        funder_signature: "<signature_from_base_mcp_sign>",
+        funder_signature: "<signature_from_base_mcp_post_tx_sign>",
       },
-      next_action: "base_mcp_sign_and_send_calls",
+      notes: [
+        "Sign FUND_UPCOMING_MARKET after the funding transaction hash exists, using the post-transaction pending nonce.",
+        "Do not reuse a signature collected before send_calls changed the wallet nonce.",
+      ],
+      next_action: "base_mcp_post_tx_sign",
     };
   }
 
-  assertHex(txHash, "txHash");
   assertHex(funderSignature, "funderSignature");
 
   return {

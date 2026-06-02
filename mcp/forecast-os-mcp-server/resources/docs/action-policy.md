@@ -28,12 +28,12 @@ An agent may attempt `create_market` only when:
 - `.forecastos/config.json` includes `precog.open_api_key`
 - `image_url` is present
 - `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
-- the wallet policy allows EOA-compatible EIP-712 typed-data signing
+- the wallet policy allows EIP-712 typed-data signing
 - collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
 
 `create_market` always submits to the configured Precog API root. Polymarket, Kalshi, and similar external market providers are read-only context providers; they cannot receive ForecastOS creation or funding actions. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
-If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission. For creation, offer concrete options such as [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Do not offer [Base MCP](https://mcp.base.org) for creation unless it returns a 65-byte EOA signature; current Base Account smart-account/WebAuthn signatures are not accepted by the Precog create endpoint.
+If any condition is missing, ask in human language. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission. For creation, offer concrete options such as [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Base Account smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.
 
 ## Funding Policy
 

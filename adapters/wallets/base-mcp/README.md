@@ -35,9 +35,11 @@ node adapters/wallets/base-mcp/resolve_funding.mjs \
   --nonce <pending-nonce>
 ```
 
-The first run returns the [Base MCP](https://mcp.base.org) `sign` and `send_calls` payloads. Run it again
-with `--funder-signature` and `--tx-hash` after [Base MCP](https://mcp.base.org) completes to produce
-the standard ForecastOS `fund_market` adapter output.
+The first run returns only the [Base MCP](https://mcp.base.org) `send_calls` payload. After Base MCP
+returns `tx_hash`, fetch the wallet's new pending nonce and run the resolver again
+with `--tx-hash` and `--nonce` to request the funding signature. Run it a final
+time with `--funder-signature` to produce the standard ForecastOS `fund_market`
+adapter output.
 
 ## Compatibility Model
 
@@ -53,26 +55,25 @@ the standard ForecastOS `fund_market` adapter output.
   EVM transaction batches.
 - Base Account signatures may be smart-wallet signatures verified through
   EIP-1271, with ERC-6492 relevant before deployment. ForecastOS accepts those
-  signature shapes for Precog funding, but not for Precog creation unless the
-  signer returns an EOA-style 65-byte EIP-712 signature.
+  signature shapes for Precog creation and funding when the wallet signs the
+  canonical Precog typed data with the correct current pending nonce.
 - ForecastOS MCP remains read-only. Do not add mutating MCP tools for Base
   compatibility.
 
 ## Current Readiness
 
-Creation can be prepared as a [Base MCP](https://mcp.base.org) signing request, but the current Precog
-create endpoint requires an EOA-style 65-byte EIP-712 signature. Base Account
-smart-account/WebAuthn signatures are not accepted for Precog creation yet.
-Use `resolve_create.mjs` to generate the [Base MCP](https://mcp.base.org) signing request and to fail
-early if the returned signature is not compatible:
+Creation is prepared as a [Base MCP](https://mcp.base.org) signing request. Base Account
+smart-account/WebAuthn signatures are valid when Base MCP signs the canonical
+Precog `CREATE_UPCOMING_MARKET` typed data with the current pending nonce.
+Use `resolve_create.mjs` to generate the [Base MCP](https://mcp.base.org) signing request:
 
 ```txt
 prepare_create_intent -> resolve_create.mjs -> Base MCP sign -> resolve_create.mjs --creator-signature ...
 ```
 
-If `resolve_create.mjs` returns `BASE_MCP_CREATE_SIGNATURE_UNSUPPORTED`, use
-[Privy](https://www.privy.io/ai), another EOA-compatible wallet/action tool, or the Precog creation area
-instead of submitting the smart-account signature to ForecastOS.
+If Precog later rejects the submitted signature, compare the resolver typed data,
+wallet account, nonce, and chain/domain fields against the non-secret diagnostic
+attached to the ForecastOS error.
 
 Funding is `send_calls`-compatible when the selected funding resolver returns an
 unsigned calldata envelope or ordered transaction batch:
@@ -87,8 +88,7 @@ unsigned calldata envelope or ordered transaction batch:
 ```
 
 This adapter validates and maps that prepared calldata into [Base MCP](https://mcp.base.org)'s canonical
-`{ chain: "base", calls }` shape. It does not invent funding calldata. After
-Base MCP returns a transaction hash and funding signature, the resolver accepts
-any hex signature, including non-65-byte Base Account smart-wallet/WebAuthn
-signatures, because Precog funding is expected to verify Base Account signatures
-through EIP-1271/ERC-6492.
+`{ chain: "base", calls }` shape. It does not invent funding calldata. After Base MCP returns a transaction hash, fetch the wallet's post-transaction
+pending nonce, request the funding signature, and submit both values to Precog.
+The resolver accepts any hex Base Account signature because Precog verifies Base
+Account signatures through EIP-1271/ERC-6492.

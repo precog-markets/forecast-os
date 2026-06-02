@@ -89,11 +89,11 @@ function guidanceFor(step, workflow) {
       ],
       suggested_command: commands.prepareCreateIntent,
       notes: [
-        "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+        "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, Base MCP, another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) to create the market.",
-        "Before creation, any wallet/action tool must allow EOA-compatible EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
-        "Base MCP smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint; do not use Base MCP for creation unless it returns a 65-byte EOA signature.",
+        "Before creation, any wallet/action tool must allow EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
+        "Base MCP smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.",
         "After the wallet/action tool resolves creator_address and creator_signature, call run_skill_step with the current create_market state and pass the adapter result via --wallet-output <adapter-output-json> so workflow memory advances.",
         "Use the direct create_market action only as a low-level API call when you intentionally do not need workflow state advancement.",
         "ForecastOS uses Base from config and uses Base USDC unless the operator explicitly provides another collateral_address.",
@@ -128,7 +128,7 @@ function guidanceFor(step, workflow) {
         "Do not ask for chain_id; ForecastOS reads the Base chain from the active .forecastos/config.json.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",
         "If the collateral token allowance is insufficient, the wallet/action tool must approve the token before funding.",
-        "After the wallet/action tool resolves nonce lookup, token approval if needed, EIP-712 signing, tx_hash, funder_address, and funder_signature, call fund_market.",
+        "After the wallet/action tool resolves token approval if needed, sends the funding transaction, signs EIP-712 with the post-transaction pending nonce, and returns tx_hash, funder_address, and funder_signature, call fund_market.",
         "If no wallet/action tool is configured, do not ask for raw signatures in chat; direct the user to the [Precog creation area](https://core.precog.markets/launchpad/).",
       ],
     };

@@ -120,10 +120,11 @@ class ForecastOSLocalRuntime {
       fail(`Draft has blocking issues: ${draft.quality.blocking_issues.join(", ")}`);
     }
     validateDraftApproval(draft, createInput, approvalContext);
-    validateCreatorSignatureCompatibility(createInput);
+    const payload = buildCreatePayload(draft, createInput, this.now);
     const response = await this.#postPrecog(
       "/api/v1/create-upcoming-market/",
-      buildCreatePayload(draft, createInput, this.now),
+      payload,
+      { signatureDiagnostic: buildSignatureDiagnostic(payload, { ...createInput, deployed_master_address: config.deployed_master_address }, config.signature_actions.create_market) },
     );
     return normalizeCreateResponse(response, draft, createInput);
   }
@@ -156,7 +157,7 @@ class ForecastOSLocalRuntime {
     );
     return withoutUndefined({
       intent_type: "forecastos.create_market",
-      wallet_tool_hint: "Use Bankr, Privy, another EOA-compatible wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. Use Base MCP for creation only if it returns a 65-byte EOA signature.",
+      wallet_tool_hint: "Use Bankr, Privy, Base MCP, another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
       wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
       wallet_policy_required: ["eip712_typed_data_signing"],
@@ -175,8 +176,8 @@ class ForecastOSLocalRuntime {
       precog_payload_template: payloadTemplate,
       notes: [
         "ForecastOS does not fetch nonces, sign EIP-712 typed data, custody wallets, or ask users to paste raw signatures in normal chat.",
-        "Use a configured wallet/action tool with policy permission for EOA-compatible EIP-712 typed-data signing.",
-        "Base MCP smart-account/WebAuthn signatures are not accepted by the current Precog create endpoint; use Bankr, Privy, another EOA-compatible wallet/action tool, or the Precog creation area for creation.",
+        "Use a configured wallet/action tool with policy permission for EIP-712 typed-data signing.",
+        "Base MCP smart-account/WebAuthn signatures are valid Precog authorization signatures when they are produced over the canonical Precog typed data and current pending nonce.",
         "The wallet/action tool resolves this intent into creator_address and creator_signature.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/).",
       ],
@@ -228,7 +229,7 @@ class ForecastOSLocalRuntime {
           approval_text: event.approval_text ?? current.approval_text,
         }, "approval_recorded"),
         needs_human_input: true,
-        agent_message: "Approval recorded. What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Use Base MCP for creation only if it returns a 65-byte EOA signature.",
+        agent_message: "Approval recorded. What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, Base MCP, another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
       });
     }
 
@@ -254,7 +255,7 @@ class ForecastOSLocalRuntime {
             }, "create_intent_prepared"),
             tool_result: intent,
             needs_human_input: true,
-            agent_message: "The draft is approved. Resolve this create intent with Privy, Bankr, or another EOA-compatible wallet/action adapter, then submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
+            agent_message: "The draft is approved. Resolve this create intent with Privy, Bankr, Base MCP, or another configured wallet/action adapter, then submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
           });
         } catch (error) {
           return this.#saveResult({
@@ -316,8 +317,8 @@ class ForecastOSLocalRuntime {
           tool_result: serializeError(error),
           needs_human_input: true,
           agent_message: missingSignature
-            ? "The draft is approved, but the create submission is missing the wallet signature. Resolve the create intent with Bankr, Privy, or another EOA-compatible wallet/action tool, then rerun run_skill_step with --wallet-output <wallet-adapter-output-json>."
-            : "The draft is approved, but live publishing still needs a compatible wallet/action tool. Ask whether the user wants to use Bankr, Privy, another EOA-compatible wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+            ? "The draft is approved, but the create submission is missing the wallet signature. Resolve the create intent with Bankr, Privy, Base MCP, or another configured wallet/action tool, then rerun run_skill_step with --wallet-output <wallet-adapter-output-json>."
+            : "The draft is approved, but live publishing still needs a compatible wallet/action tool. Ask whether the user wants to use Bankr, Privy, Base MCP, another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         });
       }
     }
@@ -554,7 +555,7 @@ class ForecastOSLocalRuntime {
     return withoutUndefined({
       intent_type: "forecastos.fund_market",
       wallet_provider: provider,
-      wallet_tool_hint: "Use Bankr, Privy, Base MCP, another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures.",
+      wallet_tool_hint: "Use Bankr, Privy, Base MCP, another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. For Base MCP funding, send the prepared calls first, then sign FUND_UPCOMING_MARKET with the post-transaction pending nonce before submitting to Precog.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
       wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
       wallet_policy_required: [
@@ -591,7 +592,7 @@ class ForecastOSLocalRuntime {
         "ForecastOS does not choose token decimals, approve tokens, sign EIP-712 typed data, sign/send transactions, fetch nonces, or move funds.",
         "Use a configured wallet/action tool with policy permission for EIP-712 signing and funding transactions.",
         "Bankr funding is supported through the Bankr wallet adapter; keep Bankr endpoint details in the Bankr adapter docs.",
-        "Base MCP funding may return Base Account smart-wallet signatures verified through EIP-1271/ERC-6492; those are accepted for funding but not for creation.",
+        "Base MCP create and funding may return Base Account smart-wallet signatures verified through EIP-1271/ERC-6492; those are valid when signed over the canonical Precog typed data and current pending nonce.",
         "If collateral allowance is insufficient, the wallet/action tool approves the token before funding.",
         "The wallet/action tool resolves this intent into tx_hash, funder_address, and funder_signature.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) instead of asking for raw signatures.",
@@ -612,13 +613,19 @@ class ForecastOSLocalRuntime {
     if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
       fail("fund_market requires upcoming_market or state.market_id.");
     }
-    const response = await this.#postPrecog("/api/v1/fund-upcoming-market/", {
+    const payload = {
       upcoming_market: upcomingMarket,
       amount,
       tx_hash: request.tx_hash,
       funder_address: request.funder_address,
       funder_signature: request.funder_signature,
-    });
+    };
+    const config = await readPrecogConfig(this.store);
+    const response = await this.#postPrecog(
+      "/api/v1/fund-upcoming-market/",
+      payload,
+      { signatureDiagnostic: buildSignatureDiagnostic(payload, { ...request, deployed_master_address: config.deployed_master_address }, config.signature_actions.fund_market) },
+    );
     return normalizeFundResponse(response, {
       upcoming_market: upcomingMarket,
       amount,
@@ -672,7 +679,7 @@ class ForecastOSLocalRuntime {
     return result;
   }
 
-  async #postPrecog(path, payload) {
+  async #postPrecog(path, payload, options = {}) {
     if (typeof this.fetch !== "function") {
       throw new PrecogApiError("Fetch API is not available in this runtime.", {
         code: "FETCH_UNAVAILABLE",
@@ -691,11 +698,12 @@ class ForecastOSLocalRuntime {
     });
     const body = await readResponseBody(response);
     if (!response.ok) {
-      throw new PrecogApiError("Precog API request failed.", {
+      throw new PrecogApiError(buildPrecogFailureMessage(response.status, body, options.signatureDiagnostic), {
         code: "PRECOG_API_ERROR",
         status: response.status,
         endpoint,
         body,
+        signature_diagnostic: options.signatureDiagnostic,
       });
     }
     return body;
@@ -1303,25 +1311,52 @@ function normalizeWalletProvider(value) {
   return provider;
 }
 
-function validateCreatorSignatureCompatibility(input = {}) {
-  const provider = String(
-    input.wallet_provider ??
-    input.wallet_audit?.provider ??
-    input.operator_wallet_reference ??
-    "",
-  ).trim().toLowerCase();
-  if (provider !== "base-mcp") return;
-  if (isEoaEip712Signature(input.creator_signature)) return;
-
-  const error = new Error(
-    "Base MCP returned a smart-account/WebAuthn signature, but the current Precog create endpoint requires an EOA-style 65-byte EIP-712 signature. Use Bankr, Privy, another EOA-compatible wallet/action tool, or the Precog creation area for market creation.",
-  );
-  error.code = "FORECASTOS_WALLET_SIGNATURE_UNSUPPORTED";
-  throw error;
+function buildSignatureDiagnostic(payload = {}, input = {}, action) {
+  const signature = payload.creator_signature ?? payload.funder_signature;
+  const account = payload.creator_address ?? payload.funder_address;
+  const nonce = input.wallet_audit?.nonce ?? input.nonce ?? input.authorization_nonce;
+  return withoutUndefined({
+    action,
+    account,
+    chain_id: payload.chain_id ?? input.chain_id,
+    nonce,
+    tx_hash: payload.tx_hash ?? input.tx_hash,
+    typed_data: withoutUndefined({
+      domain: {
+        name: "Precog Markets",
+        version: "1",
+        chainId: payload.chain_id ?? input.chain_id,
+        verifyingContract: input.wallet_audit?.verifying_contract ?? input.deployed_master_address,
+      },
+      primaryType: "PrecogMarketAuthorization",
+      message: withoutUndefined({
+        action,
+        account,
+        chainId: payload.chain_id ?? input.chain_id,
+        nonce,
+      }),
+    }),
+    signature_length_bytes: signatureHexLengthBytes(signature),
+    signature_is_erc6492: isErc6492Signature(signature),
+    wallet_provider: input.wallet_provider ?? input.wallet_audit?.provider,
+  });
 }
 
-function isEoaEip712Signature(value) {
-  return /^0x[0-9a-fA-F]{130}$/.test(String(value ?? ""));
+function signatureHexLengthBytes(value) {
+  const signature = String(value ?? "");
+  return /^0x[0-9a-fA-F]*$/.test(signature) ? (signature.length - 2) / 2 : undefined;
+}
+
+function isErc6492Signature(value) {
+  return String(value ?? "").toLowerCase().endsWith("6492649264926492649264926492649264926492649264926492649264926492");
+}
+
+function buildPrecogFailureMessage(status, body, diagnostic) {
+  const error = String(body?.error ?? body?.detail ?? body?.message ?? "");
+  const base = `Precog API request failed: ${status}`;
+  if (!/invalid (creator|funder) signature/i.test(error)) return base;
+  const action = diagnostic?.action ? ` for ${diagnostic.action}` : "";
+  return `${base}. ${error}. The ${diagnostic?.wallet_provider === "base-mcp" ? "Base MCP " : ""}signature was rejected${action}. Likely causes: nonce mismatch, wrong account, typed-data/domain/action mismatch, or live verifier/provider failure. See error.signature_diagnostic for non-secret parity details; raw signatures are intentionally omitted from normal chat.`;
 }
 
 function normalizePrecogFundingAmount(value) {
@@ -1782,6 +1817,7 @@ export class PrecogApiError extends Error {
     this.status = details.status;
     this.endpoint = details.endpoint;
     this.body = details.body;
+    this.signature_diagnostic = details.signature_diagnostic;
   }
 }
 

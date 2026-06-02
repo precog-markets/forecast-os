@@ -23,19 +23,19 @@ adapters/wallets/bankr/
 ```
 
 The [Base MCP](https://mcp.base.org) adapter includes a funding resolver that maps an explicit unsigned
-calldata envelope or ordered transaction batch into Base MCP `send_calls`, then
-returns the standard `fund_market` adapter output after [Base MCP](https://mcp.base.org) supplies the
-transaction hash and EIP-712 funding signature. It must not invent funding
-calldata; a Precog funding transaction builder or another trusted resolver must
-provide the unsigned call data first. Base Account smart-wallet signatures are
-verified through EIP-1271, with ERC-6492 relevant before deployment; ForecastOS
-accepts those Base MCP signature shapes for funding.
+calldata envelope or ordered transaction batch into Base MCP `send_calls`. It must
+not invent funding calldata; a Precog funding transaction builder or another
+trusted resolver must provide the unsigned call data first. After `send_calls`
+returns a transaction hash, fetch the wallet's post-transaction pending nonce
+and sign `FUND_UPCOMING_MARKET` before submitting `fund_market` to Precog. Base
+Account smart-wallet signatures are verified through EIP-1271, with ERC-6492
+relevant before deployment; ForecastOS accepts those Base MCP signature shapes
+for creation and funding when signed over canonical Precog typed data.
 
-For creation, [Base MCP](https://mcp.base.org) can prepare a typed-data signing request, but current
-Base Account smart-account/WebAuthn signatures are not accepted by the Precog
-create endpoint. Use [Base MCP](https://mcp.base.org) for creation only if the signer returns a 65-byte
-EOA EIP-712 signature; otherwise use [Privy](https://www.privy.io/ai), another EOA-compatible wallet/action
-tool, or the Precog creation area.
+For creation, [Base MCP](https://mcp.base.org) prepares a typed-data signing request. Base Account
+smart-wallet/WebAuthn signatures are valid when they are verified through
+EIP-1271/ERC-6492 and signed over the canonical `CREATE_UPCOMING_MARKET` typed
+data with the current pending nonce.
 
 The shared adapter contract lives at:
 
@@ -73,9 +73,9 @@ Bankr create follows the shared adapter contract. Keep endpoint details in
 Funding adapters should consume `prepare_funding_intent` output and return a `funding_request` with `tx_hash`, `funder_address`, `funder_signature`, and the display-unit `amount`. Funding adapters must handle token approval outside ForecastOS when needed.
 
 Base MCP funding intentionally accepts any hex EIP-712 signature returned by Base
-Account, including non-65-byte smart-wallet/WebAuthn signatures. Do not apply
-the creation-path EOA signature restriction to funding unless Precog funding
-backend support changes.
+Account, including smart-wallet/WebAuthn signatures. Run the prepared funding
+`send_calls` first, then sign `FUND_UPCOMING_MARKET` with the post-transaction
+pending nonce before submitting `fund_market` to Precog.
 
 Bankr funding follows the shared adapter contract and must not invent funding
 calldata. Keep endpoint details in `adapters/wallets/bankr/README.md`.

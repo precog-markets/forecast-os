@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Maps a ForecastOS create intent into Base MCP signing guidance and validates
-// returned signatures before they are submitted to Precog.
+// Maps a ForecastOS create intent into Base MCP signing guidance and returns
+// Base Account EIP-712 signatures for ForecastOS submission.
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,7 @@ export function resolveCreate({
     chain_id: chainId,
     nonce: typedData.message.nonce,
     method: "sign",
+    signature_compatibility: "base_account_eip1271_erc6492_supported_for_precog_create",
     request_id: requestId,
   };
 
@@ -67,18 +68,13 @@ export function resolveCreate({
       wallet_audit: walletAudit,
       notes: [
         "Request the Base MCP typed_data signature shown in base_mcp.sign.",
-        "Only continue if Base MCP returns an EOA-style 65-byte EIP-712 signature. Current Base Account smart-account/WebAuthn signatures are not accepted by the Precog create endpoint.",
+        "Base Account smart-account/WebAuthn signatures are valid Precog authorization signatures when signed over this canonical typed data and the current pending nonce.",
       ],
       next_action: "base_mcp_sign",
     };
   }
 
-  if (!isEoaEip712Signature(creatorSignature)) {
-    fail(
-      "Base MCP returned a smart-account/WebAuthn signature, but the current Precog create endpoint requires an EOA-style 65-byte EIP-712 signature. Use Privy, another EOA-compatible wallet/action tool, or the Precog creation area for market creation.",
-      "BASE_MCP_CREATE_SIGNATURE_UNSUPPORTED",
-    );
-  }
+  assertHex(creatorSignature, "creatorSignature");
 
   return {
     event: withoutUndefined({
@@ -133,8 +129,8 @@ function normalizeNonce(value) {
   fail("Nonce must be a non-negative integer or hex string.");
 }
 
-function isEoaEip712Signature(value) {
-  return /^0x[0-9a-fA-F]{130}$/.test(String(value ?? ""));
+function assertHex(value, label) {
+  if (!/^0x[0-9a-fA-F]*$/.test(String(value ?? ""))) fail(`${label} must be hex data.`);
 }
 
 function withoutUndefined(value) {

@@ -16,9 +16,9 @@ export async function explainNextStep(input: {
     draft: "Run the action bridge to produce and store a draft, then show a short human review summary.",
     needs_info: "Ask the user for the missing fields, then rerun the action bridge with the added facts.",
     await_approval: "Show the friendly review summary and ask the user to reply yes or request edits.",
-    create_market: "Ask what wallet/action tool the user wants to use. Options include Privy, another EOA-compatible wallet/action tool, or the Precog creation area. Use Base MCP for creation only if it returns a 65-byte EOA signature.",
+    create_market: "Ask what wallet/action tool the user wants to use. Options include Privy, Base MCP, another configured wallet/action tool, or the Precog creation area. Base MCP smart-account signatures are valid when signed over the canonical Precog typed data and current pending nonce.",
     await_precog_approval: "Check the upcoming market status. Continue only after Precog returns VALIDATED.",
-    fund: "Generate a wallet-agnostic funding intent. Options include Privy, Base MCP, another configured wallet/action tool, or the Precog creation area.",
+    fund: "Generate a wallet-agnostic funding intent. Options include Privy, Base MCP, another configured wallet/action tool, or the Precog creation area. For Base MCP, send calls first, then sign with the post-transaction pending nonce.",
     consume_prediction: "Wait for deployment, then inspect deployed market data. Do not invent prices.",
     done: "The workflow is complete. Use stored market data as the planning signal.",
   };

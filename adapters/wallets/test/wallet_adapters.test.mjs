@@ -340,7 +340,7 @@ test("Base MCP funding resolver maps a single calldata envelope to send_calls", 
   });
 });
 
-test("Base MCP create resolver refuses smart-account signatures before Precog submission", () => {
+test("Base MCP create resolver returns run_skill_step output for smart-account signatures", () => {
   const resolved = resolveBaseMcpCreate({
     intent: buildCreateIntentFixture(),
     walletAddress: "0x2222222222222222222222222222222222222222",
@@ -352,16 +352,20 @@ test("Base MCP create resolver refuses smart-account signatures before Precog su
   assert.equal(resolved.base_mcp.sign.data.message.account, "0x2222222222222222222222222222222222222222");
   assert.equal(resolved.base_mcp.sign.data.message.nonce, 9);
 
-  assert.throws(
-    () =>
-      resolveBaseMcpCreate({
-        intent: buildCreateIntentFixture(),
-        walletAddress: "0x2222222222222222222222222222222222222222",
-        nonce: "9",
-        creatorSignature: "0x" + "ab".repeat(96),
-      }),
-    /smart-account\/WebAuthn signature/,
-  );
+  const smartSignature = "0x" + "ab".repeat(96) + "6492649264926492649264926492649264926492649264926492649264926492";
+  const signed = resolveBaseMcpCreate({
+    intent: buildCreateIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    nonce: "9",
+    creatorSignature: smartSignature,
+  });
+
+  assert.equal(signed.next_action, "run_skill_step");
+  assert.equal(signed.event.creator_address, "0x2222222222222222222222222222222222222222");
+  assert.equal(signed.event.creator_signature, smartSignature);
+  assert.equal(signed.event.wallet_audit.provider, "base-mcp");
+  assert.equal(signed.event.wallet_audit.signature_compatibility, "base_account_eip1271_erc6492_supported_for_precog_create");
+  assert.equal(signed.event.wallet_audit.nonce, 9);
 });
 
 test("Base MCP create resolver returns run_skill_step output for EOA signatures", () => {
@@ -379,12 +383,11 @@ test("Base MCP create resolver returns run_skill_step output for EOA signatures"
   assert.equal(resolved.event.wallet_audit.nonce, 9);
 });
 
-test("Base MCP funding resolver returns required wallet actions before tx hash", () => {
+test("Base MCP funding resolver returns send_calls before tx hash", () => {
   const resolved = resolveFunding({
     intent: buildFundingIntentFixture(),
     walletAddress: "0x2222222222222222222222222222222222222222",
     walletId: "base_wallet",
-    nonce: "9",
     prepareResponse: {
       transactions: [
         {
@@ -405,13 +408,41 @@ test("Base MCP funding resolver returns required wallet actions before tx hash",
     },
   });
 
-  assert.equal(resolved.status, "base_mcp_actions_required");
+  assert.equal(resolved.status, "base_mcp_send_calls_required");
   assert.equal(resolved.base_mcp.send_calls.chain, "base");
   assert.equal(resolved.base_mcp.send_calls.calls.length, 2);
-  assert.equal(resolved.base_mcp.sign.typed_data.message.account, "0x2222222222222222222222222222222222222222");
-  assert.equal(resolved.base_mcp.sign.typed_data.message.nonce, 9);
+  assert.equal(resolved.base_mcp.sign, undefined);
   assert.equal(resolved.wallet_audit.provider, "base-mcp");
-  assert.equal(resolved.next_action, "base_mcp_sign_and_send_calls");
+  assert.equal(resolved.wallet_audit.method, "base_mcp_send_calls");
+  assert.equal(resolved.next_action, "base_mcp_send_calls");
+});
+
+test("Base MCP funding resolver requests post-transaction signature after tx hash", () => {
+  const resolved = resolveFunding({
+    intent: buildFundingIntentFixture(),
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    walletId: "base_wallet",
+    txHash: "0x1234",
+    nonce: "10",
+    prepareResponse: {
+      transactions: [
+        {
+          step: "fund",
+          to: "0x4444444444444444444444444444444444444444",
+          data: "0xfeedface",
+          chain: "base",
+        },
+      ],
+    },
+  });
+
+  assert.equal(resolved.status, "base_mcp_post_tx_signature_required");
+  assert.equal(resolved.base_mcp.send_calls, undefined);
+  assert.equal(resolved.base_mcp.sign.typed_data.message.account, "0x2222222222222222222222222222222222222222");
+  assert.equal(resolved.base_mcp.sign.typed_data.message.nonce, 10);
+  assert.equal(resolved.funding_request_template.tx_hash, "0x1234");
+  assert.equal(resolved.wallet_audit.method, "base_mcp_post_tx_sign");
+  assert.equal(resolved.next_action, "base_mcp_post_tx_sign");
 });
 
 test("Base MCP funding resolver accepts Base Account smart-wallet signatures", () => {
@@ -441,10 +472,10 @@ test("Base MCP funding resolver accepts Base Account smart-wallet signatures", (
     funder_address: "0x2222222222222222222222222222222222222222",
     funder_signature: smartWalletSignature,
   });
-  assert.equal(resolved.wallet_audit.method, "base_mcp_sign_and_send_calls");
+  assert.equal(resolved.wallet_audit.method, "base_mcp_post_tx_sign");
   assert.equal(
     resolved.wallet_audit.signature_compatibility,
-    "base_account_eip1271_erc6492_supported_for_precog_funding",
+    "base_account_eip1271_erc6492_supported_for_precog_funding_post_tx_nonce",
   );
   assert.equal(resolved.next_action, "fund_market");
 });
