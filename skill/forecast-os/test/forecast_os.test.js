@@ -36,7 +36,7 @@ test("root VERSION is canonical and check_version works without skill artifact V
   await rm(join(skillRoot, "VERSION"), { force: true });
   const rootVersion = (await readFile(join(monorepoRoot, "VERSION"), "utf8")).trim();
 
-  assert.equal(rootVersion, "0.1.0");
+  assert.match(rootVersion, /^\d+\.\d+\.\d+$/);
 
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -45,9 +45,9 @@ test("root VERSION is canonical and check_version works without skill artifact V
   );
   const report = JSON.parse(stdout);
 
-  assert.equal(report.current_skill_version, "0.1.0");
+  assert.equal(report.current_skill_version, rootVersion);
   assert.equal(report.skill_artifact_version, null);
-  assert.equal(report.repo_version, "0.1.0");
+  assert.equal(report.repo_version, rootVersion);
   assert.equal(report.repo_skill_version, null);
   assert.equal(report.versions_differ, false);
 });
@@ -62,8 +62,9 @@ test("sync_version generates detached skill artifact VERSION from root VERSION",
   const report = JSON.parse(stdout);
 
   try {
-    assert.equal(report.repo_version, "0.1.0");
-    assert.equal((await readFile(join(skillRoot, "VERSION"), "utf8")).trim(), "0.1.0");
+    const rootVersion = (await readFile(join(monorepoRoot, "VERSION"), "utf8")).trim();
+    assert.equal(report.repo_version, rootVersion);
+    assert.equal((await readFile(join(skillRoot, "VERSION"), "utf8")).trim(), rootVersion);
     const checked = JSON.parse(
       (
         await execFileAsync(
@@ -73,7 +74,7 @@ test("sync_version generates detached skill artifact VERSION from root VERSION",
         )
       ).stdout,
     );
-    assert.equal(checked.skill_artifact_version, "0.1.0");
+    assert.equal(checked.skill_artifact_version, rootVersion);
     assert.equal(checked.versions_differ, false);
   } finally {
     await rm(join(skillRoot, "VERSION"), { force: true });

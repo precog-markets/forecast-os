@@ -1,85 +1,31 @@
 // Provides the bundled local ForecastOS runtime used by the action bridge by default.
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-
-const STATUS_FOLDERS = Object.freeze([
-  "needs_info",
-  "await_approval",
-  "create_market",
-  "await_precog_approval",
-  "rejected",
-  "funded",
-  "consume_prediction",
-  "done",
-]);
+import {
+  buildPrecogAuthorizationTypedDataTemplate,
+  buildPrecogUrl,
+  readPrecogConfig,
+  requireDefaultCollateralAddress,
+  requireDeployedMasterAddress,
+} from "./lib/config.mjs";
+import { fail, PrecogApiError, serializeError as serializeRuntimeError } from "./lib/errors.mjs";
+import { requireFields, withoutUndefined } from "./lib/object_utils.mjs";
+import {
+  DirectoryDraftStateStore,
+  workflowStatusFolder,
+} from "./lib/state_store.mjs";
+import { normalizeUtcIso, parseUtcDate, toUnixTimestamp } from "./lib/time.mjs";
 
 const PRECOG_LAUNCHPAD_BASE_URL = "https://core.precog.markets/launchpad";
 const MAX_QUESTION_LENGTH = 65;
 const MAX_OUTCOME_LENGTH = 32;
 
-export class DirectoryDraftStateStore {
-  constructor(rootDir = ".forecastos") {
-    this.rootDir = rootDir;
-  }
-
-  async save(draft) {
-    await writeJson(join(this.rootDir, "drafts", `${draft.draft_id}.json`), draft);
-    return draft;
-  }
-
-  async get(draftId) {
-    return readJsonOrNull(join(this.rootDir, "drafts", `${draftId}.json`));
-  }
-
-  async saveWorkflow(state) {
-    const status = workflowStatusFolder(state.step);
-    await writeJson(
-      join(this.rootDir, "workflows", "all", `${state.workflow_id}.json`),
-      state,
-    );
-    await writeJson(
-      join(this.rootDir, "workflows", status, `${state.workflow_id}.json`),
-      state,
-    );
-    await Promise.all(
-      STATUS_FOLDERS.filter((folder) => folder !== status).map((folder) =>
-        rm(join(this.rootDir, "workflows", folder, `${state.workflow_id}.json`), {
-          force: true,
-        }),
-      ),
-    );
-    return state;
-  }
-
-  async getWorkflow(workflowId) {
-    return readJsonOrNull(join(this.rootDir, "workflows", "all", `${workflowId}.json`));
-  }
-
-  async listWorkflowsByStatus(status) {
-    return readJsonDir(join(this.rootDir, "workflows", workflowStatusFolder(status)));
-  }
-
-  async listDrafts() {
-    return readJsonDir(join(this.rootDir, "drafts"));
-  }
-
-  async getConfig() {
-    const config = await readJsonOrNull(join(this.rootDir, "config.json"));
-    const localConfig = await readJsonOrNull(join(this.rootDir, "config.local.json"));
-    return mergeConfig(config, localConfig);
-  }
-}
+export { DirectoryDraftStateStore, workflowStatusFolder };
 
 export function createForecastOS(options = {}) {
   return new ForecastOSLocalRuntime(options.store ?? new DirectoryDraftStateStore(), {
     fetch: options.fetch,
     now: options.now,
   });
-}
-
-export function workflowStatusFolder(step) {
-  return step === "fund" ? "funded" : step;
 }
 
 class ForecastOSLocalRuntime {
@@ -1738,155 +1684,6 @@ function normalizeAddress(value) {
   return value ? String(value).toLowerCase() : "";
 }
 
-async function readPrecogConfig(store, options = {}) {
-  const config = typeof store.getConfig === "function" ? await store.getConfig() : null;
-  const precog = config?.precog ?? {};
-  if (!precog.open_api_key) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.open_api_key.", {
-      code: "PRECOG_CONFIG_ERROR",
-      endpoint: null,
-      body: { error: "Missing precog.open_api_key" },
-    });
-  }
-  if (!precog.api_root) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.api_root.", {
-      code: "PRECOG_CONFIG_ERROR",
-      endpoint: null,
-      body: { error: "Missing precog.api_root" },
-    });
-  }
-  if (options.requireDeployedMasterAddress && !precog.deployed_master_address) {
-    throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.deployed_master_address.",
-      {
-        code: "PRECOG_CONFIG_ERROR",
-        endpoint: null,
-        body: { error: "Missing precog.deployed_master_address" },
-      },
-    );
-  }
-  return {
-    api_root: precog.api_root,
-    open_api_key: precog.open_api_key,
-    deployed_master_address: precog.deployed_master_address,
-    chain_id: requireConfigChainId(precog),
-    default_collateral_address: precog.default_collateral_address,
-    default_collateral_symbol: precog.default_collateral_symbol,
-    signature_actions: requireConfigSignatureActions(precog),
-  };
-}
-
-function requireConfigChainId(precog) {
-  const chainId = Number(precog.chain_id);
-  if (!Number.isInteger(chainId) || chainId <= 0) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.chain_id.", {
-      code: "PRECOG_CONFIG_ERROR",
-      endpoint: null,
-      body: { error: "Missing precog.chain_id" },
-    });
-  }
-  return chainId;
-}
-
-function requireConfigSignatureActions(precog) {
-  const actions = precog.signature_actions ?? {};
-  if (!actions.create_market || !actions.fund_market) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.signature_actions create_market/fund_market.", {
-      code: "PRECOG_CONFIG_ERROR",
-      endpoint: null,
-      body: { error: "Missing precog.signature_actions.create_market or precog.signature_actions.fund_market" },
-    });
-  }
-  return {
-    create_market: actions.create_market,
-    fund_market: actions.fund_market,
-  };
-}
-
-function buildPrecogAuthorizationTypedDataTemplate({ config, action, account, nonce }) {
-  const normalizedAccount = normalizeEvmChecksumAddress(account, "account");
-  return {
-    types: {
-      EIP712Domain: [
-        { name: "name", type: "string" },
-        { name: "version", type: "string" },
-        { name: "chainId", type: "uint256" },
-        { name: "verifyingContract", type: "address" },
-      ],
-      PrecogMarketAuthorization: [
-        { name: "action", type: "string" },
-        { name: "account", type: "address" },
-        { name: "chainId", type: "uint256" },
-        { name: "nonce", type: "uint256" },
-      ],
-    },
-    primaryType: "PrecogMarketAuthorization",
-    domain: {
-      name: "Precog Markets",
-      version: "1",
-      chainId: config.chain_id,
-      verifyingContract: requireDeployedMasterAddress(config),
-    },
-    message: {
-      action,
-      account: normalizedAccount,
-      chainId: config.chain_id,
-      nonce,
-    },
-  };
-}
-
-function requireDefaultCollateralAddress(config) {
-  if (!config.default_collateral_address) {
-    throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.default_collateral_address.",
-      {
-        code: "PRECOG_CONFIG_ERROR",
-        endpoint: null,
-        body: { error: "Missing precog.default_collateral_address" },
-      },
-    );
-  }
-  return config.default_collateral_address;
-}
-
-function requireDeployedMasterAddress(config) {
-  if (!config.deployed_master_address) {
-    throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.deployed_master_address.",
-      {
-        code: "PRECOG_CONFIG_ERROR",
-        endpoint: null,
-        body: { error: "Missing precog.deployed_master_address" },
-      },
-    );
-  }
-  return config.deployed_master_address;
-}
-
-function mergeConfig(config, localConfig) {
-  return {
-    ...(config ?? {}),
-    ...(localConfig ?? {}),
-    precog: {
-      ...(config?.precog ?? {}),
-      ...(localConfig?.precog ?? {}),
-    },
-  };
-}
-
-function buildPrecogUrl(root, path, params = null) {
-  const url = new URL(`${root.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`);
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null && value !== "") {
-        url.searchParams.set(key, String(value));
-      }
-    }
-  }
-  return url.toString();
-}
-
 async function readResponseBody(response) {
   const text = await response.text();
   if (!text) return null;
@@ -1895,60 +1692,6 @@ async function readResponseBody(response) {
   } catch {
     return { raw: text };
   }
-}
-
-function normalizeUtcIso(value, label, warnings = []) {
-  if (value === undefined || value === null || value === "") return null;
-  if (typeof value === "string" && !hasExplicitTimeZone(value)) {
-    warnings.push(`${label} had no timezone; treated as UTC.`);
-  }
-  return parseUtcDate(value).toISOString();
-}
-
-function parseUtcDate(value) {
-  if (value instanceof Date) {
-    if (!Number.isFinite(value.getTime())) fail(`Invalid timestamp: ${value}`);
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return new Date(Math.floor(value) * 1000);
-  }
-  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
-    return new Date(Number(value) * 1000);
-  }
-  if (typeof value === "string") {
-    const normalized = value.trim();
-    const parseTarget = hasExplicitTimeZone(normalized)
-      ? normalized
-      : normalizeTimezoneLessUtcString(normalized);
-    const parsed = Date.parse(parseTarget);
-    if (Number.isFinite(parsed)) return new Date(parsed);
-  }
-  fail(`Invalid timestamp: ${value}`);
-}
-
-function hasExplicitTimeZone(value) {
-  return /(?:z|[+-]\d{2}:?\d{2})$/i.test(String(value).trim());
-}
-
-function normalizeTimezoneLessUtcString(value) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00Z`;
-  return `${value}Z`;
-}
-
-function toUnixTimestamp(value) {
-  return Math.floor(parseUtcDate(value).getTime() / 1000);
-}
-
-function requireFields(value, fields, label) {
-  const missing = fields.filter(
-    (field) => value[field] === undefined || value[field] === null || value[field] === "",
-  );
-  if (missing.length) fail(`${label} missing required field(s): ${missing.join(", ")}.`);
-}
-
-function withoutUndefined(value) {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
 function markWorkflowError(state, error) {
@@ -1960,26 +1703,7 @@ function markWorkflowError(state, error) {
 }
 
 export function serializeError(error) {
-  return {
-    name: error?.name ?? "Error",
-    message: error?.message ?? String(error),
-    code: error?.code,
-    status: error?.status,
-    endpoint: error?.endpoint,
-    body: error?.body,
-  };
-}
-
-export class PrecogApiError extends Error {
-  constructor(message, details = {}) {
-    super(message);
-    this.name = "PrecogApiError";
-    this.code = details.code;
-    this.status = details.status;
-    this.endpoint = details.endpoint;
-    this.body = details.body;
-    this.signature_diagnostic = details.signature_diagnostic;
-  }
+  return serializeRuntimeError(error);
 }
 
 function transition(previousState, nextState, eventType) {
@@ -2005,37 +1729,4 @@ function titleFromPrompt(prompt = "") {
   const clean = prompt.trim().replace(/\s+/g, " ");
   if (!clean) return "ForecastOS multi-outcome market";
   return clean.length > 90 ? `${clean.slice(0, 87)}...` : clean;
-}
-
-async function writeJson(path, value) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}
-`, "utf8");
-}
-
-async function readJsonOrNull(path) {
-  try {
-    return JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-async function readJsonDir(path) {
-  try {
-    const entries = await readdir(path, { withFileTypes: true });
-    return Promise.all(
-      entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-        .map((entry) => readJsonOrNull(join(path, entry.name))),
-    );
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  }
-}
-
-function fail(message) {
-  throw new Error(message);
 }
