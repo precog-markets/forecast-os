@@ -4,6 +4,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
 
 if (isMain(import.meta.url)) {
   try {
@@ -40,14 +41,15 @@ export function resolveCreate({
 } = {}) {
   validateIntent(intent);
   if (!walletAddress) fail("Base MCP create resolver requires walletAddress.");
-  const typedData = buildCreateTypedData(intent.eip712_typed_data_template, walletAddress, nonce);
+  const checksummedWalletAddress = normalizeEvmChecksumAddress(walletAddress, "walletAddress");
+  const typedData = buildCreateTypedData(intent.eip712_typed_data_template, checksummedWalletAddress, nonce);
   const chainId = Number(intent.chain_id ?? typedData.domain?.chainId);
   if (chainId !== 8453) fail(`Base MCP create resolver only supports Base chain 8453, received ${chainId}.`);
 
   const walletAudit = {
     provider: "base-mcp",
-    wallet_id: walletId ?? walletAddress,
-    wallet_address: walletAddress,
+    wallet_id: walletId ?? checksummedWalletAddress,
+    wallet_address: checksummedWalletAddress,
     policy_ids: [],
     chain_id: chainId,
     nonce: typedData.message.nonce,
@@ -80,12 +82,12 @@ export function resolveCreate({
     event: withoutUndefined({
       image_url: intent.precog_payload_template?.image_url,
       category: intent.precog_payload_template?.category,
-      creator_address: walletAddress,
+      creator_address: checksummedWalletAddress,
       creator_signature: creatorSignature,
       wallet_provider: "base-mcp",
       wallet_audit: walletAudit,
     }),
-    creator_address: walletAddress,
+    creator_address: checksummedWalletAddress,
     creator_signature: creatorSignature,
     wallet_audit: walletAudit,
     next_action: "run_skill_step",
@@ -94,6 +96,7 @@ export function resolveCreate({
 
 export function buildCreateTypedData(template, account, nonce) {
   if (!template || typeof template !== "object") fail("Create intent missing eip712_typed_data_template.");
+  const checksummedAccount = normalizeEvmChecksumAddress(account, "account");
   const primaryType = template.primaryType ?? template.primary_type;
   if (!primaryType) fail("Create intent typed data missing primaryType.");
   return {
@@ -102,7 +105,7 @@ export function buildCreateTypedData(template, account, nonce) {
     domain: template.domain,
     message: {
       ...template.message,
-      account,
+      account: checksummedAccount,
       nonce: normalizeNonce(nonce ?? template.message?.nonce),
     },
   };

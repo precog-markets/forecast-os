@@ -188,7 +188,7 @@
         "creator_address": {
           "type": "string",
           "minLength": 1,
-          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt. Must be a 20-byte EVM address; ForecastOS normalizes it to EIP-55 checksum casing before create submission."
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt. Must be a 20-byte EVM address; ForecastOS normalizes it to EIP-55 checksum casing before create submission and uses the same checksum casing in the EIP-712 message.account that is signed."
         },
         "creator_signature": {
           "type": "string",

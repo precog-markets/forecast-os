@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
 
 const PRIVY_API_ROOT = "https://api.privy.io/v1";
 const DEFAULT_BASE_RPC_URL = "https://mainnet.base.org";
@@ -45,7 +46,7 @@ export async function resolveCreate({
   const wallets = await listEthereumWallets(fetch, auth);
   const { eligibleWallets, diagnostics } = await walletsWithPolicyCapabilities(fetch, auth, wallets);
   const selected = selectWallet(eligibleWallets, { walletId, walletAddress, diagnostics });
-  const creatorAddress = selected.address;
+  const creatorAddress = normalizeEvmChecksumAddress(selected.address, "creator_address");
   const chainId = intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId;
   if (Number(chainId) !== 8453) {
     fail(`Privy create resolver currently supports Base chain 8453, received ${chainId}.`);
@@ -90,6 +91,7 @@ export const resolvePrivyCreate = resolveCreate;
 
 export function buildCreateTypedData(template, account, nonce) {
   if (!template || typeof template !== "object") fail("Create intent missing eip712_typed_data_template.");
+  const checksummedAccount = normalizeEvmChecksumAddress(account, "account");
   const primaryType = template.primaryType ?? template.primary_type;
   if (!primaryType) fail("Create intent typed data missing primaryType.");
   return {
@@ -98,7 +100,7 @@ export function buildCreateTypedData(template, account, nonce) {
     domain: template.domain,
     message: {
       ...template.message,
-      account,
+      account: checksummedAccount,
       nonce,
     },
   };

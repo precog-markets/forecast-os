@@ -61,7 +61,7 @@ node scripts/forecastos_action.mjs run_skill_step \
 This avoids shell environment mistakes where a signature is assigned to a local
 variable but not exported to the command that builds the create input.
 
-The adapter output must contain `creator_address` and `creator_signature`, plus non-secret audit metadata. Do not ask users to paste raw signatures in chat.
+The adapter output must contain `creator_address` and `creator_signature`, plus non-secret audit metadata. The adapter must checksum the EVM address before signing so `creator_address` and the EIP-712 `message.account` are identical EIP-55 strings. Do not ask users to paste raw signatures in chat.
 
 When the same EVM wallet will create now and fund later, its policy should allow both `eth_signTypedData_v4` and `eth_sendTransaction` with tight chain, contract, and amount constraints. Provider adapters may refuse wallets missing either capability.
 

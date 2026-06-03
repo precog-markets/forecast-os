@@ -1804,6 +1804,7 @@ function requireConfigSignatureActions(precog) {
 }
 
 function buildPrecogAuthorizationTypedDataTemplate({ config, action, account, nonce }) {
+  const normalizedAccount = normalizeEvmChecksumAddress(account, "account");
   return {
     types: {
       EIP712Domain: [
@@ -1828,7 +1829,7 @@ function buildPrecogAuthorizationTypedDataTemplate({ config, action, account, no
     },
     message: {
       action,
-      account,
+      account: normalizedAccount,
       chainId: config.chain_id,
       nonce,
     },

@@ -4,10 +4,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
-  buildCreateTypedData,
+  buildCreateTypedData as buildPrivyCreateTypedData,
   resolveCreate,
 } from "../privy/resolve_create.mjs";
 import {
+  buildCreateTypedData as buildBaseMcpCreateTypedData,
   resolveCreate as resolveBaseMcpCreate,
 } from "../base-mcp/resolve_create.mjs";
 import {
@@ -18,12 +19,15 @@ import {
 import {
   resolveCreate as resolveBankrCreate,
 } from "../bankr/resolve_create.mjs";
+import { buildBankrTypedData } from "../bankr/common.mjs";
 import {
   resolveFunding as resolveBankrFunding,
 } from "../bankr/resolve_funding.mjs";
 
 const walletAdaptersRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(walletAdaptersRoot));
+const lowerChecksumFixtureAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
+const checksumFixtureAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
 
 test("wallet adapter contract documents create and funding outputs", async () => {
   const contract = await readFile(join(walletAdaptersRoot, "contract.md"), "utf8");
@@ -35,6 +39,22 @@ test("wallet adapter contract documents create and funding outputs", async () =>
   assert.ok(!contract.includes("Funding adapters are not implemented yet"));
 });
 
+test("create typed-data builders checksum message account before signing", () => {
+  const template = buildCreateIntentFixture().eip712_typed_data_template;
+
+  assert.equal(
+    buildPrivyCreateTypedData(template, lowerChecksumFixtureAddress, 7).message.account,
+    checksumFixtureAddress,
+  );
+  assert.equal(
+    buildBaseMcpCreateTypedData(template, lowerChecksumFixtureAddress, 7).message.account,
+    checksumFixtureAddress,
+  );
+  assert.equal(
+    buildBankrTypedData(template, lowerChecksumFixtureAddress, 7, "Create intent").message.account,
+    checksumFixtureAddress,
+  );
+});
 test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed data", async () => {
   const requests = [];
   const intent = buildCreateIntentFixture();
@@ -295,13 +315,13 @@ test("Privy create resolver requires transaction-send policy for future funding"
 
 test("Privy typed-data conversion keeps canonical intent immutable", () => {
   const template = buildCreateIntentFixture().eip712_typed_data_template;
-  const typedData = buildCreateTypedData(template, "0xCreator", 12);
+  const typedData = buildPrivyCreateTypedData(template, lowerChecksumFixtureAddress, 12);
 
   assert.equal(template.primaryType, "PrecogMarketAuthorization");
   assert.equal(template.primary_type, undefined);
   assert.equal(typedData.primaryType, undefined);
   assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
-  assert.equal(typedData.message.account, "0xCreator");
+  assert.equal(typedData.message.account, checksumFixtureAddress);
   assert.equal(typedData.message.nonce, 12);
 });
 

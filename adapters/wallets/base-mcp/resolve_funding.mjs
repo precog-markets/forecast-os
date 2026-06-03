@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
 
 const BASE_CHAIN_ID = 8453;
 const BASE_CHAIN_HEX = "0x2105";
@@ -45,17 +46,18 @@ export function resolveFunding({
 } = {}) {
   validateFundingIntent(intent);
   assertAddress(walletAddress, "walletAddress");
+  const checksummedWalletAddress = normalizeEvmChecksumAddress(walletAddress, "walletAddress");
   const chain = chainNameFor(intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId);
   const transactions = normalizePreparedTransactions(prepareResponse, chain);
   const sendCalls = buildSendCallsRequest(transactions, chain);
   const hasTxHash = Boolean(txHash);
   const typedData = hasTxHash || funderSignature
-    ? buildFundingTypedData(intent.eip712_typed_data_template, walletAddress, nonce)
+    ? buildFundingTypedData(intent.eip712_typed_data_template, checksummedWalletAddress, nonce)
     : null;
   const walletAudit = withoutUndefined({
     provider: "base-mcp",
-    wallet_id: walletId ?? walletAddress,
-    wallet_address: walletAddress,
+    wallet_id: walletId ?? checksummedWalletAddress,
+    wallet_address: checksummedWalletAddress,
     policy_ids: [],
     chain_id: BASE_CHAIN_ID,
     nonce: typedData?.message?.nonce,
@@ -105,7 +107,7 @@ export function resolveFunding({
         upcoming_market: intent.upcoming_market,
         amount: intent.amount,
         tx_hash: txHash,
-        funder_address: walletAddress,
+        funder_address: checksummedWalletAddress,
         funder_signature: "<signature_from_base_mcp_post_tx_sign>",
       },
       notes: [
@@ -123,7 +125,7 @@ export function resolveFunding({
       upcoming_market: intent.upcoming_market,
       amount: intent.amount,
       tx_hash: txHash,
-      funder_address: walletAddress,
+      funder_address: checksummedWalletAddress,
       funder_signature: funderSignature,
     },
     wallet_audit: walletAudit,
@@ -134,7 +136,7 @@ export function resolveFunding({
 
 export function buildFundingTypedData(template, account, nonce) {
   if (!template || typeof template !== "object") fail("Funding intent missing eip712_typed_data_template.");
-  assertAddress(account, "account");
+  const checksummedAccount = normalizeEvmChecksumAddress(account, "account");
   const primaryType = template.primaryType ?? template.primary_type;
   if (!primaryType) fail("Funding intent typed data missing primaryType.");
   return {
@@ -143,7 +145,7 @@ export function buildFundingTypedData(template, account, nonce) {
     domain: template.domain,
     message: {
       ...template.message,
-      account,
+      account: checksummedAccount,
       nonce: normalizeNonce(nonce ?? template.message?.nonce),
     },
   };

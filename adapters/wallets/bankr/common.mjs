@@ -1,3 +1,4 @@
+import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -108,7 +109,7 @@ export async function fetchPendingNonce(fetch, rpcUrl, address) {
 
 export function buildBankrTypedData(template, account, nonce, label = "intent") {
   if (!template || typeof template !== "object") fail(`${label} missing eip712_typed_data_template.`);
-  assertAddress(account, "account");
+  const checksummedAccount = normalizeEvmChecksumAddress(account, "account");
   const primaryType = template.primaryType ?? template.primary_type;
   if (!primaryType) fail(`${label} typed data missing primaryType.`);
   return {
@@ -117,7 +118,7 @@ export function buildBankrTypedData(template, account, nonce, label = "intent") 
     domain: template.domain,
     message: {
       ...template.message,
-      account,
+      account: checksummedAccount,
       nonce: normalizeNonce(nonce ?? template.message?.nonce),
     },
   };

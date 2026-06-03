@@ -2075,13 +2075,13 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
 test("legacy Privy skill shim delegates to top-level wallet adapter", async () => {
   const shim = await import("../scripts/wallets/privy_resolve_create.mjs");
   const template = buildCreateIntentFixture().eip712_typed_data_template;
-  const typedData = await shim.buildPrivyTypedData(template, "0xCreator", 12);
+  const typedData = await shim.buildPrivyTypedData(template, lowerCreatorAddress, 12);
 
   assert.equal(template.primaryType, "PrecogMarketAuthorization");
   assert.equal(template.primary_type, undefined);
   assert.equal(typedData.primaryType, undefined);
   assert.equal(typedData.primary_type, "PrecogMarketAuthorization");
-  assert.equal(typedData.message.account, "0xCreator");
+  assert.equal(typedData.message.account, checksumCreatorAddress);
   assert.equal(typedData.message.nonce, 12);
 });
 
