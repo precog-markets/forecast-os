@@ -7,7 +7,9 @@ import {
   requireDefaultCollateralAddress,
   requireDeployedMasterAddress,
 } from "./lib/config.mjs";
+import { buildCreatePayload } from "./lib/create_payload.mjs";
 import { fail, PrecogApiError, serializeError as serializeRuntimeError } from "./lib/errors.mjs";
+import { normalizeEvmChecksumAddress } from "./lib/evm.mjs";
 import { requireFields, withoutUndefined } from "./lib/object_utils.mjs";
 import {
   DirectoryDraftStateStore,
@@ -988,153 +990,6 @@ function ensureState(state, event) {
   };
 }
 
-function buildCreatePayload(draft, input, now) {
-  const startTimestamp = toUnixTimestamp(input.start_timestamp ?? now());
-  const endTimestampSource =
-    input.end_timestamp ??
-    input.close_time ??
-    draft.market.close_time;
-  if (endTimestampSource === undefined || endTimestampSource === null || endTimestampSource === "") {
-    fail("create_market requires end_timestamp or draft close_time.");
-  }
-  const endTimestamp = toUnixTimestamp(endTimestampSource);
-  if (startTimestamp >= endTimestamp) {
-    fail("create_market requires start_timestamp to be before end_timestamp.");
-  }
-
-  const payload = withoutUndefined({
-    question: normalizePrecogQuestion(input.question ?? draft.market.question),
-    resolution_criteria: normalizeResolutionCriteria(input.resolution_criteria ?? draft.market.resolution_criteria),
-    image_url: normalizeUrl(input.image_url, "image_url"),
-    category: normalizePrecogCategory(input.category ?? draft.market.category),
-    outcomes: normalizePrecogOutcomes(input.outcomes ?? draft.market.outcomes),
-    start_timestamp: startTimestamp,
-    end_timestamp: endTimestamp,
-    collateral_address: input.collateral_address,
-    chain_id: input.chain_id,
-    creator_address: normalizeEvmChecksumAddress(input.creator_address, "creator_address"),
-    creator_signature: input.creator_signature,
-    creator_email: input.creator_email,
-  });
-  requireFields(payload, [
-    "question",
-    "resolution_criteria",
-    "image_url",
-    "category",
-    "outcomes",
-    "start_timestamp",
-    "end_timestamp",
-    "collateral_address",
-    "chain_id",
-    "creator_address",
-    "creator_signature",
-  ], "Precog create payload");
-  return payload;
-}
-
-function normalizeEvmChecksumAddress(value, label) {
-  const address = String(value ?? "").trim();
-  if (/^<[^>]+>$/.test(address)) return address;
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
-    fail(`${label} must be a 20-byte EVM address.`);
-  }
-  return toEip55ChecksumAddress(address);
-}
-
-function toEip55ChecksumAddress(address) {
-  const hex = address.slice(2).toLowerCase();
-  const hash = keccak256AsciiHex(hex);
-  let checksummed = "0x";
-  for (let index = 0; index < hex.length; index += 1) {
-    const char = hex[index];
-    checksummed += /[a-f]/.test(char) && Number.parseInt(hash[index], 16) >= 8
-      ? char.toUpperCase()
-      : char;
-  }
-  return checksummed;
-}
-
-function keccak256AsciiHex(value) {
-  const bytes = Array.from(Buffer.from(value, "ascii"));
-  return keccak256Bytes(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function keccak256Bytes(bytes) {
-  const rateBytes = 136;
-  const state = Array(25).fill(0n);
-  for (let offset = 0; offset < bytes.length; offset += rateBytes) {
-    const block = bytes.slice(offset, offset + rateBytes);
-    for (let index = 0; index < block.length; index += 1) {
-      state[index >> 3] ^= BigInt(block[index]) << BigInt((index & 7) * 8);
-    }
-    if (block.length === rateBytes) keccakF1600(state);
-  }
-  const position = bytes.length % rateBytes;
-  state[position >> 3] ^= 0x01n << BigInt((position & 7) * 8);
-  state[(rateBytes - 1) >> 3] ^= 0x80n << BigInt(((rateBytes - 1) & 7) * 8);
-  keccakF1600(state);
-  const output = [];
-  for (let index = 0; index < 32; index += 1) {
-    output.push(Number((state[index >> 3] >> BigInt((index & 7) * 8)) & 0xffn));
-  }
-  return output;
-}
-
-const KECCAK_MASK_64 = (1n << 64n) - 1n;
-const KECCAK_ROUND_CONSTANTS = [
-  0x0000000000000001n, 0x0000000000008082n, 0x800000000000808an, 0x8000000080008000n,
-  0x000000000000808bn, 0x0000000080000001n, 0x8000000080008081n, 0x8000000000008009n,
-  0x000000000000008an, 0x0000000000000088n, 0x0000000080008009n, 0x000000008000000an,
-  0x000000008000808bn, 0x800000000000008bn, 0x8000000000008089n, 0x8000000000008003n,
-  0x8000000000008002n, 0x8000000000000080n, 0x000000000000800an, 0x800000008000000an,
-  0x8000000080008081n, 0x8000000000008080n, 0x0000000080000001n, 0x8000000080008008n,
-];
-const KECCAK_ROTATION_OFFSETS = [
-  [0, 36, 3, 41, 18],
-  [1, 44, 10, 45, 2],
-  [62, 6, 43, 15, 61],
-  [28, 55, 25, 21, 56],
-  [27, 20, 39, 8, 14],
-];
-
-function keccakF1600(state) {
-  for (const roundConstant of KECCAK_ROUND_CONSTANTS) {
-    const c = Array(5).fill(0n);
-    const d = Array(5).fill(0n);
-    for (let x = 0; x < 5; x += 1) {
-      c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
-    }
-    for (let x = 0; x < 5; x += 1) {
-      d[x] = c[(x + 4) % 5] ^ rotl64(c[(x + 1) % 5], 1);
-    }
-    for (let x = 0; x < 5; x += 1) {
-      for (let y = 0; y < 5; y += 1) {
-        state[x + 5 * y] = (state[x + 5 * y] ^ d[x]) & KECCAK_MASK_64;
-      }
-    }
-    const b = Array(25).fill(0n);
-    for (let x = 0; x < 5; x += 1) {
-      for (let y = 0; y < 5; y += 1) {
-        b[y + 5 * ((2 * x + 3 * y) % 5)] = rotl64(
-          state[x + 5 * y],
-          KECCAK_ROTATION_OFFSETS[x][y],
-        );
-      }
-    }
-    for (let x = 0; x < 5; x += 1) {
-      for (let y = 0; y < 5; y += 1) {
-        state[x + 5 * y] = (b[x + 5 * y] ^ ((~b[((x + 1) % 5) + 5 * y] & KECCAK_MASK_64) & b[((x + 2) % 5) + 5 * y])) & KECCAK_MASK_64;
-      }
-    }
-    state[0] = (state[0] ^ roundConstant) & KECCAK_MASK_64;
-  }
-}
-
-function rotl64(value, shift) {
-  const amount = BigInt(shift % 64);
-  if (amount === 0n) return value & KECCAK_MASK_64;
-  return ((value << amount) | (value >> (64n - amount))) & KECCAK_MASK_64;
-}
 function normalizeCreateResponse(response, draft, input = {}) {
   const marketId =
     response.upcoming_market ?? response.upcoming_market_id ?? response.market_id ?? response.id;
@@ -1581,58 +1436,6 @@ function formatTokenLine(market = {}) {
 function formatUtcForReview(value) {
   const date = parseUtcDate(value);
   return `${date.toISOString()} UTC`;
-}
-
-function normalizePrecogQuestion(question) {
-  const value = String(question ?? "").trim();
-  if (!value) fail("Precog create payload missing required field: question.");
-  return value.endsWith("?") ? value : `${value}?`;
-}
-
-function normalizePrecogCategory(category) {
-  const value = String(category ?? "").trim();
-  if (!value) fail("Precog create payload missing required field: category.");
-  const categoryMap = {
-    agent_launch: "AI",
-    integration: "AI",
-    strategy: "AI",
-    sentiment: "AI",
-    revenue: "AI",
-    other: "AI",
-  };
-  return categoryMap[value] ?? value;
-}
-
-function normalizePrecogOutcomes(outcomes) {
-  const input = Array.isArray(outcomes) ? outcomes : String(outcomes ?? "").split(",");
-  const normalized = input.map(sanitizeOutcomeLabel);
-  if (normalized.length < 3 || normalized.some((outcome) => !outcome)) {
-    fail("ForecastOS create_market requires at least three non-empty outcomes; split binary yes/no markets into concrete multi-outcome labels.");
-  }
-  if (isBinaryYesNoOutcomeSet(normalized)) {
-    fail("ForecastOS create_market does not publish pure Yes/No outcome sets. Split the prompt into at least three concrete outcomes.");
-  }
-  return normalized.join(",");
-}
-
-function isBinaryYesNoOutcomeSet(outcomes = []) {
-  if (outcomes.length !== 2) return false;
-  const labels = outcomes.map((outcome) => outcome.toLowerCase());
-  return labels.includes("yes") && labels.includes("no");
-}
-
-function normalizeUrl(value, label) {
-  const url = String(value ?? "").trim();
-  if (!url) fail(`create_market missing required field(s): ${label}.`);
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      fail(`${label} must be an http(s) URL.`);
-    }
-    return parsed.toString();
-  } catch {
-    fail(`${label} must be a valid URL.`);
-  }
 }
 
 function getUpcomingMarketId(state = {}, event = {}) {

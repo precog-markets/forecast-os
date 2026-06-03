@@ -20,6 +20,9 @@ const configCollateralAddress = shippedConfig.precog.default_collateral_address;
 const configSignatureActions = shippedConfig.precog.signature_actions;
 const lowerCreatorAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
 const checksumCreatorAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
+const isRepoLayout = await exists(join(monorepoRoot, "VERSION")) &&
+  await exists(join(monorepoRoot, "adapters"));
+const repoOnly = isRepoLayout ? test : test.skip;
 
 test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
   assert.equal(
@@ -32,7 +35,7 @@ test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
   );
 });
 
-test("root VERSION is canonical and check_version works without skill artifact VERSION", async () => {
+repoOnly("root VERSION is canonical and check_version works without skill artifact VERSION", async () => {
   await rm(join(skillRoot, "VERSION"), { force: true });
   const rootVersion = (await readFile(join(monorepoRoot, "VERSION"), "utf8")).trim();
 
@@ -52,7 +55,7 @@ test("root VERSION is canonical and check_version works without skill artifact V
   assert.equal(report.versions_differ, false);
 });
 
-test("sync_version generates detached skill artifact VERSION from root VERSION", async () => {
+repoOnly("sync_version generates detached skill artifact VERSION from root VERSION", async () => {
   await rm(join(skillRoot, "VERSION"), { force: true });
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -81,7 +84,7 @@ test("sync_version generates detached skill artifact VERSION from root VERSION",
   }
 });
 
-test("forecastos_action defaults to bundled skill config when run from repo root", async () => {
+repoOnly("forecastos_action defaults to bundled skill config when run from repo root", async () => {
   const rootDir = join(skillRoot, "test-output", "repo-root-default-action");
   await rm(rootDir, { recursive: true, force: true });
   await mkdir(rootDir, { recursive: true });
@@ -125,7 +128,7 @@ test("forecastos_action defaults to bundled skill config when run from repo root
   }
 });
 
-test("check_pending_market defaults to skill-local state when run from repo root", async () => {
+repoOnly("check_pending_market defaults to skill-local state when run from repo root", async () => {
   const workflowId = "workflow_default_state_pending_test";
   const workflowPath = join(skillRoot, ".forecastos", "workflows", "all", `${workflowId}.json`);
   await mkdir(dirname(workflowPath), { recursive: true });
@@ -170,7 +173,7 @@ test("check_pending_market defaults to skill-local state when run from repo root
   }
 });
 
-test("scripts keep FORECASTOS_STATE_DIR override ahead of skill-local default", async () => {
+repoOnly("scripts keep FORECASTOS_STATE_DIR override ahead of skill-local default", async () => {
   const rootDir = join(skillRoot, "test-output", "state-dir-override");
   const stateDir = join(rootDir, ".forecastos");
   const workflowId = "workflow_state_dir_override";
@@ -1473,7 +1476,7 @@ test("skill treats MCP as optional read-only context, not the production gate", 
   }
 });
 
-test("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
+repoOnly("Claude host adapter uses Claude MCP shape and keeps host boundaries", async () => {
   const claudeRoot = join(monorepoRoot, "adapters", "hosts", "claude");
   const claudeConfig = JSON.parse(await readFile(join(claudeRoot, ".mcp.json"), "utf8"));
   const claudeReadme = await readFile(join(claudeRoot, "README.md"), "utf8");
@@ -1494,7 +1497,7 @@ test("Claude host adapter uses Claude MCP shape and keeps host boundaries", asyn
   assert.ok(!combined.includes("/wallet/submit"));
 });
 
-test("Cursor host adapter exposes a native Agent Skill package", async () => {
+repoOnly("Cursor host adapter exposes a native Agent Skill package", async () => {
   const cursorSkillRoot = join(monorepoRoot, "adapters", "hosts", "cursor", "forecast-os");
   const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
   const cursorWorkflow = await readFile(join(cursorSkillRoot, "references", "cursor-workflow.md"), "utf8");
@@ -1561,7 +1564,7 @@ test("Cursor host adapter exposes a native Agent Skill package", async () => {
   assert.ok(draft.result.review_message.includes("Which launcher leads June agents?"));
 });
 
-test("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
+repoOnly("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
   const hermesRoot = join(monorepoRoot, "adapters", "hosts", "hermes");
   const hermesSkillRoot = join(hermesRoot, "skills", "prediction", "forecast-os");
   const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");

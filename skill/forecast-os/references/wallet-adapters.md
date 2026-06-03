@@ -43,6 +43,84 @@ The shared adapter contract lives at:
 adapters/wallets/contract.md
 ```
 
+## Adapter Contract
+
+Wallet adapters consume ForecastOS intent JSON and return resolved wallet/action output JSON. They must not draft markets, choose venues, modify `.forecastos/` directly, or submit Precog API calls unless explicitly documented as a separate trusted action bridge step.
+
+### Create Adapter Input
+
+Input is the output of `prepare_create_intent` plus any provider configuration the operator has already approved:
+
+```json
+{
+  "intent_type": "forecastos.create_market",
+  "eip712_typed_data_template": {
+    "domain": { "name": "Precog Markets", "version": "1" },
+    "primaryType": "PrecogMarketAuthorization",
+    "message": {
+      "action": "CREATE_UPCOMING_MARKET",
+      "account": "<creator_address>",
+      "nonce": "<next_pending_nonce>"
+    }
+  },
+  "precog_payload_template": {
+    "question": "...",
+    "outcomes": "A,B,C",
+    "chain_id": 8453,
+    "creator_address": "<wallet_address>",
+    "creator_signature": "<wallet_signature>"
+  }
+}
+```
+
+### Create Adapter Output
+
+Output must be safe to merge into `publish_approved_market` or `run_skill_step`:
+
+```json
+{
+  "event": {
+    "creator_address": "0xChecksumAddress",
+    "creator_signature": "0xSignature",
+    "wallet_provider": "provider-name",
+    "wallet_audit": {
+      "provider": "provider-name",
+      "nonce": 123,
+      "signature_method": "eip712_typed_data"
+    }
+  }
+}
+```
+
+The adapter must make `creator_address` identical to the EIP-712 `message.account` used for signing.
+
+### Funding Adapter Input
+
+Input is the output of `prepare_funding_intent`. The adapter may also require an unsigned funding transaction envelope prepared by a trusted transaction builder.
+
+### Funding Adapter Output
+
+Output must be safe to pass as `funding_request`:
+
+```json
+{
+  "funding_request": {
+    "amount": "1",
+    "tx_hash": "0xTransactionHash",
+    "funder_address": "0xChecksumAddress",
+    "funder_signature": "0xSignature",
+    "wallet_provider": "provider-name",
+    "wallet_audit": {
+      "provider": "provider-name",
+      "nonce": 124,
+      "token_approval_performed": true
+    }
+  }
+}
+```
+
+`amount` must stay in Precog display units such as `"1"` or `"100.5"`. Do not return wei/base units or token symbols.
+
 ## Create Flow
 
 1. Draft and approve the market normally.
