@@ -146,6 +146,16 @@ When the same EVM wallet will create now and fund later, its policy should allow
 Bankr create follows the shared adapter contract. Keep endpoint details in
 `adapters/wallets/bankr/README.md`.
 
+Privy create must go through the canonical Privy adapter. Do not reconstruct the
+Privy wallet RPC request in host-specific code. The adapter sends
+`method: "eth_signTypedData_v4"`, omits `caip2`, keeps `params` to exactly
+`{ "typed_data": ... }`, and converts ForecastOS `primaryType` to Privy's
+`primary_type`. If Privy returns a strict schema error, treat it as an adapter
+regression. If it returns `PRIVY_POLICY_DENIED` or “RPC request denied due to
+policy violation,” ask the operator to update the selected wallet policy to
+allow `eth_signTypedData_v4`; include `eth_sendTransaction` too if the wallet
+will later fund the market.
+
 ## Funding Flow
 
 Funding adapters should consume `prepare_funding_intent` output and return a `funding_request` with `tx_hash`, `funder_address`, `funder_signature`, and the display-unit `amount`. Funding adapters must handle token approval outside ForecastOS when needed.

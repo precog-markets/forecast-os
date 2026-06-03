@@ -48,6 +48,7 @@ Creation defaults to Precog unless the user explicitly asks for draft-only work 
 Use `prepare_create_intent` before live creation. It prepares the Precog `CREATE_UPCOMING_MARKET` EIP-712 handoff; wallet/action tooling resolves nonce lookup, creator account, signature, and final payload. Prefer `publish_approved_market --workflow-id <workflow_id> --wallet-output <wallet-output-json>` after wallet resolution.
 
 Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
+Provider-specific wallet adapter details live in `adapters/wallets/<provider>` in the full ForecastOS repo.
 
 Use `prepare_funding_intent` before funding. Funding is allowed only after Precog status is `VALIDATED`; amount must be a plain display-unit decimal string like `"1"`, never wei/base units or token symbols. Wallet/action tooling handles token approval if allowance is insufficient.
 

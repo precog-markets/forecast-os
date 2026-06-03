@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   buildCreateTypedData as buildPrivyCreateTypedData,
+  buildPrivyTypedDataRpcBody,
   resolveCreate,
 } from "../privy/resolve_create.mjs";
 import {
@@ -102,6 +103,7 @@ test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed
     if (String(url).endsWith("/wallets/wallet_b/rpc")) {
       assert.equal(requests.at(-1).body.method, "eth_signTypedData_v4");
       assert.equal(requests.at(-1).body.caip2, undefined);
+      assert.deepEqual(Object.keys(requests.at(-1).body.params), ["typed_data"]);
       assert.equal(requests.at(-1).body.params.typed_data.primaryType, undefined);
       assert.equal(requests.at(-1).body.params.typed_data.primary_type, "PrecogMarketAuthorization");
       assert.equal(requests.at(-1).body.params.typed_data.message.account, "0x2222222222222222222222222222222222222222");
@@ -126,6 +128,22 @@ test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed
   assert.equal(resolved.event.wallet_audit.nonce, 7);
   assert.equal(resolved.next_action, "run_skill_step");
   assert.ok(requests.some((request) => String(request.url).includes("/wallets?chain_type=ethereum")));
+});
+
+test("Privy RPC body matches strict typed-data schema", () => {
+  const typedData = buildPrivyCreateTypedData(
+    buildCreateIntentFixture().eip712_typed_data_template,
+    lowerChecksumFixtureAddress,
+    7,
+  );
+  const body = buildPrivyTypedDataRpcBody(typedData);
+
+  assert.deepEqual(Object.keys(body).sort(), ["method", "params"]);
+  assert.equal(body.method, "eth_signTypedData_v4");
+  assert.equal(body.caip2, undefined);
+  assert.deepEqual(Object.keys(body.params), ["typed_data"]);
+  assert.equal(body.params.typed_data.primary_type, "PrecogMarketAuthorization");
+  assert.equal(body.params.typed_data.primaryType, undefined);
 });
 
 test("Privy create resolver refuses ambiguous typed-data-capable wallets", async () => {
@@ -169,6 +187,62 @@ test("Privy create resolver refuses ambiguous typed-data-capable wallets", async
       assert.equal(error.code, "PRIVY_WALLET_SELECTION_REQUIRED");
       assert.equal(error.wallets.length, 2);
       assert.equal(error.wallets[0].wallet_id, "wallet_a");
+      assert.ok(!JSON.stringify(error).includes("secret"));
+      return true;
+    },
+  );
+});
+
+test("Privy create resolver classifies typed-data policy denials", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_policy_blocked",
+            address: "0x2222222222222222222222222222222222222222",
+            chain_type: "ethereum",
+            policy_ids: ["policy_allows_methods"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_allows_methods")) {
+      return jsonResponse({
+        id: "policy_allows_methods",
+        rules: [
+          { method: "eth_signTypedData_v4", action: "ALLOW" },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
+    }
+    if (String(url) === "https://rpc.example") {
+      return jsonResponse({ jsonrpc: "2.0", id: 1, result: "0x7" });
+    }
+    if (String(url).endsWith("/wallets/wallet_policy_blocked/rpc")) {
+      return jsonResponse(
+        { error: "RPC request denied due to policy violation.", policy_id: "policy_blocked" },
+        403,
+      );
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildCreateIntentFixture(),
+      walletId: "wallet_policy_blocked",
+      rpcUrl: "https://rpc.example",
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_POLICY_DENIED");
+      assert.equal(error.status, 403);
+      assert.equal(error.wallet_id, "wallet_policy_blocked");
+      assert.deepEqual(error.required_methods, ["eth_signTypedData_v4", "eth_sendTransaction"]);
+      assert.ok(error.guidance.includes("wallet policy"));
+      assert.ok(error.guidance.includes("eth_signTypedData_v4"));
       assert.ok(!JSON.stringify(error).includes("secret"));
       return true;
     },

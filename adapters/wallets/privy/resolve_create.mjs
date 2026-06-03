@@ -239,18 +239,27 @@ async function signTypedData(fetch, auth, walletId, typedData) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: auth.headers,
-    body: JSON.stringify({
-      method: "eth_signTypedData_v4",
-      params: {
-        typed_data: typedData,
-      },
-    }),
+    body: JSON.stringify(buildPrivyTypedDataRpcBody(typedData)),
   });
   const body = await readJsonResponse(response);
-  if (!response.ok) throw buildPrivyApiError("Privy typed-data signing failed", response, endpoint, body);
+  if (!response.ok) {
+    throw buildPrivyApiError("Privy typed-data signing failed", response, endpoint, body, {
+      walletId,
+      requiredMethods: ["eth_signTypedData_v4", "eth_sendTransaction"],
+    });
+  }
   const signature = body.data?.signature ?? body.data?.result ?? body.signature ?? body.result;
   if (!signature) fail("Privy typed-data signing response did not include a signature.");
   return signature;
+}
+
+export function buildPrivyTypedDataRpcBody(typedData) {
+  return {
+    method: "eth_signTypedData_v4",
+    params: {
+      typed_data: typedData,
+    },
+  };
 }
 
 async function readJsonResponse(response) {
@@ -289,13 +298,29 @@ function fail(message) {
   throw error;
 }
 
-function buildPrivyApiError(message, response, endpoint, body) {
+function buildPrivyApiError(message, response, endpoint, body, context = {}) {
+  if (isPrivyPolicyDenied(body)) {
+    const error = new Error(`${message}: Privy wallet policy denied eth_signTypedData_v4.`);
+    error.code = "PRIVY_POLICY_DENIED";
+    error.status = response.status;
+    error.endpoint = endpoint;
+    error.body = summarizeBody(body);
+    error.wallet_id = context.walletId;
+    error.required_methods = context.requiredMethods ?? ["eth_signTypedData_v4"];
+    error.guidance = "Ask the operator to update the selected Privy wallet policy to allow eth_signTypedData_v4 before retrying; include eth_sendTransaction too if the same wallet will fund later.";
+    return error;
+  }
   const error = new Error(`${message}: ${response.status}`);
   error.code = "PRIVY_API_REQUEST_FAILED";
   error.status = response.status;
   error.endpoint = endpoint;
   error.body = summarizeBody(body);
   return error;
+}
+
+function isPrivyPolicyDenied(body) {
+  const text = summarizeBody(body).toLowerCase();
+  return text.includes("policy violation") || text.includes("rpc request denied");
 }
 
 function summarizeBody(body) {
@@ -311,6 +336,9 @@ function serializeError(error) {
     status: error?.status,
     endpoint: error?.endpoint,
     body: error?.body,
+    wallet_id: error?.wallet_id,
+    required_methods: error?.required_methods,
+    guidance: error?.guidance,
     wallets: error?.wallets,
     wallet_diagnostics: error?.wallet_diagnostics,
   });

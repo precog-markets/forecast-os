@@ -41,6 +41,24 @@ by accidentally using an unexported environment value.
 
 The adapter converts ForecastOS canonical EIP-712 `primaryType` into Privy's required `primary_type` and does not include `caip2` in the Privy signing request.
 
+The Privy wallet RPC request is intentionally strict:
+
+```json
+{
+  "method": "eth_signTypedData_v4",
+  "params": {
+    "typed_data": {
+      "types": {},
+      "primary_type": "PrecogMarketAuthorization",
+      "domain": {},
+      "message": {}
+    }
+  }
+}
+```
+
+Do not send `primaryType` to Privy, do not add extra keys inside `params`, and do not add `caip2` unless Privy changes this endpoint contract.
+
 ## Troubleshooting
 
 On failure, the adapter writes sanitized JSON to stderr. A
@@ -51,3 +69,8 @@ their values in chat. A `PRIVY_WALLET_SELECTION_REQUIRED` error with
 `wallet_diagnostics` means Privy was reachable but no selected wallet exposed
 both required policy methods. Check `checked_wallets`, `allow_methods`, and
 `policy_read_failures` to confirm the wallet id and attached policy.
+
+A `PRIVY_POLICY_DENIED` error means Privy accepted the RPC shape but the selected
+wallet policy blocked `eth_signTypedData_v4`. Ask the operator to update that
+wallet policy before retrying; if the same wallet will fund later, include
+`eth_sendTransaction` in the policy too.
