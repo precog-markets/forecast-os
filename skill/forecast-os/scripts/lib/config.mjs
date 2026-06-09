@@ -4,7 +4,10 @@ import { PrecogApiError } from "./errors.mjs";
 export async function readPrecogConfig(store, options = {}) {
   const config = typeof store.getConfig === "function" ? await store.getConfig() : null;
   const precog = config?.precog ?? {};
-  const chainId = requireConfigChainId(precog);
+  const chainId =
+    options.chainId ??
+    resolveWorkflowChainId(precog, options.chainHints ?? {}) ??
+    requireConfigChainId(precog);
   const chainConfig = chainConfigFor(precog, chainId);
   const deployedMasterAddress = chainConfig?.deployed_master_address ?? precog.deployed_master_address;
   if (!precog.open_api_key) {
@@ -47,6 +50,82 @@ export function chainConfigFor(precog, chainId) {
   if (!chains || typeof chains !== "object") return null;
   const entry = chains[String(chainId)];
   return entry && typeof entry === "object" ? entry : null;
+}
+
+export function chainHintsFrom(input = {}) {
+  const event = input.event ?? {};
+  const eventInput = event.input ?? {};
+  return {
+    chain_id:
+      input.chain_id ??
+      event.chain_id ??
+      eventInput.chain_id ??
+      input.state?.chain_id,
+    collateral_address:
+      input.collateral_address ??
+      event.collateral_address ??
+      eventInput.collateral_address ??
+      input.state?.collateral_address,
+    collateral_symbol:
+      input.collateral_symbol ??
+      event.collateral_symbol ??
+      eventInput.collateral_symbol ??
+      input.state?.collateral_symbol,
+  };
+}
+
+export function resolveWorkflowChainId(precog = {}, hints = {}) {
+  const supported = precog.supported_chains ?? {};
+  const configured = Number(precog.chain_id);
+  const configuredChainId =
+    Number.isInteger(configured) && configured > 0 ? configured : null;
+  const candidates = [
+    hints.chain_id,
+    hints.state?.chain_id,
+    hints.event?.chain_id,
+    hints.event?.input?.chain_id,
+  ].filter((value) => value !== undefined && value !== null && value !== "");
+
+  for (const candidate of candidates) {
+    const chainId = Number(candidate);
+    if (Number.isInteger(chainId) && chainId > 0 && chainConfigFor(precog, chainId)) {
+      return chainId;
+    }
+  }
+
+  const collateralCandidates = [
+    hints.collateral_address,
+    hints.state?.collateral_address,
+    hints.event?.collateral_address,
+    hints.event?.input?.collateral_address,
+  ].filter(Boolean);
+
+  for (const address of collateralCandidates) {
+    const normalized = normalizeConfigAddress(address);
+    for (const option of precog.default_collateral_options ?? []) {
+      if (
+        normalizeConfigAddress(option.address) === normalized &&
+        chainConfigFor(precog, Number(option.chain_id))
+      ) {
+        return Number(option.chain_id);
+      }
+    }
+    for (const [chainKey, chainEntry] of Object.entries(supported)) {
+      if (
+        chainEntry &&
+        typeof chainEntry === "object" &&
+        normalizeConfigAddress(chainEntry.default_collateral_address) === normalized
+      ) {
+        return Number(chainKey);
+      }
+    }
+  }
+
+  return configuredChainId;
+}
+
+function normalizeConfigAddress(value) {
+  return value ? String(value).trim().toLowerCase() : "";
 }
 
 export function requireConfigChainId(precog) {

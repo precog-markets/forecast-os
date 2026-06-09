@@ -4,10 +4,11 @@ import {
   buildPrecogAuthorizationTypedDataTemplate,
   buildPrecogUrl,
   chainConfigFor,
+  chainHintsFrom,
   readPrecogConfig,
-  requireConfigChainId,
   requireDefaultCollateralAddress,
   requireDeployedMasterAddress,
+  resolveWorkflowChainId,
 } from "./lib/config.mjs";
 import { buildCreatePayload } from "./lib/create_payload.mjs";
 import { fail, PrecogApiError, serializeError as serializeRuntimeError } from "./lib/errors.mjs";
@@ -50,7 +51,7 @@ class ForecastOSLocalRuntime {
 
   async createMarket(input) {
     if (input.approved !== true) fail("create_market requires approved: true.");
-    const config = await readPrecogConfig(this.store);
+    const config = await readPrecogConfig(this.store, { chainHints: chainHintsFrom(input) });
     const createInput = {
       ...input,
       chain_id: config.chain_id,
@@ -80,7 +81,10 @@ class ForecastOSLocalRuntime {
   }
 
   async prepareCreateIntent(input) {
-    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const config = await readPrecogConfig(this.store, {
+      requireDeployedMasterAddress: true,
+      chainHints: chainHintsFrom(input),
+    });
     const createInput = {
       ...input,
       chain_id: config.chain_id,
@@ -141,6 +145,7 @@ class ForecastOSLocalRuntime {
     if (["intake", "draft", "needs_info"].includes(current.step) && event.input) {
       const draft = await this.draftMarket(event.input);
       const nextStep = draft.quality.blocking_issues.length ? "needs_info" : "await_approval";
+      const chainContext = await resolveChainContextFromStore(this.store, event, current);
       return this.#saveResult({
         state: transition(current, {
           ...current,
@@ -151,6 +156,9 @@ class ForecastOSLocalRuntime {
           approval_prompt: draft.approval_prompt,
           approval_text: draft.approval_text,
           missing_fields: draft.missing_fields,
+          chain_id: chainContext.chain_id,
+          collateral_address: chainContext.collateral_address,
+          collateral_symbol: chainContext.collateral_symbol,
           last_result: draft,
         }, "draft_evaluated"),
         tool_result: draft,
@@ -168,6 +176,7 @@ class ForecastOSLocalRuntime {
         };
       }
       const approvedAt = new Date().toISOString();
+      const chainContext = await resolveChainContextFromStore(this.store, event, current);
       return this.#saveResult({
         state: transition(current, {
           ...current,
@@ -178,6 +187,9 @@ class ForecastOSLocalRuntime {
           approved_draft_hash: current.draft_hash,
           approval_response: approvalResponseText(event),
           approval_text: event.approval_text ?? current.approval_text,
+          chain_id: chainContext.chain_id,
+          collateral_address: chainContext.collateral_address,
+          collateral_symbol: chainContext.collateral_symbol,
         }, "approval_recorded"),
         needs_human_input: true,
         agent_message: "Approval recorded. If chain/collateral is not already specified, ask: With collateral from which chain? Default options are USDC on Base or USDC on Arbitrum. Then ask which wallet or wallet/action tool to use (Bankr, Privy, Base MCP for Base, another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/)).",
@@ -195,6 +207,9 @@ class ForecastOSLocalRuntime {
             approval_text: current.approval_text,
             approved_draft_id: current.approved_draft_id,
             approved_draft_hash: current.approved_draft_hash,
+            chain_id: event.chain_id ?? current.chain_id,
+            collateral_address: event.collateral_address ?? current.collateral_address,
+            collateral_symbol: event.collateral_symbol ?? current.collateral_symbol,
             state: current,
           });
           return this.#saveResult({
@@ -242,6 +257,9 @@ class ForecastOSLocalRuntime {
           approval_text: current.approval_text,
           approved_draft_id: current.approved_draft_id,
           approved_draft_hash: current.approved_draft_hash,
+          chain_id: event.chain_id ?? current.chain_id,
+          collateral_address: event.collateral_address ?? current.collateral_address,
+          collateral_symbol: event.collateral_symbol ?? current.collateral_symbol,
           state: current,
         });
         const pendingCheck = buildPendingCheck({
@@ -515,7 +533,10 @@ class ForecastOSLocalRuntime {
     if (upcomingMarket === undefined || upcomingMarket === null || upcomingMarket === "") {
       fail("prepare_funding_intent requires upcoming_market or state.market_id.");
     }
-    const config = await readPrecogConfig(this.store, { requireDeployedMasterAddress: true });
+    const config = await readPrecogConfig(this.store, {
+      requireDeployedMasterAddress: true,
+      chainHints: chainHintsFrom({ state, ...request }),
+    });
     const chainId = config.chain_id;
     const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? request.wallet_tool);
     const fundingAsset = request.funding_asset ?? request.asset ?? request.collateral_symbol ?? state.collateral_symbol;
@@ -602,7 +623,7 @@ class ForecastOSLocalRuntime {
   }
 
   async consumePrediction(state, event = {}) {
-    const config = await readPrecogConfig(this.store);
+    const config = await readPrecogConfig(this.store, { chainHints: chainHintsFrom({ state, event }) });
     const request = getPredictionRequest(event);
     const upcomingMarket = getUpcomingMarketId(state, event);
     const chainId = getChainId(state, event, "consume_prediction", config);
@@ -898,19 +919,37 @@ function buildSuggestNextQuestions(missingFields = []) {
 
 function buildDraftCollateralContext(input = {}, config = {}) {
   const precog = config?.precog ?? {};
-  const chainConfig = safeChainConfigFor(precog);
+  const chainId = resolveWorkflowChainId(precog, chainHintsFrom(input));
+  const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
   return {
     symbol: input.collateral_symbol ?? chainConfig?.default_collateral_symbol ?? precog.default_collateral_symbol ?? null,
     address: input.collateral_address ?? chainConfig?.default_collateral_address ?? precog.default_collateral_address ?? null,
+    chain_id: chainId,
   };
 }
 
-function safeChainConfigFor(precog) {
-  try {
-    return chainConfigFor(precog, requireConfigChainId(precog));
-  } catch {
-    return null;
-  }
+async function resolveChainContextFromStore(store, event = {}, state = {}) {
+  const config = typeof store.getConfig === "function" ? await store.getConfig() : {};
+  const precog = config?.precog ?? {};
+  const chainId = resolveWorkflowChainId(precog, chainHintsFrom({ event, state }));
+  const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
+  return {
+    chain_id: chainId,
+    collateral_address:
+      event.collateral_address ??
+      event.input?.collateral_address ??
+      state.collateral_address ??
+      chainConfig?.default_collateral_address ??
+      precog.default_collateral_address ??
+      null,
+    collateral_symbol:
+      event.collateral_symbol ??
+      event.input?.collateral_symbol ??
+      state.collateral_symbol ??
+      chainConfig?.default_collateral_symbol ??
+      precog.default_collateral_symbol ??
+      null,
+  };
 }
 
 function normalizeDraftOutcomes(value) {
@@ -1466,8 +1505,7 @@ function getUpcomingMarketId(state = {}, event = {}) {
 }
 
 function getChainId(state = {}, event = {}, label = "ForecastOS action", config = {}) {
-  const request = getPredictionRequest(event);
-  return config.chain_id;
+  return state.chain_id ?? config.chain_id;
 }
 
 function getPredictionRequest(event = {}) {

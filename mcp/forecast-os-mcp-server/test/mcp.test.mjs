@@ -47,10 +47,10 @@ test("resources include remote-ready ForecastOS context", async () => {
   assert.ok(uris.includes("forecastos://providers/kalshi/capabilities"));
 });
 
-test("config defaults redact open_api_key", async () => {
+test("config defaults include public open_api_key", async () => {
   const defaults = await precogConfigDefaults();
 
-  assert.equal(defaults.open_api_key, "<redacted>");
+  assert.equal(defaults.open_api_key, "7b655655-9263-4f7b-a96d-bbfdd7711042");
   assert.equal(defaults.chain_id, 8453);
 });
 

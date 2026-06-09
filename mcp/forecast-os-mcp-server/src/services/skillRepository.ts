@@ -228,7 +228,7 @@ export async function precogConfigDefaults() {
     default_collateral_options: precog.default_collateral_options,
     supported_chains: precog.supported_chains,
     signature_actions: precog.signature_actions,
-    open_api_key: "<redacted>",
+    open_api_key: precog.open_api_key,
   };
 }
 

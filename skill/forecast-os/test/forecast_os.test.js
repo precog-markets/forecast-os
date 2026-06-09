@@ -564,6 +564,74 @@ test("prepare_create_intent uses Arbitrum deployed master from supported_chains"
   );
 });
 
+test("prepare_create_intent honors supported chain_id from approval context on default config", async () => {
+  const forecastos = createForecastOS({
+    fetch: async () => {
+      throw new Error("prepare_create_intent should not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in July 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-07-31T23:59:59Z",
+    requested_resolution_time: "2026-08-03T00:00:00Z",
+    chain_id: 42161,
+    collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    collateral_symbol: "USDC",
+  });
+  const intent = await forecastos.prepareCreateIntent({
+    draft_id: draft.draft_id,
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+    chain_id: 42161,
+    collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    collateral_symbol: "USDC",
+  });
+
+  assert.equal(intent.chain_id, 42161);
+  assert.equal(intent.collateral_address, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+  assert.equal(intent.precog_payload_template.chain_id, 42161);
+  assert.equal(
+    intent.eip712_typed_data_template.domain.verifyingContract,
+    "0x0000000000990400E12543B7f400136e8672E2F0",
+  );
+  assert.equal(intent.eip712_typed_data_template.domain.chainId, 42161);
+});
+
+test("run_skill_step persists Arbitrum chain context through approval", async () => {
+  const forecastos = createForecastOS({
+    fetch: async () => {
+      throw new Error("run_skill_step should not call the network during draft/approval");
+    },
+  });
+  const drafted = await forecastos.runSkillStep({}, {
+    input: {
+      prompt: "Most-watched Warcraft tournament in 2026?",
+      requested_outcomes: ["DreamHack Warcraft", "ESL Warcraft", "Other"],
+      source_hints: ["Official tournament organizers"],
+      requested_close_time: "2026-12-31T23:59:59Z",
+      requested_resolution_time: "2027-01-15T00:00:00Z",
+      chain_id: 42161,
+      collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      collateral_symbol: "USDC",
+    },
+  });
+  assert.equal(drafted.state.step, "await_approval");
+  assert.equal(drafted.state.chain_id, 42161);
+  assert.equal(drafted.state.collateral_address, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+
+  const approved = await forecastos.runSkillStep(drafted.state, {
+    approved: true,
+    approval_text: drafted.state.approval_text,
+    chain_id: 42161,
+    collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    collateral_symbol: "USDC",
+  });
+  assert.equal(approved.state.step, "create_market");
+  assert.equal(approved.state.chain_id, 42161);
+});
+
 test("draft_market extracts labels from object outcomes before storage", async () => {
   const forecastos = await createIsolatedForecastOS("object-outcome-draft-normalization");
   const draft = await forecastos.draftMarket({
