@@ -60,7 +60,7 @@ Live Precog calls read config from the active state directory's `config.json`, w
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS also defaults to Base USDC from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config. ForecastOS defaults to the configured collateral from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -81,7 +81,7 @@ See `references/tool-schemas.md` for the JSON input shapes to pass through `--in
 - `prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent after approval.
 - `create_market` submits to the configured Precog API root and requires `approved: true` plus a matching `approved_draft_hash` from workflow state and wallet/action-tool resolved creator fields. Legacy hash-bearing `approval_text` remains supported.
 - `create_market` requires `image_url`; the Precog endpoint rejects create payloads without it.
-- `create_market` uses Base USDC from config by default. `collateral_address` is optional and only for explicit non-default collateral.
+- `create_market` uses the configured default collateral for the active config chain by default. `collateral_address` is optional and only for explicit non-default collateral.
 - After a successful `create_market`, ForecastOS generates a launchpad share/check URL in the form `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}`. The URL is built locally from config `precog.chain_id`, the normalized upcoming market id, and a question-derived slug; do not rely on a backend-provided `url` field.
 - Draft approval summaries display the configured collateral token, for example `Token: USDC`, and include the collateral address when available. This is collateral context, not a claim about deployed market token details.
 - `prepare_funding_intent` creates a wallet-agnostic intent for configured wallet/action tooling.
@@ -122,7 +122,7 @@ Creation payload hygiene:
 - Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `creator_address` must be a 20-byte EVM address and is normalized to EIP-55 checksum casing before ForecastOS sends the Precog create payload. The same checksummed address must be used inside the EIP-712 typed-data `message.account` that the wallet signs.
-- `chain_id` is never requested from the user. `collateral_address` defaults to config Base USDC unless explicitly overridden.
+- `chain_id` is never requested from the user. `collateral_address` defaults to the configured chain collateral unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
 

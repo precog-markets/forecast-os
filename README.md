@@ -54,6 +54,19 @@ will discover the skill so it refreshes skill metadata.
 
 The skill also works without MCP. Agents can use `SKILL.md`, `references/`, `scripts/`, `assets/`, and `.forecastos/config.json` directly from the skill folder.
 
+## Chain Support
+
+ForecastOS chain selection is configuration-driven through `precog.chain_id` in
+`skill/forecast-os/.forecastos/config.json` (or an override config). ForecastOS
+core supports:
+
+- Base (`8453`)
+- Arbitrum (`42161`)
+
+Agents should not ask users to choose chain IDs in chat. They should use the
+active config chain and configured default collateral unless the operator
+explicitly requests overrides.
+
 ## Optional MCP Setup
 
 The bundled MCP server is read-only and lives in:

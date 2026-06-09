@@ -2380,7 +2380,7 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(guidance.notes.some((note) => note.includes("Base MCP smart-account/WebAuthn signatures")));
   assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
-  assert.ok(guidance.notes.some((note) => note.includes("Base USDC")));
+  assert.ok(guidance.notes.some((note) => note.includes("supported: Base and Arbitrum")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
 });
 test("next_step funding guidance mentions wallet policy and token approval", async () => {

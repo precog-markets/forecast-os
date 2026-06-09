@@ -29,7 +29,7 @@ An agent may attempt `create_market` only when:
 - `image_url` is present
 - `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
 - the wallet policy allows EIP-712 typed-data signing
-- collateral uses config Base USDC unless the operator explicitly provides another `collateral_address`
+- collateral uses the configured default collateral for the active chain (`precog.chain_id`, supported: Base and Arbitrum) unless the operator explicitly provides another `collateral_address`
 
 `create_market` always submits to the configured Precog API root. Polymarket, Kalshi, and similar external market providers are read-only context providers; they cannot receive ForecastOS creation or funding actions. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 

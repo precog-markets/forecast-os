@@ -13,9 +13,10 @@
 > credentials, or raw signatures in normal chat.
 
 ForecastOS is a human-approved multi-outcome prediction-market workflow for
-drafting, creating, funding, and consuming Precog markets on Base. Use the
+drafting, creating, funding, and consuming Precog markets. ForecastOS core
+supports configured Base (`8453`) and Arbitrum (`42161`) chains. Use the
 ForecastOS skill/action bridge for workflow state and Precog API submission, and
-use [Base MCP](https://mcp.base.org) only as the wallet/action adapter.
+use [Base MCP](https://mcp.base.org) only as the wallet/action adapter for Base.
 
 **Supported chain:** Base mainnet (`8453` / `0x2105`), mapped to [Base MCP](https://mcp.base.org) chain
 name `base`.
@@ -290,3 +291,6 @@ to `https://core.precog.markets/launchpad/`.
 
 Reject or stop for any other ForecastOS `chain_id` unless ForecastOS config and
 Base MCP support have both been updated intentionally.
+
+If ForecastOS runs with `chain_id: 42161` (Arbitrum), this Base MCP plugin is
+not the correct adapter path.

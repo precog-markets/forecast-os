@@ -146,7 +146,7 @@ export function chainNameFor(value, label = "Bankr chain id") {
   if (value === undefined || value === null || value === "") fail(`Missing ${label}.`);
   const raw = String(value).toLowerCase();
   if (raw === "base" || raw === String(BASE_CHAIN_ID) || raw === BASE_CHAIN_HEX) return "base";
-  fail(`Unsupported ${label} ${value}. Bankr ForecastOS funding currently supports Base chain 8453.`);
+  fail(`Unsupported ${label} ${value}. Bankr ForecastOS funding adapter currently supports Base chain 8453 only; ForecastOS core chain support is config-driven.`);
 }
 
 export function chainIdFor(value) {

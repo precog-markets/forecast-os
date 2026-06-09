@@ -3,6 +3,9 @@
 This adapter describes how a ForecastOS host, such as Codex, can use [Base MCP](https://mcp.base.org) as
 the wallet/action layer while preserving ForecastOS workflow boundaries.
 
+ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config.
+This adapter is intentionally Base-only.
+
 Base custom plugins are markdown specs that teach an assistant how to combine
 protocol-specific calls with [Base MCP](https://mcp.base.org) wallet tools. In ForecastOS terms, that
 makes [Base MCP](https://mcp.base.org) complementary to host adapters:
@@ -74,6 +77,9 @@ prepare_create_intent -> resolve_create.mjs -> Base MCP sign -> resolve_create.m
 If Precog later rejects the submitted signature, compare the resolver typed data,
 wallet account, nonce, and chain/domain fields against the non-secret diagnostic
 attached to the ForecastOS error.
+
+If the active ForecastOS chain is Arbitrum (`42161`), use a different configured
+wallet/action adapter; Base MCP mappings in this folder are only for Base.
 
 Funding is `send_calls`-compatible when the selected funding resolver returns an
 unsigned calldata envelope or ordered transaction batch:

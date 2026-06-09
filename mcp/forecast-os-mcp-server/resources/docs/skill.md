@@ -36,7 +36,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Keep outcome labels comma-free, questions at 65 characters or fewer, and outcome labels at 32 characters or fewer.
 - Normalize and display all market times in UTC.
 - Show configured collateral in draft summaries, for example `Token: USDC`.
-- Read chain and default collateral only from the active ForecastOS config; do not ask users to choose a chain.
+- Read chain and default collateral only from the active ForecastOS config; supported chains are Base and Arbitrum. Do not ask users to choose a chain.
 - Use `.forecastos/` as structured workflow memory. `FORECASTOS_STATE_DIR` may override the default state directory.
 - Do not require MCP for normal drafting or creation. Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.

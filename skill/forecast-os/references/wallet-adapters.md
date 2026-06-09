@@ -2,6 +2,10 @@
 
 Use wallet adapters when an operator chooses a concrete wallet/action provider for a ForecastOS Precog create or funding handoff. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
+ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through active
+config. Provider adapters can support one or both chains. Follow each provider
+adapter's chain mapping rules.
+
 Provider-specific wallet code lives outside the portable skill:
 
 ```txt
@@ -92,7 +96,7 @@ Output must be safe to merge into `publish_approved_market` or `run_skill_step`:
 }
 ```
 
-The adapter must make `creator_address` identical to the EIP-712 `message.account` used for signing.
+The adapter must make `creator_address` identical to the EIP-712 `message.account` used for signing, and must reject chain mismatches instead of silently remapping one chain to another.
 
 ### Funding Adapter Input
 

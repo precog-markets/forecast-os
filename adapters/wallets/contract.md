@@ -2,6 +2,10 @@
 
 Wallet adapters resolve ForecastOS wallet-agnostic intents into the signed fields needed by the action bridge. They live outside the portable skill under `adapters/wallets/<provider>/`.
 
+ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config.
+Each provider adapter must explicitly document supported chains and fail fast on
+unsupported chain IDs.
+
 ## Boundaries
 
 - Adapters may select configured wallets, fetch nonces, request wallet signatures, and return signed fields.

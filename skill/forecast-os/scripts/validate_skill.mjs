@@ -113,6 +113,11 @@ assert(
   ".forecastos/config.json needs precog.default_collateral_address",
 );
 assert(
+  precogConfig.precog?.supported_chains?.["8453"]?.name === "base" &&
+    precogConfig.precog?.supported_chains?.["42161"]?.name === "arbitrum",
+  ".forecastos/config.json must declare supported_chains entries for Base (8453) and Arbitrum (42161)",
+);
+assert(
   precogConfig.precog?.signature_actions?.create_market && precogConfig.precog?.signature_actions?.fund_market,
   ".forecastos/config.json needs precog.signature_actions.create_market and fund_market",
 );
@@ -186,6 +191,10 @@ assert(
   "SKILL.md must include prediction and decision support guidance",
 );
 assert(
+  skill.includes("supported chains are Base and Arbitrum"),
+  "SKILL.md must state Base and Arbitrum chain support",
+);
+assert(
   skill.includes("Before inventing or guessing a probability, search read-only"),
   "SKILL.md must tell agents not to guess probabilities before checking market context",
 );
@@ -218,6 +227,10 @@ const polymarketReadDoc = await readFile(join(root, "references", "providers", "
 assert(
   actionsDoc.includes("prepare_create_intent` creates the wallet-agnostic Precog `CREATE_UPCOMING_MARKET` intent"),
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
+);
+assert(
+  actionsDoc.includes("Base (`8453`) and Arbitrum (`42161`)"),
+  "references/actions.md must document Base and Arbitrum chain support",
 );
 assert(
   skill.includes("pending_check") &&
