@@ -63,6 +63,16 @@ Precog accepted the draft shape, but creation failed because the wallet signatur
 
 Do not dump raw API responses unless the user asks for operator detail.
 
+## Blocked Drafts And CLI Mistakes
+
+If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for
+the missing source, close time, or resolution time and rerun with complete input.
+Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
+
+If the bridge appears to "reset to intake", verify the command used
+`--input <json-file>` or positional shorthand `<action> <json-file>`. An action
+run without input produces an empty draft or fresh workflow.
+
 ## Good And Bad Examples
 
 Good:

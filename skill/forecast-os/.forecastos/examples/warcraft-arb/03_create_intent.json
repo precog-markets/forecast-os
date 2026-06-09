@@ -1,0 +1,340 @@
+{
+  "action": "run_skill_step",
+  "status": "ok",
+  "runtime": "bundled",
+  "result": {
+    "state": {
+      "step": "create_market",
+      "prompt": "Create a prediction market about the most-watched Warcraft tournament in 2026 on Arbitrum.",
+      "workflow_id": "workflow_6fe7e8d5-5ad7-4620-b252-e1f4d708bf41",
+      "created_at": "2026-06-09T19:27:28.196Z",
+      "updated_at": "2026-06-09T19:27:28.327Z",
+      "history": [
+        {
+          "at": "2026-06-09T19:27:28.200Z",
+          "event_type": "draft_evaluated",
+          "from_step": "intake",
+          "to_step": "await_approval"
+        },
+        {
+          "at": "2026-06-09T19:27:28.261Z",
+          "event_type": "approval_recorded",
+          "from_step": "await_approval",
+          "to_step": "create_market"
+        },
+        {
+          "at": "2026-06-09T19:27:28.327Z",
+          "event_type": "create_intent_prepared",
+          "from_step": "create_market",
+          "to_step": "create_market"
+        }
+      ],
+      "draft_id": "draft_47e99ba4-c1a3-4bac-86e0-f6753a0d3386",
+      "draft_hash": "hash_1af7fffe-ef66-426e-b747-3562273016b7",
+      "approval_prompt": "Reply yes to approve this draft.",
+      "approval_text": "Approve Warcraft 2026 viewership market for Arbitrum.",
+      "missing_fields": [],
+      "chain_id": 42161,
+      "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "collateral_symbol": "USDC",
+      "last_result": {
+        "intent_type": "forecastos.create_market",
+        "wallet_tool_hint": "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. Adapter-returned hex signatures are trusted wallet/action outputs.",
+        "launchpad_fallback_url": "https://core.precog.markets/launchpad/",
+        "wallet_runtime_candidates": [
+          "bankr",
+          "codex",
+          "claude_code",
+          "openclaw"
+        ],
+        "wallet_policy_required": [
+          "eip712_typed_data_signing"
+        ],
+        "chain_id": 42161,
+        "collateral_symbol": "USDC",
+        "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "signature_method": "eip712_typed_data",
+        "eip712_typed_data_template": {
+          "types": {
+            "EIP712Domain": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "version",
+                "type": "string"
+              },
+              {
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "name": "verifyingContract",
+                "type": "address"
+              }
+            ],
+            "PrecogMarketAuthorization": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "account",
+                "type": "address"
+              },
+              {
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "uint256"
+              }
+            ]
+          },
+          "primaryType": "PrecogMarketAuthorization",
+          "domain": {
+            "name": "Precog Markets",
+            "version": "1",
+            "chainId": 42161,
+            "verifyingContract": "0x0000000000990400E12543B7f400136e8672E2F0"
+          },
+          "message": {
+            "action": "CREATE_UPCOMING_MARKET",
+            "account": "<creator_address>",
+            "chainId": 42161,
+            "nonce": "<next_pending_nonce>"
+          }
+        },
+        "wallet_resolution_required": [
+          "creator_address",
+          "creator_signature"
+        ],
+        "resolved_action": "create_market",
+        "precog_payload_template": {
+          "question": "Most-watched Warcraft tournament in 2026?",
+          "resolution_criteria": "Source of truth: Official Warcraft tournament organizers (DreamHack, ESL).\nWinning outcome rule: Resolve to exactly one listed outcome: DreamHack Warcraft / ESL Warcraft / Other. Use only official results, announcements, or data updates from the source of truth that unambiguously answer: \"Most-watched Warcraft tournament in 2026?\".\nResolution timing: Resolve at or after 2027-01-15T00:00:00.000Z UTC once the official result is available.\nFallback: If no listed non-fallback outcome is confirmed by the resolution time, resolve to \"Other\".",
+          "image_url": "https://upload.wikimedia.org/wikipedia/en/7/71/World_of_Warcraft_2018_logo.svg",
+          "category": "Esports",
+          "outcomes": "DreamHack Warcraft,ESL Warcraft,Other",
+          "start_timestamp": 1781033248,
+          "end_timestamp": 1798761599,
+          "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "chain_id": 42161,
+          "creator_address": "<wallet_address>",
+          "creator_signature": "<wallet_signature>"
+        },
+        "notes": [
+          "ForecastOS does not fetch nonces, sign EIP-712 typed data, custody wallets, or ask users to paste raw signatures in normal chat.",
+          "Use a configured wallet/action tool with policy permission for EIP-712 typed-data signing.",
+          "Base MCP smart-account/WebAuthn signatures are valid Precog authorization signatures when they are produced over the canonical Precog typed data and current pending nonce; long EIP-1271/ERC-6492 hex envelopes must not be rejected for not being compact EOA signatures.",
+          "The wallet/action tool resolves this intent into creator_address and creator_signature.",
+          "After wallet resolution, use publish_approved_market with the persisted workflow_id and --wallet-output so ForecastOS loads stored create_market state.",
+          "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/)."
+        ]
+      },
+      "approved_by": "operator",
+      "approved_at": "2026-06-09T19:27:28.260Z",
+      "approved_draft_id": "draft_47e99ba4-c1a3-4bac-86e0-f6753a0d3386",
+      "approved_draft_hash": "hash_1af7fffe-ef66-426e-b747-3562273016b7",
+      "approval_response": "yes",
+      "create_intent": {
+        "intent_type": "forecastos.create_market",
+        "wallet_tool_hint": "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. Adapter-returned hex signatures are trusted wallet/action outputs.",
+        "launchpad_fallback_url": "https://core.precog.markets/launchpad/",
+        "wallet_runtime_candidates": [
+          "bankr",
+          "codex",
+          "claude_code",
+          "openclaw"
+        ],
+        "wallet_policy_required": [
+          "eip712_typed_data_signing"
+        ],
+        "chain_id": 42161,
+        "collateral_symbol": "USDC",
+        "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "signature_method": "eip712_typed_data",
+        "eip712_typed_data_template": {
+          "types": {
+            "EIP712Domain": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "version",
+                "type": "string"
+              },
+              {
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "name": "verifyingContract",
+                "type": "address"
+              }
+            ],
+            "PrecogMarketAuthorization": [
+              {
+                "name": "action",
+                "type": "string"
+              },
+              {
+                "name": "account",
+                "type": "address"
+              },
+              {
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "name": "nonce",
+                "type": "uint256"
+              }
+            ]
+          },
+          "primaryType": "PrecogMarketAuthorization",
+          "domain": {
+            "name": "Precog Markets",
+            "version": "1",
+            "chainId": 42161,
+            "verifyingContract": "0x0000000000990400E12543B7f400136e8672E2F0"
+          },
+          "message": {
+            "action": "CREATE_UPCOMING_MARKET",
+            "account": "<creator_address>",
+            "chainId": 42161,
+            "nonce": "<next_pending_nonce>"
+          }
+        },
+        "wallet_resolution_required": [
+          "creator_address",
+          "creator_signature"
+        ],
+        "resolved_action": "create_market",
+        "precog_payload_template": {
+          "question": "Most-watched Warcraft tournament in 2026?",
+          "resolution_criteria": "Source of truth: Official Warcraft tournament organizers (DreamHack, ESL).\nWinning outcome rule: Resolve to exactly one listed outcome: DreamHack Warcraft / ESL Warcraft / Other. Use only official results, announcements, or data updates from the source of truth that unambiguously answer: \"Most-watched Warcraft tournament in 2026?\".\nResolution timing: Resolve at or after 2027-01-15T00:00:00.000Z UTC once the official result is available.\nFallback: If no listed non-fallback outcome is confirmed by the resolution time, resolve to \"Other\".",
+          "image_url": "https://upload.wikimedia.org/wikipedia/en/7/71/World_of_Warcraft_2018_logo.svg",
+          "category": "Esports",
+          "outcomes": "DreamHack Warcraft,ESL Warcraft,Other",
+          "start_timestamp": 1781033248,
+          "end_timestamp": 1798761599,
+          "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "chain_id": 42161,
+          "creator_address": "<wallet_address>",
+          "creator_signature": "<wallet_signature>"
+        },
+        "notes": [
+          "ForecastOS does not fetch nonces, sign EIP-712 typed data, custody wallets, or ask users to paste raw signatures in normal chat.",
+          "Use a configured wallet/action tool with policy permission for EIP-712 typed-data signing.",
+          "Base MCP smart-account/WebAuthn signatures are valid Precog authorization signatures when they are produced over the canonical Precog typed data and current pending nonce; long EIP-1271/ERC-6492 hex envelopes must not be rejected for not being compact EOA signatures.",
+          "The wallet/action tool resolves this intent into creator_address and creator_signature.",
+          "After wallet resolution, use publish_approved_market with the persisted workflow_id and --wallet-output so ForecastOS loads stored create_market state.",
+          "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/)."
+        ]
+      }
+    },
+    "tool_result": {
+      "intent_type": "forecastos.create_market",
+      "wallet_tool_hint": "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. Adapter-returned hex signatures are trusted wallet/action outputs.",
+      "launchpad_fallback_url": "https://core.precog.markets/launchpad/",
+      "wallet_runtime_candidates": [
+        "bankr",
+        "codex",
+        "claude_code",
+        "openclaw"
+      ],
+      "wallet_policy_required": [
+        "eip712_typed_data_signing"
+      ],
+      "chain_id": 42161,
+      "collateral_symbol": "USDC",
+      "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "signature_method": "eip712_typed_data",
+      "eip712_typed_data_template": {
+        "types": {
+          "EIP712Domain": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "version",
+              "type": "string"
+            },
+            {
+              "name": "chainId",
+              "type": "uint256"
+            },
+            {
+              "name": "verifyingContract",
+              "type": "address"
+            }
+          ],
+          "PrecogMarketAuthorization": [
+            {
+              "name": "action",
+              "type": "string"
+            },
+            {
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "name": "chainId",
+              "type": "uint256"
+            },
+            {
+              "name": "nonce",
+              "type": "uint256"
+            }
+          ]
+        },
+        "primaryType": "PrecogMarketAuthorization",
+        "domain": {
+          "name": "Precog Markets",
+          "version": "1",
+          "chainId": 42161,
+          "verifyingContract": "0x0000000000990400E12543B7f400136e8672E2F0"
+        },
+        "message": {
+          "action": "CREATE_UPCOMING_MARKET",
+          "account": "<creator_address>",
+          "chainId": 42161,
+          "nonce": "<next_pending_nonce>"
+        }
+      },
+      "wallet_resolution_required": [
+        "creator_address",
+        "creator_signature"
+      ],
+      "resolved_action": "create_market",
+      "precog_payload_template": {
+        "question": "Most-watched Warcraft tournament in 2026?",
+        "resolution_criteria": "Source of truth: Official Warcraft tournament organizers (DreamHack, ESL).\nWinning outcome rule: Resolve to exactly one listed outcome: DreamHack Warcraft / ESL Warcraft / Other. Use only official results, announcements, or data updates from the source of truth that unambiguously answer: \"Most-watched Warcraft tournament in 2026?\".\nResolution timing: Resolve at or after 2027-01-15T00:00:00.000Z UTC once the official result is available.\nFallback: If no listed non-fallback outcome is confirmed by the resolution time, resolve to \"Other\".",
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/7/71/World_of_Warcraft_2018_logo.svg",
+        "category": "Esports",
+        "outcomes": "DreamHack Warcraft,ESL Warcraft,Other",
+        "start_timestamp": 1781033248,
+        "end_timestamp": 1798761599,
+        "collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "chain_id": 42161,
+        "creator_address": "<wallet_address>",
+        "creator_signature": "<wallet_signature>"
+      },
+      "notes": [
+        "ForecastOS does not fetch nonces, sign EIP-712 typed data, custody wallets, or ask users to paste raw signatures in normal chat.",
+        "Use a configured wallet/action tool with policy permission for EIP-712 typed-data signing.",
+        "Base MCP smart-account/WebAuthn signatures are valid Precog authorization signatures when they are produced over the canonical Precog typed data and current pending nonce; long EIP-1271/ERC-6492 hex envelopes must not be rejected for not being compact EOA signatures.",
+        "The wallet/action tool resolves this intent into creator_address and creator_signature.",
+        "After wallet resolution, use publish_approved_market with the persisted workflow_id and --wallet-output so ForecastOS loads stored create_market state.",
+        "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/)."
+      ]
+    },
+    "needs_human_input": true,
+    "agent_message": "The draft is approved. If chain/collateral is still missing, ask: With collateral from which chain? (USDC on Base or USDC on Arbitrum). Then resolve this create intent with Privy, Bankr, Base MCP (Base), or another configured wallet/action adapter, and submit with publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>. Do not hand-write workflow files."
+  }
+}

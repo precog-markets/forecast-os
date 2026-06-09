@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -1199,7 +1200,7 @@ test("forecastos_action publish_approved_market loads persisted workflow and wal
     }),
   );
 
-  const workflowId = "workflow_publish_approved";
+  const workflowId = `workflow_${randomUUID()}`;
   const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
   const draft = await forecastos.draftMarket({
     prompt: "Which AI app reaches most users by June 2026?",
@@ -1282,6 +1283,8 @@ test("forecastos_action publish_approved_market missing workflow error discourag
     }),
   );
 
+  const workflowId = `workflow_${randomUUID()}`;
+
   await assert.rejects(
     execFileAsync(
       process.execPath,
@@ -1289,7 +1292,7 @@ test("forecastos_action publish_approved_market missing workflow error discourag
         join(skillRoot, "scripts", "forecastos_action.mjs"),
         "publish_approved_market",
         "--workflow-id",
-        "workflow_missing",
+        workflowId,
         "--wallet-output",
         walletOutputPath,
       ],
@@ -1297,7 +1300,7 @@ test("forecastos_action publish_approved_market missing workflow error discourag
     ),
     (error) => {
       const stderr = String(error.stderr ?? "");
-      assert.ok(stderr.includes("could not find workflow workflow_missing"));
+      assert.ok(stderr.includes(`could not find workflow ${workflowId}`));
       assert.ok(stderr.includes("inspect_state.mjs"));
       assert.ok(stderr.includes("do not create workflow files manually"));
       return true;
@@ -2613,11 +2616,157 @@ test("fund_market rejects ambiguous or non-display amount strings", async () => 
     );
   }
 });
+
+test("forecastos_action accepts positional input shorthand for draft_market", async () => {
+  const rootDir = join(skillRoot, "test-output", "positional-draft");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  const inputPath = join(rootDir, "draft-input.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      prompt: "Which launchpad wins June 2026?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      source_hints: ["Public launchpad dashboards"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+    }),
+  );
+
+  const drafted = await runActionBridgePositional("draft_market", inputPath, stateDir);
+  assert.equal(drafted.status, "ok");
+  assert.equal(drafted.result.market.outcomes.length, 4);
+});
+
+test("forecastos_action fails clearly when input is missing", async () => {
+  const rootDir = join(skillRoot, "test-output", "missing-input");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [join(skillRoot, "scripts", "forecastos_action.mjs"), "draft_market"],
+      { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+    ),
+    (error) => {
+      assert.match(error.stderr, /requires a JSON input file/i);
+      assert.match(error.stderr, /--input <json-file>/i);
+      return true;
+    },
+  );
+});
+
+test("run_skill_step coerces event.input.approved and resumes by workflow_id", async () => {
+  const rootDir = join(skillRoot, "test-output", "resume-workflow");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await writeShippedStateConfig(stateDir);
+
+  const drafted = await runActionBridge("run_skill_step", join(skillRoot, "scripts", "examples", "arbitrum-warcraft-2026", "01_draft.json"), stateDir);
+  const workflowId = drafted.result.state.workflow_id;
+
+  const approvalPath = join(rootDir, "misshapen-approve.json");
+  await writeFile(
+    approvalPath,
+    JSON.stringify({
+      workflow_id: workflowId,
+      event: {
+        input: {
+          approved: true,
+          approval_text: "Approve Warcraft 2026 viewership market for Arbitrum.",
+          chain_id: 42161,
+          collateral_symbol: "USDC",
+          collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          image_url: "https://upload.wikimedia.org/wikipedia/en/7/71/World_of_Warcraft_2018_logo.svg",
+        },
+      },
+    }),
+  );
+
+  const approved = await runActionBridge("run_skill_step", approvalPath, stateDir);
+  assert.equal(approved.result.state.step, "create_market");
+  assert.equal(approved.result.state.workflow_id, workflowId);
+  assert.equal(approved.result.state.chain_id, 42161);
+});
+
+test("run_skill_step rejects hand-written draft ids", async () => {
+  const rootDir = join(skillRoot, "test-output", "handwritten-draft");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  const inputPath = join(rootDir, "handwritten.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      state: {
+        step: "await_approval",
+        draft_id: "draft_warcraft_viewership_2026",
+        draft_hash: "hash_warcraft_viewership_2026",
+      },
+      event: { approved: true },
+    }),
+  );
+
+  await assert.rejects(
+    runActionBridge("run_skill_step", inputPath, stateDir),
+    (error) => {
+      assert.match(error.stderr, /hand-written draft id/i);
+      return true;
+    },
+  );
+});
+
+test("arbitrum warcraft example runs through create intent preparation", async () => {
+  const rootDir = join(skillRoot, "test-output", "arbitrum-example");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await writeShippedStateConfig(stateDir);
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [join(skillRoot, "scripts", "examples", "arbitrum-warcraft-2026", "run_example.mjs")],
+    {
+      cwd: skillRoot,
+      env: { ...process.env, FORECASTOS_STATE_DIR: stateDir },
+    },
+  );
+
+  assert.match(stdout, /Example complete through create-intent preparation/);
+  assert.match(stdout, /publish_approved_market --workflow-id workflow_/);
+  const createIntent = JSON.parse(
+    await readFile(join(stateDir, "examples", "warcraft-arb", "create-intent.json"), "utf8"),
+  );
+  assert.equal(createIntent.chain_id, 42161);
+});
+
+async function writeShippedStateConfig(stateDir) {
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(join(stateDir, "config.json"), `${JSON.stringify(shippedConfig, null, 2)}\n`);
+}
+
 async function runActionBridge(action, inputPath, stateDir) {
   const scriptPath = join(skillRoot, "scripts", "forecastos_action.mjs");
   const { stdout } = await execFileAsync(
     process.execPath,
     [scriptPath, action, "--input", inputPath],
+    {
+      env: {
+        ...process.env,
+        FORECASTOS_STATE_DIR: stateDir,
+      },
+    },
+  );
+  return JSON.parse(stdout);
+}
+
+async function runActionBridgePositional(action, inputPath, stateDir) {
+  const scriptPath = join(skillRoot, "scripts", "forecastos_action.mjs");
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [scriptPath, action, inputPath],
     {
       env: {
         ...process.env,

@@ -79,4 +79,12 @@ node scripts/render_review.mjs --workflow-id <workflow_id>
 node scripts/next_step.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>
 node scripts/forecastos_action.mjs <action> --input <json-file>
+node scripts/forecastos_action.mjs <action> <json-file>
+node scripts/examples/arbitrum-warcraft-2026/run_example.mjs
 ```
+
+## Pitfalls
+
+- Always pass JSON input with `--input <json-file>` or positional shorthand `<action> <json-file>`. A bare file path without `--input` used to be ignored; positional shorthand is supported now, but empty input still fails fast.
+- If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for the missing fields and rerun with complete input. Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
+- For Arbitrum creation, pass `chain_id: 42161` and Arbitrum USDC through draft/approval/create events. Privy supports Arbitrum; Base MCP is Base-only.

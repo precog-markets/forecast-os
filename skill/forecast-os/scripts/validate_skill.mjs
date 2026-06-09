@@ -678,7 +678,7 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSkill.includes("resolve-privy-create.mjs") &&
       hermesSkill.includes("run_skill_step") &&
       hermesSkill.includes("--wallet-output") &&
-      hermesSkill.includes("Do not call direct `create_market` first") &&
+      hermesSkill.includes("Do not call direct `create_market` as the normal publish path") &&
       hermesSkill.includes("Do not use `preview_market`"),
     "Hermes SKILL.md must document the wallet-resolved publish flow and forbid preview/direct create mistakes",
   );
