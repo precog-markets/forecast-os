@@ -2,6 +2,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mergeConfig } from "./config.mjs";
+import { resolveRepoShippedConfigPath } from "./state_paths.mjs";
 
 const STATUS_FOLDERS = Object.freeze([
   "needs_info",
@@ -60,10 +61,21 @@ export class DirectoryDraftStateStore {
     return readJsonDir(join(this.rootDir, "drafts"));
   }
 
-  async getConfig() {
+  async getConfig(env = process.env) {
     const config = await readJsonOrNull(join(this.rootDir, "config.json"));
     const localConfig = await readJsonOrNull(join(this.rootDir, "config.local.json"));
-    return mergeConfig(config, localConfig);
+    const merged = mergeConfig(config, localConfig);
+    if (merged?.precog?.api_root && merged?.precog?.open_api_key) {
+      return merged;
+    }
+    const fallbackPath = resolveRepoShippedConfigPath(env);
+    if (!fallbackPath) return merged;
+    const fallbackConfig = await readJsonOrNull(fallbackPath);
+    if (!fallbackConfig) return merged;
+    return {
+      ...mergeConfig(fallbackConfig, merged),
+      config_source: fallbackPath,
+    };
   }
 }
 

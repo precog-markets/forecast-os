@@ -50,7 +50,7 @@ const rawInput = normalizeCliInput(
   inputPath ? parseJsonInput(await readInput(inputPath)) : {},
 );
 requireActionInput(action, rawInput);
-const resolvedInput = await resolveRunSkillStepInput(action, rawInput);
+const resolvedInput = await resolveActionInput(action, rawInput);
 const walletOutput = walletOutputPath ? parseJsonInput(await readFile(walletOutputPath, "utf8")) : undefined;
 const input = normalizeInput(action, mergeWalletOutput(action, resolvedInput, walletOutput));
 enforceApproval(action, input);
@@ -249,6 +249,61 @@ function normalizeRunSkillStepInput(input = {}) {
   }
 
   next.event = event;
+  return next;
+}
+
+async function resolveActionInput(actionName, input = {}) {
+  if (actionName === "run_skill_step") return resolveRunSkillStepInput(actionName, input);
+  if (actionName === "prepare_create_intent") return resolvePrepareCreateIntentInput(input);
+  return input;
+}
+
+async function resolvePrepareCreateIntentInput(input = {}) {
+  const workflowId = input.workflow_id ?? input.state?.workflow_id;
+  let next = { ...input };
+  if (workflowId) {
+    const state = next.state ?? (await loadWorkflowState(workflowId));
+    if (!state) {
+      fail(
+        `prepare_create_intent could not find workflow ${workflowId} in ${stateDir}. Run node scripts/inspect_state.mjs; do not create workflow files manually.`,
+      );
+    }
+    if (state.step !== "create_market") {
+      fail(
+        `prepare_create_intent requires workflow ${workflowId} to be at create_market, found ${state.step ?? "unknown"}. Advance with run_skill_step --input <json-file> instead of rewriting workflow JSON.`,
+      );
+    }
+    next = withoutUndefined({
+      ...next,
+      workflow_id: workflowId,
+      state,
+      draft_id: next.draft_id ?? state.draft_id ?? state.approved_draft_id,
+      approved_draft_id: next.approved_draft_id ?? state.approved_draft_id ?? state.draft_id,
+      approved_draft_hash: next.approved_draft_hash ?? state.approved_draft_hash ?? state.draft_hash,
+      approval_text: next.approval_text ?? state.approval_text,
+      chain_id: next.chain_id ?? state.chain_id,
+      collateral_address: next.collateral_address ?? state.collateral_address,
+      collateral_symbol: next.collateral_symbol ?? state.collateral_symbol,
+      approved: next.approved ?? true,
+      approved_by: next.approved_by ?? state.approved_by ?? "operator",
+    });
+  }
+
+  const draftId = next.draft_id ?? next.approved_draft_id;
+  if (draftId) {
+    const forecastos = await loadForecastOS();
+    const draft = await forecastos.store.get(draftId);
+    if (draft?.quality?.blocking_issues?.length) {
+      fail(
+        [
+          `prepare_create_intent blocked: draft ${draftId} has unresolved issues in ${stateDir}.`,
+          `First issue: ${draft.quality.blocking_issues[0]}`,
+          "Do not sed-edit .forecastos/drafts/*; rerun draft_market or run_skill_step with complete chain_id and required fields.",
+        ].join(" "),
+      );
+    }
+  }
+
   return next;
 }
 

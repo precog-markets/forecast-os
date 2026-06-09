@@ -87,6 +87,26 @@ The Arbitrum Warcraft example runner under `scripts/examples/arbitrum-warcraft-2
 
 Set `FORECASTOS_REPO_ROOT` when this skill is copied into Hermes or another host outside the ForecastOS monorepo. Privy signing resolves the repo-root adapter through `scripts/resolve-privy-create.mjs`.
 
+## Post-Approval Create
+
+After approval, pass the full `state` from the prior `run_skill_step` result.
+Use `chain_id` (42161 for Arbitrum), not `requested_chain_id`.
+
+```json
+{
+  "state": { "...full state from prior run_skill_step..." },
+  "event": {
+    "approved": true,
+    "image_url": "https://example.com/image.png",
+    "chain_id": 42161
+  }
+}
+```
+
+At `create_market`, call `run_skill_step` again with `image_url` in `event` to
+prepare the wallet create intent. Use `node scripts/inspect_state.mjs` to read
+`.forecastos` state. Never `sed`-edit drafts or hand-write partial config.
+
 ## Pitfalls
 
 - Always pass JSON input with `--input <json-file>` or positional shorthand `<action> <json-file>`. A bare file path without `--input` used to be ignored; positional shorthand is supported now, but empty input still fails fast.
@@ -94,3 +114,4 @@ Set `FORECASTOS_REPO_ROOT` when this skill is copied into Hermes or another host
 - If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for the missing fields and rerun with complete input. Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
 - For Arbitrum creation, pass `chain_id: 42161` and Arbitrum USDC through draft/approval/create events. Privy supports Arbitrum; Base MCP is Base-only.
 - A copied skill install is not the full ForecastOS repo. For Privy, run `scripts/resolve-privy-create.mjs`; do not search for `adapters/wallets/` under the skill directory. Set `FORECASTOS_REPO_ROOT` to the repo root when copied outside the monorepo.
+- Never `sed`-edit or Python-write `.forecastos/*`. Never hand-write partial `config.json`. If config is missing, copy `skill/forecast-os/.forecastos/config.json` into the active skill install.

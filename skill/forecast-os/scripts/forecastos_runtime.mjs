@@ -42,7 +42,7 @@ class ForecastOSLocalRuntime {
 
   async draftMarket(input) {
     const config = typeof this.store.getConfig === "function"
-      ? await this.store.getConfig()
+      ? await this.store.getConfig(process.env)
       : {};
     const draft = buildDraft(input, { config });
     await this.store.save(draft);
@@ -177,6 +177,7 @@ class ForecastOSLocalRuntime {
       }
       const approvedAt = new Date().toISOString();
       const chainContext = await resolveChainContextFromStore(this.store, event, current);
+      await patchDraftChainOnApproval(this.store, current.draft_id, chainContext);
       return this.#saveResult({
         state: transition(current, {
           ...current,
@@ -464,7 +465,7 @@ class ForecastOSLocalRuntime {
       marketId: approvalResult.market_id ?? state.market_id ?? state.upcoming_market,
     });
     const config = typeof this.store.getConfig === "function"
-      ? await this.store.getConfig()
+      ? await this.store.getConfig(process.env)
       : {};
     const replacementInput = buildReplacementDraftInput(originalDraft, {
       validatorFeedback,
@@ -935,6 +936,7 @@ function buildSuggestNextQuestions(missingFields = []) {
 function chainSelectionExplicit(input = {}, precog = {}) {
   const chainId = Number(
     input.chain_id ??
+      input.requested_chain_id ??
       input.preferred_chain_id ??
       parseChainAlias(input.preferred_chain ?? input.chain, precog),
   );
@@ -951,6 +953,7 @@ function chainSelectionExplicit(input = {}, precog = {}) {
 function chainIdFromInput(input = {}, precog = {}) {
   const chainId = Number(
     input.chain_id ??
+      input.requested_chain_id ??
       input.preferred_chain_id ??
       parseChainAlias(input.preferred_chain ?? input.chain, precog),
   );
@@ -998,7 +1001,7 @@ function buildDraftCollateralContext(input = {}, config = {}) {
 }
 
 async function resolveChainContextFromStore(store, event = {}, state = {}) {
-  const config = typeof store.getConfig === "function" ? await store.getConfig() : {};
+  const config = typeof store.getConfig === "function" ? await store.getConfig(process.env) : {};
   const precog = config?.precog ?? {};
   const chainId = resolveWorkflowChainId(precog, chainHintsFrom({ event, state }));
   const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
@@ -1019,6 +1022,31 @@ async function resolveChainContextFromStore(store, event = {}, state = {}) {
       precog.default_collateral_symbol ??
       null,
   };
+}
+
+async function patchDraftChainOnApproval(store, draftId, chainContext = {}) {
+  if (!draftId || !chainContext.chain_id || typeof store.get !== "function") return;
+  const draft = await store.get(draftId);
+  if (!draft?.market) return;
+  const hadChain = draft.market.chain_id != null;
+  if (!hadChain) {
+    draft.market.chain_id = chainContext.chain_id;
+    draft.market.collateral_address =
+      chainContext.collateral_address ?? draft.market.collateral_address;
+    draft.market.collateral_symbol =
+      chainContext.collateral_symbol ?? draft.market.collateral_symbol;
+    draft.quality.blocking_issues = (draft.quality.blocking_issues ?? []).filter(
+      (issue) => !String(issue).includes("Chain not selected"),
+    );
+    draft.quality.missing_fields = (draft.quality.missing_fields ?? []).filter(
+      (field) => field !== "chain_id",
+    );
+    if (!draft.quality.blocking_issues.length) {
+      draft.status = "pass";
+      draft.quality.score = 90;
+    }
+    await store.save(draft);
+  }
 }
 
 function normalizeDraftOutcomes(value) {

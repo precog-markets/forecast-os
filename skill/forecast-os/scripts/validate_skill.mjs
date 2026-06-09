@@ -240,8 +240,10 @@ assert(
 assert(
   skill.includes("resolve-privy-create.mjs") &&
     skill.includes("FORECASTOS_REPO_ROOT") &&
-    skill.toLowerCase().includes("do not search for `adapters/wallets/` under the skill directory"),
-  "SKILL.md must document Privy wrapper discovery and copied-install repo-root guidance",
+    skill.toLowerCase().includes("do not search for `adapters/wallets/` under the skill directory") &&
+    skill.includes("Post-Approval Create") &&
+    skill.includes("inspect_state.mjs"),
+  "SKILL.md must document Privy wrapper discovery, copied-install repo-root guidance, and post-approval playbook",
 );
 
 const walletAdaptersDoc = await readFile(join(root, "references", "wallet-adapters.md"), "utf8");
@@ -721,8 +723,10 @@ async function assertHermesHostAdapter(monorepoRoot) {
     hermesSkill.includes("Do not") &&
       hermesSkill.includes("adapters/wallets/") &&
       hermesSkill.includes("FORECASTOS_REPO_ROOT") &&
-      hermesSkill.includes("copied Hermes skill"),
-    "Hermes SKILL.md must forbid skill-local adapter search and document FORECASTOS_REPO_ROOT for copied installs",
+      hermesSkill.includes("copied Hermes skill") &&
+      hermesSkill.includes("Post-Approval Create") &&
+      hermesSkill.includes("inspect_state.mjs"),
+    "Hermes SKILL.md must forbid skill-local adapter search, document FORECASTOS_REPO_ROOT, and include post-approval playbook",
   );
 
   const hermesDocs = [
@@ -754,8 +758,9 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesDocs.includes("Do not call direct `create_market` before wallet resolution") &&
       hermesDocs.includes("Do not use `preview_market`") &&
       hermesDocs.includes("FORECASTOS_REPO_ROOT") &&
-      hermesDocs.includes("--input -"),
-    "Hermes docs must document the publish sequence, stdin support, and unsupported preview/direct create path",
+      hermesDocs.includes("--input -") &&
+      hermesDocs.includes("inspect_state.mjs"),
+    "Hermes docs must document the publish sequence, stdin support, inspect_state, and unsupported preview/direct create path",
   );
   assert(
     hermesDocs.includes("does not replace the skill package") ||
@@ -775,8 +780,10 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSetupScript.includes("hermes_prepare_create_wrapper") &&
       hermesSetupScript.includes('actionBridgeSupportCheck("prepare_create_intent")') &&
       hermesSetupScript.includes("hermes_privy_wrapper") &&
-      hermesSetupScript.includes("resolvePrivyAdapterScript"),
-    "Hermes setup check must verify Privy adapter and Hermes wrapper paths",
+      hermesSetupScript.includes("resolvePrivyAdapterScript") &&
+      hermesSetupScript.includes("hermes_state_config") &&
+      hermesSetupScript.includes("hermes_state_dir"),
+    "Hermes setup check must verify Privy adapter, Hermes wrapper paths, and local state config",
   );
   const hermesPrivyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
   assert(

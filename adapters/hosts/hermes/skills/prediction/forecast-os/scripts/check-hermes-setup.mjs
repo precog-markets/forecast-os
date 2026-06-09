@@ -23,6 +23,8 @@ const checks = [
   await actionBridgeSupportCheck("prepare_create_intent"),
   await actionBridgeSupportCheck("publish_approved_market"),
   await checkFile("skill_config", join(repoRoot, "skill", "forecast-os", ".forecastos", "config.json")),
+  await checkHermesStateConfig(hermesSkillRoot, repoRoot),
+  await checkHermesStateDir(hermesSkillRoot),
   await checkDir("wallet_adapters", join(repoRoot, "adapters", "wallets")),
   await checkPrivyAdapterResolution(process.env, hermesSkillRoot),
   await checkFile("hermes_action_wrapper", join(hermesSkillRoot, "scripts", "forecastos-action.mjs")),
@@ -74,6 +76,46 @@ async function checkDir(name, path) {
     return { name, ok: true, path };
   } catch (error) {
     return { name, ok: false, path, error: error?.message ?? String(error) };
+  }
+}
+
+async function checkHermesStateConfig(skillRoot, repoRootPath) {
+  const localPath = join(skillRoot, ".forecastos", "config.json");
+  try {
+    await access(localPath, constants.R_OK);
+    return { name: "hermes_state_config", ok: true, path: localPath };
+  } catch (error) {
+    const shippedPath = join(repoRootPath, "skill", "forecast-os", ".forecastos", "config.json");
+    return {
+      name: "hermes_state_config",
+      ok: false,
+      optional: true,
+      path: localPath,
+      error: error?.message ?? String(error),
+      guidance: [
+        "Copy the shipped ForecastOS config into the Hermes skill install:",
+        `mkdir -p ${join(skillRoot, ".forecastos")}`,
+        `cp ${shippedPath} ${localPath}`,
+        "Or set FORECASTOS_REPO_ROOT so the runtime can read the repo shipped config as fallback.",
+      ].join("\n"),
+    };
+  }
+}
+
+async function checkHermesStateDir(skillRoot) {
+  const stateDir = join(skillRoot, ".forecastos");
+  try {
+    await access(stateDir, constants.W_OK);
+    return { name: "hermes_state_dir", ok: true, path: stateDir };
+  } catch (error) {
+    return {
+      name: "hermes_state_dir",
+      ok: false,
+      optional: true,
+      path: stateDir,
+      error: error?.message ?? String(error),
+      guidance: `mkdir -p ${join(stateDir, "drafts")} ${join(stateDir, "workflows", "all")}`,
+    };
   }
 }
 

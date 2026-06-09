@@ -31,6 +31,8 @@ const repoOnly = isRepoLayout ? test : test.skip;
 function ensureDraftChain(input = {}) {
   if (
     input.chain_id !== undefined ||
+    input.requested_chain_id !== undefined ||
+    input.preferred_chain_id !== undefined ||
     input.collateral_address !== undefined ||
     input.preferred_chain ||
     input.chain
@@ -1809,15 +1811,20 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   assert.ok(setupScript.includes("extractAllowedTypedDataChainIds"));
   assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
   assert.ok(actionWrapper.includes("assertActionBridgeSupports"));
+  assert.ok(actionWrapper.includes("hermesSkillRoot"));
   assert.ok(runtimeWrapper.includes("outdated ForecastOS runtime"));
   assert.ok(prepareWrapper.includes("prepare_create_intent"));
+  assert.ok(prepareWrapper.includes("hermesSkillRoot"));
   assert.ok(privyWrapper.includes("resolvePrivyAdapterScript"));
   assert.ok(hermesSkill.includes("Do not") && hermesSkill.includes("adapters/wallets/"));
+  assert.ok(hermesSkill.includes("Post-Approval Create"));
   assert.ok(combined.includes("approval rules"));
   assert.ok(combined.includes("does not replace the skill package"));
   assert.ok(pluginYaml.includes("provides_tools"));
   assert.ok(pluginYaml.includes("forecastos_action"));
   assert.ok(setupScript.includes("FORECASTOS_REPO_ROOT"));
+  assert.ok(setupScript.includes("hermes_state_config"));
+  assert.ok(setupScript.includes("hermes_state_dir"));
 
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -1834,6 +1841,8 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   assert.ok(setup.checks.some((check) => check.name === "hermes_action_wrapper" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "hermes_prepare_create_wrapper" && check.ok));
   assert.ok(setup.checks.some((check) => check.name === "hermes_privy_wrapper" && check.ok));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_state_config"));
+  assert.ok(setup.checks.some((check) => check.name === "hermes_state_dir"));
 
   const hermesRootDir = join(skillRoot, "test-output", "hermes-adapter");
   const hermesStateDir = join(hermesRootDir, ".forecastos");
@@ -2326,6 +2335,80 @@ test("repo discovery returns FORECASTOS_REPO_ROOT guidance when adapter missing"
   } finally {
     await rm(fakeRoot, { recursive: true, force: true });
   }
+});
+
+repoOnly("draft accepts requested_chain_id alias", async () => {
+  const rootDir = join(skillRoot, "test-output", "requested-chain-id");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await writeShippedStateConfig(stateDir);
+  const forecastos = createTestForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    now: () => new Date("2026-06-01T12:00:00Z"),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Warcraft viewership 2027",
+    requested_outcomes: ["Less than 50k", "50k to 100k", "Over 100k"],
+    source_hints: ["Official Blizzard reports"],
+    requested_close_time: "2027-09-14T23:59:00.000Z",
+    requested_resolution_time: "2027-10-31T12:00:00.000Z",
+    requested_chain_id: 42161,
+  });
+  assert.equal(draft.status, "pass");
+  assert.equal(draft.market.chain_id, 42161);
+  assert.ok(!draft.quality.blocking_issues.some((issue) => issue.includes("Chain not selected")));
+});
+
+repoOnly("state store falls back to repo config when local config missing", async () => {
+  const rootDir = join(skillRoot, "test-output", "config-fallback");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  const store = new DirectoryDraftStateStore(stateDir);
+  const config = await store.getConfig({ FORECASTOS_REPO_ROOT: monorepoRoot });
+  assert.equal(config.precog.api_root, shippedConfig.precog.api_root);
+  assert.ok(String(config.config_source).includes("config.json"));
+});
+
+test("prepare_create_intent loads persisted create_market workflow by workflow_id", async () => {
+  const rootDir = join(skillRoot, "test-output", "prepare-intent-workflow");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await writeShippedStateConfig(stateDir);
+
+  const drafted = await runActionBridge(
+    "run_skill_step",
+    join(skillRoot, "scripts", "examples", "arbitrum-warcraft-2026", "01_draft.json"),
+    stateDir,
+  );
+  const workflowId = drafted.result.state.workflow_id;
+  const approvalPath = join(rootDir, "approve.json");
+  await writeFile(
+    approvalPath,
+    JSON.stringify({
+      state: drafted.result.state,
+      event: {
+        approved: true,
+        chain_id: 42161,
+        image_url: "https://example.com/image.png",
+      },
+    }),
+  );
+  const approved = await runActionBridge("run_skill_step", approvalPath, stateDir);
+  assert.equal(approved.result.state.step, "create_market");
+
+  const intentPath = join(rootDir, "intent.json");
+  await writeFile(
+    intentPath,
+    JSON.stringify({
+      workflow_id: workflowId,
+      image_url: "https://example.com/image.png",
+    }),
+  );
+  const intent = await runActionBridge("prepare_create_intent", intentPath, stateDir);
+  assert.equal(intent.status, "ok");
+  assert.equal(intent.result.intent_type, "forecastos.create_market");
+  assert.equal(intent.result.chain_id, 42161);
 });
 
 test("draft validation blocks long questions and outcomes", async () => {

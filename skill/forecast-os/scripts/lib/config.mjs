@@ -2,8 +2,10 @@
 import { PrecogApiError } from "./errors.mjs";
 
 export async function readPrecogConfig(store, options = {}) {
-  const config = typeof store.getConfig === "function" ? await store.getConfig() : null;
+  const env = options.env ?? process.env;
+  const config = typeof store.getConfig === "function" ? await store.getConfig(env) : null;
   const precog = config?.precog ?? {};
+  const configSource = config?.config_source ?? joinStateConfigHint(store);
   const chainId =
     options.chainId ??
     resolveWorkflowChainId(precog, options.chainHints ?? {}) ??
@@ -11,17 +13,17 @@ export async function readPrecogConfig(store, options = {}) {
   const chainConfig = chainConfigFor(precog, chainId);
   const deployedMasterAddress = chainConfig?.deployed_master_address ?? precog.deployed_master_address;
   if (!precog.open_api_key) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.open_api_key.", {
+    throw new PrecogApiError(buildConfigErrorMessage("precog.open_api_key", configSource, store), {
       code: "PRECOG_CONFIG_ERROR",
       endpoint: null,
-      body: { error: "Missing precog.open_api_key" },
+      body: { error: "Missing precog.open_api_key", config_source: configSource ?? null },
     });
   }
   if (!precog.api_root) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.api_root.", {
+    throw new PrecogApiError(buildConfigErrorMessage("precog.api_root", configSource, store), {
       code: "PRECOG_CONFIG_ERROR",
       endpoint: null,
-      body: { error: "Missing precog.api_root" },
+      body: { error: "Missing precog.api_root", config_source: configSource ?? null },
     });
   }
   if (options.requireDeployedMasterAddress && !deployedMasterAddress) {
@@ -58,8 +60,10 @@ export function chainHintsFrom(input = {}) {
   return {
     chain_id:
       input.chain_id ??
+      input.requested_chain_id ??
       event.chain_id ??
       eventInput.chain_id ??
+      eventInput.requested_chain_id ??
       input.state?.chain_id,
     collateral_address:
       input.collateral_address ??
@@ -122,6 +126,18 @@ export function resolveWorkflowChainId(precog = {}, hints = {}) {
   }
 
   return configuredChainId;
+}
+
+function joinStateConfigHint(store) {
+  return store?.rootDir ? `${store.rootDir}/config.json` : ".forecastos/config.json";
+}
+
+function buildConfigErrorMessage(field, configSource, store) {
+  const stateHint = store?.rootDir ? `State dir: ${store.rootDir}.` : "";
+  const sourceHint = configSource
+    ? `Using fallback config from ${configSource}.`
+    : "Copy skill/forecast-os/.forecastos/config.json into the active skill install or set FORECASTOS_REPO_ROOT.";
+  return `Missing .forecastos/config.json ${field}. ${stateHint} ${sourceHint} Do not hand-write partial config.json.`;
 }
 
 function normalizeConfigAddress(value) {

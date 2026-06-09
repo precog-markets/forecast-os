@@ -90,6 +90,42 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
 10. Fund only after Precog status is `VALIDATED` and a separate explicit funding
     approval exists.
 
+## Post-Approval Create
+
+After the user approves, pass the **full `state` object** from the prior
+`run_skill_step` result. Use `chain_id` (not `requested_chain_id`).
+
+Approval step (`step: await_approval`):
+
+```json
+{
+  "state": { "...full state from prior run_skill_step..." },
+  "event": {
+    "approved": true,
+    "image_url": "https://example.com/image.png",
+    "chain_id": 42161
+  }
+}
+```
+
+Create-intent step (`step: create_market` — preferred over standalone
+`prepare-create-intent.mjs`):
+
+```json
+{
+  "state": { "...persisted workflow at create_market..." },
+  "event": { "image_url": "https://example.com/image.png" }
+}
+```
+
+Inspect persisted state with `node scripts/inspect_state.mjs` (ESM CLI). Never
+use `require(...)` on skill scripts.
+
+For copied installs, keep workflow state in `${HERMES_SKILL_DIR}/.forecastos`.
+Set `FORECASTOS_REPO_ROOT` for Privy adapter resolution only. If config is
+missing, run the setup check and copy shipped config — do not invent partial
+`config.json` or `sed`-edit `.forecastos/*`.
+
 ## Testing / CI Only
 
 Do **not** run the example runner for live user create requests:
@@ -109,6 +145,9 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
   runner when a user asks to create a market.
 - Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`. Use the
   `draft_id`, `draft_hash`, and `workflow_id` returned by ForecastOS.
+- Never `sed`-edit or Python-write `.forecastos/*`. Never hand-write partial
+  `config.json`. Use `node scripts/inspect_state.mjs` to read state.
+- Use `chain_id` on draft/approval input, not `requested_chain_id`.
 - If a draft is blocked, ask for missing fields and rerun with complete input.
   Do not bypass the bridge by writing draft files manually.
 - Do not ask users to paste private keys, seed phrases, raw signatures, or raw

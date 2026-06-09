@@ -22,15 +22,25 @@ Hermes installs do not call an outdated bridge.
 
 ## Publish Flow
 
-After the user approves a draft, use this sequence:
+After the user approves a draft, prefer **`run_skill_step`** to advance the
+persisted workflow and prepare the create intent at `create_market`. Standalone
+`prepare-create-intent.mjs` accepts `workflow_id` but `run_skill_step` is the
+normal path.
 
-1. Run `scripts/prepare-create-intent.mjs --input <create-intent-json>`.
-2. Resolve wallet signing with the selected adapter. For Privy, run
-   `scripts/resolve-privy-create.mjs --input <prepare-create-intent-json>`.
-3. Submit the stored `create_market` workflow step with
-   `scripts/forecastos-action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>`.
-   The input file should contain the existing `workflow_id`; the wrapper loads
-   persisted workflow state before submitting.
+1. Approve with full persisted `state` plus `event.approved: true` and
+   `event.image_url`.
+2. At `create_market`, call `run_skill_step` again with `event.image_url` to
+   get the wallet create intent (or run `prepare-create-intent.mjs --input`
+   with `{ "workflow_id": "<id>", "image_url": "..." }`).
+3. Resolve wallet signing with the selected adapter. For Privy, run
+   `scripts/resolve-privy-create.mjs --input <create-intent-json>`.
+4. Submit with
+   `scripts/forecastos-action.mjs publish_approved_market --workflow-id <id> --wallet-output <out.json>`.
+
+Use `node scripts/inspect_state.mjs` to read `.forecastos` state. Never
+`require(...)` skill scripts, never `sed`-edit drafts/workflows, and never
+hand-write partial `config.json`. For copied installs, keep state in the
+Hermes skill-local `.forecastos/` directory.
 
 Do not call direct `create_market` before wallet resolution. Direct
 `create_market` is only a low-level call when `creator_address` and
