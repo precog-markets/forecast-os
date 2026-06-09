@@ -24,7 +24,7 @@ await_precog_approval
 - `create_market`: submits to the configured Precog API root and requires explicit approval and a non-stale draft hash stored in workflow memory.
 - `await_precog_approval`: check Precog upcoming market status. `CREATED`, `PENDING`, and unknown non-final statuses wait; `VALIDATED` advances to funding; `REJECTED`, `FAILED`, and `DENIED` move to `rejected`.
 - `fund`: generate a wallet-agnostic funding intent, let configured wallet/action tooling resolve transaction and signature fields, then submit the operator-approved funding record to Precog.
-- `consume_prediction`: wait for the upcoming market to become `DEPLOYED`, then check the upcoming market using config `precog.chain_id` and `id`, then fetch the deployed market from `/api/v1/markets/` using config `deployed_master_address`.
+- `consume_prediction`: wait for the upcoming market to become `DEPLOYED`, then check the upcoming market using config `precog.chain_id` and `id`, then fetch the deployed market from `/api/v1/markets/` using config `supported_chains[chain_id].deployed_master_address`.
 - `done`: workflow has fetched the deployed market and stored a compact planning signal.
 - `rejected`: Precog rejected or denied the upcoming market, or returned a failed terminal status. Keep the raw status and validator feedback in workflow memory. If the hourly check ran with `--auto-redraft`, ForecastOS creates a linked replacement workflow in `await_approval`; the replacement draft must be shown to the user and approved before any new create attempt.
 

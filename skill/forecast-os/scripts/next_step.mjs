@@ -144,7 +144,7 @@ function guidanceFor(step, workflow) {
         "market_id",
 
         "deployed_market_id or deployable upcoming market status",
-        "active .forecastos/config.json precog.deployed_master_address before deployed market fetch",
+        "active .forecastos/config.json precog.supported_chains[chain_id].deployed_master_address before deployed market fetch",
       ],
       suggested_command: commands.consumePrediction,
       notes: [

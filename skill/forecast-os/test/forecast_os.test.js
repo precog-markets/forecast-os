@@ -16,7 +16,9 @@ const skillRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const monorepoRoot = dirname(dirname(skillRoot));
 const shippedConfig = JSON.parse(await readFile(join(skillRoot, ".forecastos", "config.json"), "utf8"));
 const configChainId = shippedConfig.precog.chain_id;
-const configCollateralAddress = shippedConfig.precog.default_collateral_address;
+const configChain = shippedConfig.precog.supported_chains[String(configChainId)];
+const configDeployedMasterAddress = configChain.deployed_master_address;
+const configCollateralAddress = configChain.default_collateral_address;
 const configSignatureActions = shippedConfig.precog.signature_actions;
 const lowerCreatorAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
 const checksumCreatorAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
@@ -515,6 +517,51 @@ test("bundled runtime builds Precog create and fund requests from local config",
   assert.equal(requests[2].body.upcoming_market, 428);
   assert.equal(requests[2].body.amount, "1");
   assert.equal(requests[2].body.funder_signature, smartAccountFundingSignature);
+});
+
+test("prepare_create_intent uses Arbitrum deployed master from supported_chains", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "arbitrum-chain-config");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(
+    join(stateDir, "config.json"),
+    JSON.stringify({
+      precog: {
+        api_root: shippedConfig.precog.api_root,
+        open_api_key: "test-open-api-key",
+        chain_id: 42161,
+        default_collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        default_collateral_symbol: "USDC",
+        supported_chains: shippedConfig.precog.supported_chains,
+        signature_actions: configSignatureActions,
+      },
+    }),
+  );
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => {
+      throw new Error("prepare_create_intent should not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in July 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-07-31T23:59:59Z",
+    requested_resolution_time: "2026-08-03T00:00:00Z",
+  });
+  const intent = await forecastos.prepareCreateIntent({
+    draft_id: draft.draft_id,
+    approval_text: draft.approval_text,
+    image_url: "https://example.com/image.png",
+  });
+
+  assert.equal(intent.chain_id, 42161);
+  assert.equal(
+    intent.eip712_typed_data_template.domain.verifyingContract,
+    "0x0000000000990400E12543B7f400136e8672E2F0",
+  );
 });
 
 test("draft_market extracts labels from object outcomes before storage", async () => {
@@ -1870,7 +1917,7 @@ test("create_market fails clearly without config default collateral or override"
       creator_address: lowerCreatorAddress,
       creator_signature: "0xCreatorSignature",
     }),
-    /Missing \.forecastos\/config\.json precog\.default_collateral_address/,
+    /Missing \.forecastos\/config\.json precog\.supported_chains\[chain_id\]\.default_collateral_address/,
   );
 });
 
@@ -2008,7 +2055,7 @@ test("consume_prediction requires deployed_master_address only before deployed m
       step: "consume_prediction",
       market_id: 123,
     }),
-    /Missing \.forecastos\/config\.json precog\.deployed_master_address/,
+    /Missing \.forecastos\/config\.json precog\.supported_chains\[chain_id\]\.deployed_master_address/,
   );
   assert.equal(requests.length, 1);
   assert.ok(!requests[0].url.includes("deployed_master_address"));
@@ -2025,7 +2072,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
         api_root: shippedConfig.precog.api_root,
         open_api_key: "test-open-api-key",
         chain_id: configChainId,
-        deployed_master_address: shippedConfig.precog.deployed_master_address,
+        supported_chains: shippedConfig.precog.supported_chains,
         default_collateral_address: configCollateralAddress,
         default_collateral_symbol: "USDC",
         signature_actions: configSignatureActions,
@@ -2060,7 +2107,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
     assert.equal(intent.eip712_typed_data_template.primaryType, "PrecogMarketAuthorization");
     assert.equal(intent.eip712_typed_data_template.domain.name, "Precog Markets");
     assert.equal(intent.eip712_typed_data_template.domain.chainId, configChainId);
-    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, shippedConfig.precog.deployed_master_address);
+    assert.equal(intent.eip712_typed_data_template.domain.verifyingContract, configDeployedMasterAddress);
     assert.equal(intent.eip712_typed_data_template.message.action, configSignatureActions.fund_market);
     assert.equal(intent.eip712_typed_data_template.message.account, "<funder_address>");
     assert.equal(intent.eip712_typed_data_template.message.nonce, "<next_pending_nonce>");

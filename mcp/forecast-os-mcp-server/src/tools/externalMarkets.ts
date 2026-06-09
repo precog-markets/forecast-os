@@ -853,10 +853,10 @@ async function readPrecogMarketConfig() {
   const precog = asRecord(config.precog);
   const apiRoot = stringValue(precog.api_root);
   const openApiKey = stringValue(precog.open_api_key);
-  const deployedMasterAddress = stringValue(precog.deployed_master_address);
   const chainId = Number(precog.chain_id);
+  const deployedMasterAddress = deployedMasterAddressForChain(precog, chainId);
   if (!apiRoot || !openApiKey || !deployedMasterAddress || !Number.isInteger(chainId)) {
-    throw new Error("Precog market reads require api_root, open_api_key, chain_id, and deployed_master_address in ForecastOS config.");
+    throw new Error("Precog market reads require api_root, open_api_key, chain_id, and supported_chains[chain_id].deployed_master_address in ForecastOS config.");
   }
   return {
     api_root: apiRoot,
@@ -864,6 +864,12 @@ async function readPrecogMarketConfig() {
     chain_id: chainId,
     deployed_master_address: deployedMasterAddress,
   };
+}
+
+function deployedMasterAddressForChain(precog: Record<string, unknown>, chainId: number) {
+  const supportedChains = asRecord(precog.supported_chains);
+  const chainConfig = asRecord(supportedChains[String(chainId)]);
+  return stringValue(chainConfig.deployed_master_address) ?? stringValue(precog.deployed_master_address);
 }
 
 async function readFirstJson(paths: Array<string | undefined>) {

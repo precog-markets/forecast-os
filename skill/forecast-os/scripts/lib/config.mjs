@@ -4,6 +4,9 @@ import { PrecogApiError } from "./errors.mjs";
 export async function readPrecogConfig(store, options = {}) {
   const config = typeof store.getConfig === "function" ? await store.getConfig() : null;
   const precog = config?.precog ?? {};
+  const chainId = requireConfigChainId(precog);
+  const chainConfig = chainConfigFor(precog, chainId);
+  const deployedMasterAddress = chainConfig?.deployed_master_address ?? precog.deployed_master_address;
   if (!precog.open_api_key) {
     throw new PrecogApiError("Missing .forecastos/config.json precog.open_api_key.", {
       code: "PRECOG_CONFIG_ERROR",
@@ -18,25 +21,32 @@ export async function readPrecogConfig(store, options = {}) {
       body: { error: "Missing precog.api_root" },
     });
   }
-  if (options.requireDeployedMasterAddress && !precog.deployed_master_address) {
+  if (options.requireDeployedMasterAddress && !deployedMasterAddress) {
     throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.deployed_master_address.",
+      "Missing .forecastos/config.json precog.supported_chains[chain_id].deployed_master_address.",
       {
         code: "PRECOG_CONFIG_ERROR",
         endpoint: null,
-        body: { error: "Missing precog.deployed_master_address" },
+        body: { error: "Missing chain-specific precog deployed_master_address" },
       },
     );
   }
   return {
     api_root: precog.api_root,
     open_api_key: precog.open_api_key,
-    deployed_master_address: precog.deployed_master_address,
-    chain_id: requireConfigChainId(precog),
-    default_collateral_address: precog.default_collateral_address,
-    default_collateral_symbol: precog.default_collateral_symbol,
+    deployed_master_address: deployedMasterAddress,
+    chain_id: chainId,
+    default_collateral_address: chainConfig?.default_collateral_address ?? precog.default_collateral_address,
+    default_collateral_symbol: chainConfig?.default_collateral_symbol ?? precog.default_collateral_symbol,
     signature_actions: requireConfigSignatureActions(precog),
   };
+}
+
+export function chainConfigFor(precog, chainId) {
+  const chains = precog.supported_chains;
+  if (!chains || typeof chains !== "object") return null;
+  const entry = chains[String(chainId)];
+  return entry && typeof entry === "object" ? entry : null;
 }
 
 export function requireConfigChainId(precog) {
@@ -101,11 +111,11 @@ export function buildPrecogAuthorizationTypedDataTemplate({ config, action, acco
 export function requireDefaultCollateralAddress(config) {
   if (!config.default_collateral_address) {
     throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.default_collateral_address.",
+      "Missing .forecastos/config.json precog.supported_chains[chain_id].default_collateral_address.",
       {
         code: "PRECOG_CONFIG_ERROR",
         endpoint: null,
-        body: { error: "Missing precog.default_collateral_address" },
+        body: { error: "Missing chain-specific precog default_collateral_address" },
       },
     );
   }
@@ -115,11 +125,11 @@ export function requireDefaultCollateralAddress(config) {
 export function requireDeployedMasterAddress(config) {
   if (!config.deployed_master_address) {
     throw new PrecogApiError(
-      "Missing .forecastos/config.json precog.deployed_master_address.",
+      "Missing .forecastos/config.json precog.supported_chains[chain_id].deployed_master_address.",
       {
         code: "PRECOG_CONFIG_ERROR",
         endpoint: null,
-        body: { error: "Missing precog.deployed_master_address" },
+        body: { error: "Missing chain-specific precog deployed_master_address" },
       },
     );
   }

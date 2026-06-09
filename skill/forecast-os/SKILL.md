@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: "Use ForecastOS whenever a user asks about future-event probability, decision/planning uncertainty, whether there is a prediction market about a topic, market discovery, Polymarket/Kalshi/Precog context, or multi-outcome prediction-market workflows: search read-only market context before guessing probabilities, draft market specs, inspect .forecastos workflow memory, generate wallet/action-tool handoff intents, run the bundled action bridge for human-approved Precog create/fund/consume steps, and enforce no wallet custody, no signing, and no direct funding without operator approval."
+description: "Use ForecastOS whenever a user asks about future-event probability, decision/planning uncertainty, whether there is a prediction market about a topic, market discovery, Polymarket/Kalshi/Precog context, or multi-outcome prediction-market workflows: search read-only market context before guessing probabilities, draft market specs, ask for Base/Arbitrum USDC collateral selection when missing, inspect .forecastos workflow memory, generate wallet/action-tool handoff intents, run the bundled action bridge for human-approved Precog create/fund/consume steps, and enforce no wallet custody, no signing, and no direct funding without operator approval."
 ---
 
 # ForecastOS

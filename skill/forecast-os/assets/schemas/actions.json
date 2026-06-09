@@ -111,7 +111,7 @@
         },
         "collateral_symbol": {
           "type": "string",
-          "description": "Optional context label for a collateral override; defaults to config default_collateral_symbol."
+          "description": "Optional context label for a collateral override; defaults to the active chain collateral symbol from .forecastos/config.json."
         }
       },
       "additionalProperties": true
@@ -200,7 +200,7 @@
         },
         "collateral_symbol": {
           "type": "string",
-          "description": "Optional context label for a collateral override; defaults to config default_collateral_symbol."
+          "description": "Optional context label for a collateral override; defaults to the active chain collateral symbol from .forecastos/config.json."
         }
       },
       "additionalProperties": true

@@ -218,12 +218,15 @@ export function precogCapabilities() {
 export async function precogConfigDefaults() {
   const config = await readJson(join(RESOURCE_ROOT, "precog", "config-defaults.json"));
   const precog = config.precog ?? {};
+  const activeChain = precog.supported_chains?.[String(precog.chain_id)] ?? {};
   return {
     api_root: precog.api_root,
     chain_id: precog.chain_id,
-    deployed_master_address: precog.deployed_master_address,
-    default_collateral_address: precog.default_collateral_address,
-    default_collateral_symbol: precog.default_collateral_symbol,
+    deployed_master_address: activeChain.deployed_master_address ?? precog.deployed_master_address,
+    default_collateral_address: activeChain.default_collateral_address ?? precog.default_collateral_address,
+    default_collateral_symbol: activeChain.default_collateral_symbol ?? precog.default_collateral_symbol,
+    default_collateral_options: precog.default_collateral_options,
+    supported_chains: precog.supported_chains,
     signature_actions: precog.signature_actions,
     open_api_key: "<redacted>",
   };

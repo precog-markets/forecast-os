@@ -2,10 +2,7 @@
     "precog": {
         "api_root": "https://service.precog.markets/",
         "open_api_key": "7b655655-9263-4f7b-a96d-bbfdd7711042",
-        "deployed_master_address": "0x00000000000c109080dfa976923384b97165a57a",
         "chain_id": 8453,
-        "default_collateral_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "default_collateral_symbol": "USDC",
         "default_collateral_options": [
             {
                 "label": "USDC on Base",
@@ -23,11 +20,13 @@
         "supported_chains": {
             "8453": {
                 "name": "base",
+                "deployed_master_address": "0x00000000000c109080dfa976923384b97165a57a",
                 "default_collateral_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
                 "default_collateral_symbol": "USDC"
             },
             "42161": {
                 "name": "arbitrum",
+                "deployed_master_address": "0x0000000000990400E12543B7f400136e8672E2F0",
                 "default_collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
                 "default_collateral_symbol": "USDC"
             }

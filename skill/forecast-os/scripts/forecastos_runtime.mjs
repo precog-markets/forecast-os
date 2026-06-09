@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import {
   buildPrecogAuthorizationTypedDataTemplate,
   buildPrecogUrl,
+  chainConfigFor,
   readPrecogConfig,
+  requireConfigChainId,
   requireDefaultCollateralAddress,
   requireDeployedMasterAddress,
 } from "./lib/config.mjs";
@@ -895,10 +897,19 @@ function buildSuggestNextQuestions(missingFields = []) {
 
 function buildDraftCollateralContext(input = {}, config = {}) {
   const precog = config?.precog ?? {};
+  const chainConfig = safeChainConfigFor(precog);
   return {
-    symbol: input.collateral_symbol ?? precog.default_collateral_symbol ?? null,
-    address: input.collateral_address ?? precog.default_collateral_address ?? null,
+    symbol: input.collateral_symbol ?? chainConfig?.default_collateral_symbol ?? precog.default_collateral_symbol ?? null,
+    address: input.collateral_address ?? chainConfig?.default_collateral_address ?? precog.default_collateral_address ?? null,
   };
+}
+
+function safeChainConfigFor(precog) {
+  try {
+    return chainConfigFor(precog, requireConfigChainId(precog));
+  } catch {
+    return null;
+  }
 }
 
 function normalizeDraftOutcomes(value) {

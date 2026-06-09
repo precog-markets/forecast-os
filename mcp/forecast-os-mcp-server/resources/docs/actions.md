@@ -48,10 +48,37 @@ Live Precog calls read config from the active state directory's `config.json`, w
 ```json
 {
   "precog": {
-    "api_root": "https://tracker.precog.market/",
-    "open_api_key": "0b326e17-65ff-4b1b-9f26-babffda92a16",
-    "deployed_master_address": "0x1eB90323aE74E5FBc3241c1D074cFd0b117d7e8E",
+    "api_root": "https://service.precog.markets/",
+    "open_api_key": "7b655655-9263-4f7b-a96d-bbfdd7711042",
     "chain_id": 8453,
+    "default_collateral_options": [
+      {
+        "label": "USDC on Base",
+        "chain_id": 8453,
+        "symbol": "USDC",
+        "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      },
+      {
+        "label": "USDC on Arbitrum",
+        "chain_id": 42161,
+        "symbol": "USDC",
+        "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+      }
+    ],
+    "supported_chains": {
+      "8453": {
+        "name": "base",
+        "deployed_master_address": "0x00000000000c109080dfa976923384b97165a57a",
+        "default_collateral_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "default_collateral_symbol": "USDC"
+      },
+      "42161": {
+        "name": "arbitrum",
+        "deployed_master_address": "0x0000000000990400E12543B7f400136e8672E2F0",
+        "default_collateral_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "default_collateral_symbol": "USDC"
+      }
+    },
     "signature_actions": {
       "create_market": "CREATE_UPCOMING_MARKET",
       "fund_market": "FUND_UPCOMING_MARKET"
@@ -60,7 +87,7 @@ Live Precog calls read config from the active state directory's `config.json`, w
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config. If chain/collateral is missing in user input, ask explicitly (for example, `With collateral from which chain?`) and offer defaults `USDC on Base` and `USDC on Arbitrum`. If the user already specifies chain/collateral, respect it. ForecastOS defaults to the configured collateral from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config. If chain/collateral is missing in user input, ask explicitly (for example, `With collateral from which chain?`) and offer defaults `USDC on Base` and `USDC on Arbitrum`. If the user already specifies chain/collateral, respect it. ForecastOS defaults to `supported_chains[chain_id]` collateral for the active chain; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `supported_chains[chain_id].deployed_master_address` is config-only and is the EIP-712 verifying contract for the active chain. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -181,7 +208,7 @@ The wallet/action tooling owns address selection, nonce lookup, EIP-712 signing,
     "name": "Precog Markets",
     "version": "1",
     "chainId": "<config.precog.chain_id>",
-    "verifyingContract": "<config.precog.deployed_master_address>"
+    "verifyingContract": "<config.precog.supported_chains[chain_id].deployed_master_address>"
   },
   "message": {
     "action": "<config.precog.signature_actions.create_market or fund_market>",
@@ -206,12 +233,12 @@ CREATED -> VALIDATED -> FUNDED -> DEPLOYED
 
 Funding is allowed only after `await_precog_approval` sees status `VALIDATED`. `CREATED` and `PENDING` mean the market exists but is not approved for funding yet; keep the hourly `check_pending_market.mjs --auto-redraft` job running. Treat `REJECTED`, `FAILED`, and `DENIED` as rejected terminal states, stop the schedule, preserve validator feedback from Precog, and create an improved replacement draft for user approval before any new creation attempt.
 
-Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `deployed_master_address` from the active `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
+Prediction consumption first confirms deployment through `GET /api/v1/upcoming-markets/` using only `chain_id` and `id`. If the upcoming market is not `DEPLOYED`, or if it lacks `deployed_market_id`, the workflow stays at `consume_prediction`. ForecastOS uses `supported_chains[chain_id].deployed_master_address` from the active `.forecastos/config.json` only when fetching the deployed market from `/api/v1/markets/`.
 
 After deployment, ForecastOS reads the deployed market with `GET /api/v1/markets/` and query params:
 
 ```txt
-chain_id=<config.precog.chain_id>&master_address=<config.deployed_master_address>&master_market_id=<deployed_market_id>
+chain_id=<config.precog.chain_id>&master_address=<config.precog.supported_chains[chain_id].deployed_master_address>&master_market_id=<deployed_market_id>
 ```
 
 The stored `prediction_result` includes the full market object plus a compact `signal` with parsed `outcomes` and `outcomes_prices`. ForecastOS never invents missing probabilities.

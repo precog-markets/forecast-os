@@ -59,6 +59,10 @@ assert(
   /^description: ".+ForecastOS.+future-event probability.+decision\/planning uncertainty.+whether there is a prediction market.+market discovery.+Polymarket\/Kalshi\/Precog.+before guessing probabilities.+\.forecastos.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
   "SKILL.md description needs ForecastOS discovery, probability, boundaries, and action context",
 );
+assert(
+  /^description: ".+Base\/Arbitrum.+USDC.+collateral.*"$/m.test(skill),
+  "SKILL.md description must include Base/Arbitrum USDC collateral trigger terms",
+);
 assert(frontmatter, "SKILL.md needs YAML frontmatter");
 assert(/^\d+\.\d+\.\d+$/.test(effectiveVersion), "ForecastOS VERSION must contain semver like 0.1.0");
 if (repoVersion !== null && skillArtifactVersion !== null) {
@@ -101,21 +105,29 @@ assert(
   ".forecastos/config.json needs the public open_api_key",
 );
 assert(
-  precogConfig.precog?.deployed_master_address,
-  ".forecastos/config.json needs deployed_master_address",
-);
-assert(
   Number.isInteger(Number(precogConfig.precog?.chain_id)) && Number(precogConfig.precog?.chain_id) > 0,
   ".forecastos/config.json needs precog.chain_id",
-);
-assert(
-  precogConfig.precog?.default_collateral_address,
-  ".forecastos/config.json needs precog.default_collateral_address",
 );
 assert(
   precogConfig.precog?.supported_chains?.["8453"]?.name === "base" &&
     precogConfig.precog?.supported_chains?.["42161"]?.name === "arbitrum",
   ".forecastos/config.json must declare supported_chains entries for Base (8453) and Arbitrum (42161)",
+);
+assert(
+  precogConfig.precog.supported_chains["8453"].default_collateral_address === "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" &&
+    precogConfig.precog.supported_chains["42161"].default_collateral_address === "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  ".forecastos/config.json must declare chain-specific default_collateral_address values for Base and Arbitrum",
+);
+assert(
+  precogConfig.precog.supported_chains["8453"].deployed_master_address === "0x00000000000c109080dfa976923384b97165a57a" &&
+    precogConfig.precog.supported_chains["42161"].deployed_master_address === "0x0000000000990400E12543B7f400136e8672E2F0",
+  ".forecastos/config.json must declare chain-specific deployed_master_address values for Base and Arbitrum",
+);
+assert(
+  Array.isArray(precogConfig.precog?.default_collateral_options) &&
+    precogConfig.precog.default_collateral_options.some((option) => option.label === "USDC on Base") &&
+    precogConfig.precog.default_collateral_options.some((option) => option.label === "USDC on Arbitrum"),
+  ".forecastos/config.json must declare default_collateral_options for USDC on Base and USDC on Arbitrum",
 );
 assert(
   precogConfig.precog?.signature_actions?.create_market && precogConfig.precog?.signature_actions?.fund_market,
