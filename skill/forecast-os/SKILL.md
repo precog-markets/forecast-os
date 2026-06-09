@@ -35,8 +35,8 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Write detailed resolution criteria: source of truth, one winning outcome, resolution time, and fallback/no-result handling.
 - Keep outcome labels comma-free, questions at 65 characters or fewer, and outcome labels at 32 characters or fewer.
 - Normalize and display all market times in UTC.
-- Show configured collateral in draft summaries, for example `Token: USDC`.
-- Read chain and collateral from active ForecastOS context. If chain/collateral is missing, ask clearly (`With collateral from which chain?`) and offer defaults `USDC on Base` or `USDC on Arbitrum`; if already specified, respect the user's choice. Pass the selected chain through the normal workflow (`chain_id` and collateral fields on draft/approval/create events); do not hand-write `.forecastos/workflows/*` files or bypass `publish_approved_market`.
+- Show configured collateral in draft summaries, for example `Token: USDC`, and show `Chain: Base (8453)` or `Chain: Arbitrum (42161)` when selected.
+- Read chain and collateral from active ForecastOS context. **Before the first draft**, confirm chain with the user (`With collateral from which chain?`) and offer `USDC on Base` or `USDC on Arbitrum` even when they mention a chain name in the initial prompt. The runtime blocks drafts until `chain_id` or chain-specific collateral is explicit. Pass the selected chain through draft/approval/create events; do not hand-write `.forecastos/workflows/*` files or bypass `publish_approved_market`.
 - Use `.forecastos/` as structured workflow memory. `FORECASTOS_STATE_DIR` may override the default state directory.
 - Do not require MCP for normal drafting or creation. Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
@@ -80,11 +80,13 @@ node scripts/next_step.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>
 node scripts/forecastos_action.mjs <action> --input <json-file>
 node scripts/forecastos_action.mjs <action> <json-file>
-node scripts/examples/arbitrum-warcraft-2026/run_example.mjs
 ```
+
+The Arbitrum Warcraft example runner under `scripts/examples/arbitrum-warcraft-2026/` is for operator/CI reference only. Do not use it as the default path for live user create requests.
 
 ## Pitfalls
 
 - Always pass JSON input with `--input <json-file>` or positional shorthand `<action> <json-file>`. A bare file path without `--input` used to be ignored; positional shorthand is supported now, but empty input still fails fast.
+- Confirm Base vs Arbitrum with the user before drafting. Do not assume config default Base (`8453`) or jump to example scripts when the user asks to create a market.
 - If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for the missing fields and rerun with complete input. Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
 - For Arbitrum creation, pass `chain_id: 42161` and Arbitrum USDC through draft/approval/create events. Privy supports Arbitrum; Base MCP is Base-only.

@@ -296,10 +296,67 @@ test("Privy create resolver classifies typed-data policy denials", async () => {
       assert.equal(error.code, "PRIVY_POLICY_DENIED");
       assert.equal(error.status, 403);
       assert.equal(error.wallet_id, "wallet_policy_blocked");
+      assert.equal(error.chain_id, 8453);
       assert.deepEqual(error.required_methods, ["eth_signTypedData_v4", "eth_sendTransaction"]);
-      assert.ok(error.guidance.includes("wallet policy"));
+      assert.ok(error.guidance.includes("wallet policy") || error.guidance.includes("chainId eq 8453"));
       assert.ok(error.guidance.includes("eth_signTypedData_v4"));
+      assert.ok(error.guidance.includes("8453"));
       assert.ok(!JSON.stringify(error).includes("secret"));
+      return true;
+    },
+  );
+});
+
+test("Privy create resolver preflights typed-data chain policy mismatch", async () => {
+  const fetch = async (url) => {
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_base_only",
+            address: "0x2222222222222222222222222222222222222222",
+            chain_type: "ethereum",
+            policy_ids: ["policy_base_only"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_base_only")) {
+      return jsonResponse({
+        id: "policy_base_only",
+        rules: [
+          {
+            method: "eth_signTypedData_v4",
+            action: "ALLOW",
+            conditions: [
+              {
+                field_source: "ethereum_typed_data_domain",
+                field: "chainId",
+                operator: "eq",
+                value: "8453",
+              },
+            ],
+          },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  await assert.rejects(
+    resolveCreate({
+      intent: buildArbitrumCreateIntentFixture(),
+      walletId: "wallet_base_only",
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch,
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_POLICY_CHAIN_MISMATCH");
+      assert.equal(error.chain_id, 42161);
+      assert.deepEqual(error.allowed_chain_ids, ["8453"]);
+      assert.ok(error.guidance.includes("42161"));
+      assert.ok(error.guidance.includes("8453"));
       return true;
     },
   );

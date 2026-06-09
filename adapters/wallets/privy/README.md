@@ -28,6 +28,26 @@ For now, ForecastOS expects the selected [Privy](https://www.privy.io/ai) wallet
 
 Keep transaction-send rules constrained to the active ForecastOS chain, currently Base (`8453`) or Arbitrum (`42161`), and prefer contract/amount constraints for USDC and Precog funding paths when those addresses are known. Avoid broad `method: "*"` policies unless the wallet is otherwise tightly governed.
 
+Privy does **not** support `in` for typed-data `chainId` conditions. Use **one ALLOW rule per chain** on the same policy:
+
+```json
+{
+  "name": "Allow EIP-712 typed data signing on Arbitrum",
+  "method": "eth_signTypedData_v4",
+  "action": "ALLOW",
+  "conditions": [
+    {
+      "field_source": "ethereum_typed_data_domain",
+      "field": "chainId",
+      "operator": "eq",
+      "value": "42161"
+    }
+  ]
+}
+```
+
+Duplicate the rule with `"value": "8453"` for Base. The adapter preflights policy rules before signing and fails early with `PRIVY_POLICY_CHAIN_MISMATCH` when the target chain is missing.
+
 ## Output
 
 The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass the adapter output file directly to `scripts/forecastos_action.mjs publish_approved_market` with the persisted `create_market` workflow id:
@@ -72,7 +92,8 @@ their values in chat. A `PRIVY_WALLET_SELECTION_REQUIRED` error with
 both required policy methods. Check `checked_wallets`, `allow_methods`, and
 `policy_read_failures` to confirm the wallet id and attached policy.
 
+A `PRIVY_POLICY_CHAIN_MISMATCH` error means the wallet policy has typed-data ALLOW rules, but none match the create intent chain. Read `chain_id`, `allowed_chain_ids`, and `guidance` from stderr; add or patch a chain-specific ALLOW rule instead of retrying other wallets.
+
 A `PRIVY_POLICY_DENIED` error means Privy accepted the RPC shape but the selected
-wallet policy blocked `eth_signTypedData_v4`. Ask the operator to update that
-wallet policy before retrying; if the same wallet will fund later, include
+wallet policy blocked `eth_signTypedData_v4` at execution time (often after a preflight miss or a DENY rule). Read `chain_id` and `guidance` from stderr; update the wallet policy before retrying. If the same wallet will fund later, include
 `eth_sendTransaction` in the policy too.

@@ -27,6 +27,25 @@ const isRepoLayout = await exists(join(monorepoRoot, "VERSION")) &&
   await exists(join(monorepoRoot, "adapters"));
 const repoOnly = isRepoLayout ? test : test.skip;
 
+function ensureDraftChain(input = {}) {
+  if (
+    input.chain_id !== undefined ||
+    input.collateral_address !== undefined ||
+    input.preferred_chain ||
+    input.chain
+  ) {
+    return input;
+  }
+  return { ...input, chain_id: configChainId };
+}
+
+function createTestForecastOS(options = {}) {
+  const forecastos = createForecastOS(options);
+  const originalDraftMarket = forecastos.draftMarket.bind(forecastos);
+  forecastos.draftMarket = (input) => originalDraftMarket(ensureDraftChain(input));
+  return forecastos;
+}
+
 test("formatMarketQuestionToURL matches Precog launchpad slug rules", () => {
   assert.equal(
     formatMarketQuestionToURL("L2Beat: Which L2's will achieve Stage 2 by July 2026?"),
@@ -100,6 +119,7 @@ repoOnly("forecastos_action defaults to bundled skill config when run from repo 
       source_hints: ["Public launchpad dashboards"],
       requested_close_time: "2026-06-30T23:59:59Z",
       requested_resolution_time: "2026-07-03T00:00:00Z",
+      chain_id: configChainId,
     }),
   );
 
@@ -223,6 +243,7 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
             source_hints: ["Public launchpad dashboards"],
             requested_close_time: "2026-06-30T23:59:59Z",
             requested_resolution_time: "2026-07-03T00:00:00Z",
+            chain_id: configChainId,
           },
         },
       },
@@ -322,6 +343,7 @@ test("forecastos_action accepts UTF-8 BOM input JSON", async () => {
           source_hints: ["Official event results"],
           requested_close_time: "2026-10-15T00:00:00Z",
           requested_resolution_time: "2026-11-15T12:00:00Z",
+          chain_id: configChainId,
         },
       },
     })}`,
@@ -348,6 +370,7 @@ test("forecastos_action accepts stdin input JSON", async () => {
       source_hints: ["Official event results"],
       requested_close_time: "2026-10-15T00:00:00Z",
       requested_resolution_time: "2026-11-15T12:00:00Z",
+      chain_id: configChainId,
     }),
     {
       cwd: skillRoot,
@@ -381,7 +404,7 @@ test("bundled runtime builds Precog create and fund requests from local config",
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -539,7 +562,7 @@ test("prepare_create_intent uses Arbitrum deployed master from supported_chains"
       },
     }),
   );
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("prepare_create_intent should not call the network");
@@ -566,7 +589,7 @@ test("prepare_create_intent uses Arbitrum deployed master from supported_chains"
 });
 
 test("prepare_create_intent honors supported chain_id from approval context on default config", async () => {
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     fetch: async () => {
       throw new Error("prepare_create_intent should not call the network");
     },
@@ -601,7 +624,7 @@ test("prepare_create_intent honors supported chain_id from approval context on d
 });
 
 test("run_skill_step persists Arbitrum chain context through approval", async () => {
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     fetch: async () => {
       throw new Error("run_skill_step should not call the network during draft/approval");
     },
@@ -679,7 +702,7 @@ test("create_market rejects pure binary outcomes", async () => {
       },
     }),
   );
-  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const forecastos = createTestForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
   const draft = await forecastos.draftMarket({
     prompt: "Will the Riot MMO be released in calendar year 2027?",
     requested_outcomes: ["Released in 2027", "Released after 2027", "No official release"],
@@ -723,7 +746,7 @@ test("create_market sends comma-safe outcome labels", async () => {
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -794,7 +817,7 @@ test("create_market extracts labels from object outcomes", async () => {
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -863,7 +886,7 @@ test("bundled runtime submits Base MCP smart-account create signatures and recor
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: JSON.parse(options.body) });
@@ -929,7 +952,7 @@ test("wallet-resolved create through run_skill_step persists await_precog_approv
     }),
   );
 
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => ({
       ok: true,
@@ -1002,7 +1025,7 @@ test("create workflow step prepares create intent when wallet fields are missing
   await mkdir(stateDir, { recursive: true });
   await writeTestConfig(stateDir);
 
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("prepare intent must not call the network");
@@ -1130,7 +1153,7 @@ test("run_skill_step does not duplicate create when persisted workflow advanced"
   );
 
   let createCalls = 0;
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       if (url.endsWith("/create-upcoming-market/")) createCalls += 1;
@@ -1201,7 +1224,7 @@ test("forecastos_action publish_approved_market loads persisted workflow and wal
   );
 
   const workflowId = `workflow_${randomUUID()}`;
-  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const forecastos = createTestForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
   const draft = await forecastos.draftMarket({
     prompt: "Which AI app reaches most users by June 2026?",
     requested_outcomes: ["Alpha", "Beta", "Other"],
@@ -1314,7 +1337,7 @@ test("draft_market blocks binary yes/no drafts under multi-outcome default", asy
   await rm(rootDir, { recursive: true, force: true });
   await mkdir(stateDir, { recursive: true });
 
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
   });
   const draft = await forecastos.draftMarket({
@@ -1781,7 +1804,8 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   assert.ok(setupScript.includes("hermes_prepare_create_wrapper"));
   assert.ok(setupScript.includes('actionBridgeSupportCheck("prepare_create_intent")'));
   assert.ok(setupScript.includes('actionBridgeSupportCheck("publish_approved_market")'));
-  assert.ok(setupScript.includes("hermes_privy_wrapper"));
+  assert.ok(setupScript.includes("privy_typed_data_policy"));
+  assert.ok(setupScript.includes("extractAllowedTypedDataChainIds"));
   assert.ok(combined.includes("FORECASTOS_REPO_ROOT"));
   assert.ok(actionWrapper.includes("assertActionBridgeSupports"));
   assert.ok(runtimeWrapper.includes("outdated ForecastOS runtime"));
@@ -1825,6 +1849,7 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
       source_hints: ["Official event results"],
       requested_close_time: "2026-10-15T00:00:00Z",
       requested_resolution_time: "2026-11-15T12:00:00Z",
+      chain_id: configChainId,
     }),
   );
   const hermesForwarded = await execFileAsync(
@@ -1895,7 +1920,7 @@ test("create_market allows explicit collateral override while keeping config cha
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -1953,7 +1978,7 @@ test("non-AI draft categories are not silently overwritten", async () => {
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -2005,7 +2030,7 @@ test("create_market fails clearly without config default collateral or override"
     }),
   );
 
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("missing collateral must not call the network");
@@ -2053,7 +2078,7 @@ test("await_precog_approval omits deployed_master_address and does not require i
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options });
@@ -2100,7 +2125,7 @@ test("consume_prediction can check upcoming deployment without deployed_master_a
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options });
@@ -2146,7 +2171,7 @@ test("consume_prediction requires deployed_master_address only before deployed m
   );
 
   const requests = [];
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async (url, options) => {
       requests.push({ url, options });
@@ -2191,7 +2216,7 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
       },
     }),
   );
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
     fetch: async () => {
       throw new Error("prepare_funding_intent must not call the network");
@@ -2300,7 +2325,7 @@ test("draft review displays configured collateral token", async () => {
   await mkdir(stateDir, { recursive: true });
   await writeTestConfig(stateDir);
 
-  const forecastos = createForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const forecastos = createTestForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
   const draft = await forecastos.draftMarket({
     prompt: "Which launchpad wins June 2026?",
     requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
@@ -2386,7 +2411,7 @@ test("check_pending_market auto-redrafts rejected markets from validator feedbac
   await writeTestConfig(stateDir);
 
   const store = new DirectoryDraftStateStore(stateDir);
-  const forecastos = createForecastOS({ store });
+  const forecastos = createTestForecastOS({ store });
   const draft = await forecastos.draftMarket({
     prompt: "Which movie wins June 2026?",
     requested_outcomes: ["Movie A", "Movie B", "Other"],
@@ -2595,7 +2620,7 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
   assert.ok(guidance.notes.some((note) => note.includes("approve the token before funding")));
 });
 test("fund_market rejects ambiguous or non-display amount strings", async () => {
-  const forecastos = createForecastOS({
+  const forecastos = createTestForecastOS({
     fetch: async () => {
       throw new Error("invalid funding amounts must not call the network");
     },
@@ -2631,6 +2656,7 @@ test("forecastos_action accepts positional input shorthand for draft_market", as
       source_hints: ["Public launchpad dashboards"],
       requested_close_time: "2026-06-30T23:59:59Z",
       requested_resolution_time: "2026-07-03T00:00:00Z",
+      chain_id: configChainId,
     }),
   );
 
@@ -2717,6 +2743,42 @@ test("run_skill_step rejects hand-written draft ids", async () => {
       return true;
     },
   );
+});
+
+test("draft_market blocks drafts until chain_id is explicit", async () => {
+  const forecastos = createForecastOS({
+    store: new DirectoryDraftStateStore(join(skillRoot, "test-output", "chain-block", ".forecastos")),
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+  });
+
+  assert.equal(draft.status, "blocked");
+  assert.ok(draft.missing_fields.includes("chain_id"));
+  assert.ok(draft.review_message.includes("With collateral from which chain?"));
+  assert.ok(draft.quality.blocking_issues.some((issue) => issue.includes("Chain not selected")));
+});
+
+test("draft_market review shows Chain line when chain_id is explicit", async () => {
+  const forecastos = await createIsolatedForecastOS("chain-review-line");
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad wins June 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+    chain_id: 42161,
+    collateral_symbol: "USDC",
+    collateral_address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  });
+
+  assert.equal(draft.status, "pass");
+  assert.ok(draft.review_message.includes("Chain: Arbitrum (42161)"));
+  assert.equal(draft.market.chain_id, 42161);
 });
 
 test("arbitrum warcraft example runs through create intent preparation", async () => {
@@ -2822,7 +2884,7 @@ async function createIsolatedForecastOS(name) {
   const stateDir = join(rootDir, ".forecastos");
   await rm(rootDir, { recursive: true, force: true });
   await mkdir(stateDir, { recursive: true });
-  return createForecastOS({
+  return createTestForecastOS({
     store: new DirectoryDraftStateStore(stateDir),
   });
 }

@@ -670,6 +670,12 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes SKILL.md must use the expected Hermes sections",
   );
   assert(
+    hermesSkill.includes("Confirm chain first") &&
+      hermesSkill.includes("Testing / CI Only") &&
+      !hermesSkill.includes("| Arbitrum example runner |"),
+    "Hermes SKILL.md must confirm chain before drafting and demote the example runner",
+  );
+  assert(
     hermesSkill.includes("${HERMES_SKILL_DIR}") && hermesSkill.includes("check-hermes-setup.mjs"),
     "Hermes SKILL.md must reference bundled scripts through HERMES_SKILL_DIR",
   );
@@ -685,7 +691,8 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     !hermesSkill.includes("required_environment_variables") &&
       !hermesSkill.includes("BANKR_API_KEY") &&
-      !hermesSkill.includes("PRIVY"),
+      !hermesSkill.includes("PRIVY_APP_ID") &&
+      !hermesSkill.includes("PRIVY_APP_SECRET"),
     "Hermes core skill must not prompt for wallet-provider secrets on load",
   );
 

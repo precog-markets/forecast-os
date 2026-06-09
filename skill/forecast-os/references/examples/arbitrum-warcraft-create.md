@@ -1,6 +1,11 @@
 # Arbitrum Warcraft Create Example
 
-Use this example when an operator or agent needs a concrete Base/Arbitrum create
+Operator/CI reference for a concrete Arbitrum create flow. **Agents should not
+use the example runner as the default path for live user requests.** Confirm
+Base vs Arbitrum with the user, then run normal `run_skill_step` with explicit
+`chain_id` on the draft input.
+
+Use this example when an operator or maintainer needs a concrete Base/Arbitrum create
 flow for a multi-outcome market on Precog.
 
 ## User Prompt
@@ -9,7 +14,7 @@ flow for a multi-outcome market on Precog.
 Create a prediction market about the viewership of a Warcraft tournament in 2026 on Arbitrum.
 ```
 
-## Runnable Example
+## Runnable Example (CI / operator only)
 
 From `skill/forecast-os`:
 

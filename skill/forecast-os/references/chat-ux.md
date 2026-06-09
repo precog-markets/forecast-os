@@ -21,6 +21,7 @@ Question: <question>
 Outcomes: <outcome A> / <outcome B> / <outcome C>
 Close: <UTC time>
 Resolve: <UTC time>
+Chain: <Base (8453) or Arbitrum (42161) when selected>
 Token: <symbol>
 Source: <source of truth>
 
@@ -31,8 +32,8 @@ If information is missing, ask natural questions:
 
 ```txt
 I need two details before this can be approved:
+- With collateral from which chain? USDC on Base or USDC on Arbitrum?
 - What official source should resolve the result?
-- When should the market resolve?
 ```
 
 Do not say:

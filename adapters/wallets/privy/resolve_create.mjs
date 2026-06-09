@@ -49,9 +49,10 @@ export async function resolveCreate({
   const selected = selectWallet(eligibleWallets, { walletId, walletAddress, diagnostics });
   const creatorAddress = normalizeEvmChecksumAddress(selected.address, "creator_address");
   const chainId = requireSupportedCreateChain(intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId);
+  assertTypedDataPolicyAllowsChain(selected.policies ?? [], chainId, selected.id);
   const nonce = await fetchPendingNonce(fetch, rpcUrlForChain(chainId, { rpcUrl, env }), creatorAddress, chainId);
   const typedData = buildCreateTypedData(intent.eip712_typed_data_template, creatorAddress, nonce);
-  const signature = await signTypedData(fetch, auth, selected.id, typedData);
+  const signature = await signTypedData(fetch, auth, selected.id, typedData, chainId);
 
   return {
     event: withoutUndefined({
@@ -249,7 +250,7 @@ async function fetchPendingNonce(fetch, rpcUrl, address, chainId) {
   return Number.parseInt(String(body.result ?? "0x0").replace(/^0x/, ""), 16);
 }
 
-async function signTypedData(fetch, auth, walletId, typedData) {
+async function signTypedData(fetch, auth, walletId, typedData, chainId) {
   const endpoint = `${PRIVY_API_ROOT}/wallets/${walletId}/rpc`;
   const response = await fetch(endpoint, {
     method: "POST",
@@ -260,6 +261,7 @@ async function signTypedData(fetch, auth, walletId, typedData) {
   if (!response.ok) {
     throw buildPrivyApiError("Privy typed-data signing failed", response, endpoint, body, {
       walletId,
+      chainId,
       requiredMethods: ["eth_signTypedData_v4", "eth_sendTransaction"],
     });
   }
@@ -314,6 +316,7 @@ function fail(message) {
 }
 
 function buildPrivyApiError(message, response, endpoint, body, context = {}) {
+  const chainId = context.chainId;
   if (isPrivyPolicyDenied(body)) {
     const error = new Error(`${message}: Privy wallet policy denied eth_signTypedData_v4.`);
     error.code = "PRIVY_POLICY_DENIED";
@@ -321,8 +324,9 @@ function buildPrivyApiError(message, response, endpoint, body, context = {}) {
     error.endpoint = endpoint;
     error.body = summarizeBody(body);
     error.wallet_id = context.walletId;
+    error.chain_id = chainId;
     error.required_methods = context.requiredMethods ?? ["eth_signTypedData_v4"];
-    error.guidance = "Ask the operator to update the selected Privy wallet policy to allow eth_signTypedData_v4 before retrying; include eth_sendTransaction too if the same wallet will fund later.";
+    error.guidance = buildTypedDataPolicyGuidance(chainId);
     return error;
   }
   const error = new Error(`${message}: ${response.status}`);
@@ -352,9 +356,68 @@ function serializeError(error) {
     endpoint: error?.endpoint,
     body: error?.body,
     wallet_id: error?.wallet_id,
+    chain_id: error?.chain_id,
+    allowed_chain_ids: error?.allowed_chain_ids,
     required_methods: error?.required_methods,
     guidance: error?.guidance,
     wallets: error?.wallets,
     wallet_diagnostics: error?.wallet_diagnostics,
   });
+}
+
+export function extractAllowedTypedDataChainIds(policies = []) {
+  const chainIds = new Set();
+  let hasUnrestrictedRule = false;
+  for (const policy of policies) {
+    for (const rule of policy.rules ?? []) {
+      if (String(rule.action ?? "").toUpperCase() !== "ALLOW") continue;
+      if (!allowsMethod([rule.method], "eth_signTypedData_v4")) continue;
+      const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
+      const chainConditions = conditions.filter(
+        (condition) =>
+          condition.field === "chainId" &&
+          condition.field_source === "ethereum_typed_data_domain",
+      );
+      if (!chainConditions.length) {
+        hasUnrestrictedRule = true;
+        continue;
+      }
+      for (const condition of chainConditions) {
+        if (String(condition.operator ?? "").toLowerCase() === "eq" && condition.value !== undefined) {
+          chainIds.add(String(condition.value));
+        }
+      }
+    }
+  }
+  return { chainIds: [...chainIds].sort(), hasUnrestrictedRule };
+}
+
+export function assertTypedDataPolicyAllowsChain(policies = [], chainId, walletId) {
+  const { chainIds, hasUnrestrictedRule } = extractAllowedTypedDataChainIds(policies);
+  if (hasUnrestrictedRule) return;
+  const chainIdStr = String(chainId);
+  if (chainIds.includes(chainIdStr) || chainIds.includes(String(Number(chainId)))) return;
+  const error = new Error(
+    `Privy wallet policy does not allow eth_signTypedData_v4 for chain ${chainId}.`,
+  );
+  error.code = "PRIVY_POLICY_CHAIN_MISMATCH";
+  error.wallet_id = walletId;
+  error.chain_id = chainId;
+  error.allowed_chain_ids = chainIds;
+  error.guidance = buildTypedDataPolicyGuidance(chainId, chainIds);
+  throw error;
+}
+
+function buildTypedDataPolicyGuidance(chainId, allowedChainIds = []) {
+  const target = chainId ? `chainId eq ${chainId}` : "the target chain";
+  const allowed =
+    allowedChainIds.length > 0
+      ? ` Current ALLOW rules only cover chainId: ${allowedChainIds.join(", ")}.`
+      : " No chain-specific ALLOW rule matched this create intent.";
+  return [
+    `Update the selected Privy wallet policy to ALLOW eth_signTypedData_v4 with ${target}.`,
+    "Privy does not support `in` for chainId; add one ALLOW rule per chain (8453 and 42161).",
+    "Include eth_sendTransaction on the same policy if the wallet will fund later.",
+    allowed.trim(),
+  ].join(" ");
 }

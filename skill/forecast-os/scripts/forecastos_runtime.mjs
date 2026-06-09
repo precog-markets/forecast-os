@@ -751,8 +751,19 @@ function buildDraft(input = {}, context = {}) {
   if (!resolutionTime) missingFields.push("resolution_time");
 
   const question = input.question ?? input.prompt ?? "ForecastOS market question";
+  const precog = context.config?.precog ?? {};
+  const chainExplicit = chainSelectionExplicit(input, precog);
   const collateralContext = buildDraftCollateralContext(input, context.config);
+  const resolvedChainId = chainExplicit
+    ? (collateralContext.chain_id ?? chainIdFromInput(input, precog))
+    : null;
   const blockingIssues = missingFields.map((field) => `Missing ${field}.`);
+  if (!chainExplicit) {
+    missingFields.push("chain_id");
+    blockingIssues.push(
+      "Chain not selected. Ask: With collateral from which chain? USDC on Base (8453) or USDC on Arbitrum (42161).",
+    );
+  }
   if (outcomes.length > 0 && outcomes.length < 3) {
     missingFields.push("at_least_three_outcomes");
     blockingIssues.push(
@@ -793,6 +804,7 @@ function buildDraft(input = {}, context = {}) {
     source_of_truth: sourceOfTruth,
     collateral_symbol: collateralContext.symbol,
     collateral_address: collateralContext.address,
+    chain_id: resolvedChainId,
     category: input.preferred_category ?? input.category ?? "other",
     tags: ["forecastos", "multi_outcome"],
   };
@@ -816,6 +828,7 @@ function buildDraft(input = {}, context = {}) {
       market,
       quality: { blocking_issues: blockingIssues, warnings },
       suggest_next_questions: suggestNextQuestions,
+      chain_id: resolvedChainId,
     }),
     created_at: new Date().toISOString(),
   };
@@ -868,6 +881,7 @@ function buildReplacementDraftInput(originalDraft, { validatorFeedback = [], ref
     preferred_category: market.category,
     collateral_symbol: market.collateral_symbol,
     collateral_address: market.collateral_address,
+    chain_id: market.chain_id,
     description: [
       market.description,
       `Revision context: this replacement draft addresses Precog validator feedback: ${feedbackText}`,
@@ -913,8 +927,63 @@ function buildSuggestNextQuestions(missingFields = []) {
     source_of_truth: "What official source should resolve this market?",
     close_time: "When should trading close? Please use UTC or include a timezone.",
     resolution_time: "When should the market resolve? Please use UTC or include a timezone.",
+    chain_id: "With collateral from which chain? USDC on Base (8453) or USDC on Arbitrum (42161)?",
   };
   return unique.map((field) => questions[field] ?? `Please provide ${field}.`);
+}
+
+function chainSelectionExplicit(input = {}, precog = {}) {
+  const chainId = Number(
+    input.chain_id ??
+      input.preferred_chain_id ??
+      parseChainAlias(input.preferred_chain ?? input.chain, precog),
+  );
+  if (Number.isInteger(chainId) && chainId > 0 && isSupportedChainId(chainId, precog)) {
+    return true;
+  }
+  const collateralChainId = chainFromCollateralAddress(
+    input.collateral_address,
+    precog,
+  );
+  return collateralChainId !== null;
+}
+
+function chainIdFromInput(input = {}, precog = {}) {
+  const chainId = Number(
+    input.chain_id ??
+      input.preferred_chain_id ??
+      parseChainAlias(input.preferred_chain ?? input.chain, precog),
+  );
+  return Number.isInteger(chainId) && chainId > 0 && isSupportedChainId(chainId, precog) ? chainId : null;
+}
+
+function isSupportedChainId(chainId, precog = {}) {
+  if (chainConfigFor(precog, chainId)) return true;
+  return chainId === 8453 || chainId === 42161;
+}
+
+function parseChainAlias(value, precog = {}) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "base" || normalized === "8453") return 8453;
+  if (normalized === "arbitrum" || normalized === "arb" || normalized === "42161") return 42161;
+  for (const [chainKey, entry] of Object.entries(precog.supported_chains ?? {})) {
+    if (entry?.name && normalized === String(entry.name).trim().toLowerCase()) {
+      return Number(chainKey);
+    }
+  }
+  return null;
+}
+
+function chainFromCollateralAddress(address, precog = {}) {
+  if (!address) return null;
+  const normalized = String(address).trim().toLowerCase();
+  const matches = (precog.default_collateral_options ?? []).filter(
+    (option) => String(option.address ?? "").trim().toLowerCase() === normalized,
+  );
+  if (matches.length !== 1) return null;
+  const chainId = Number(matches[0].chain_id);
+  return Number.isInteger(chainId) && chainId > 0 && isSupportedChainId(chainId, precog) ? chainId : null;
 }
 
 function buildDraftCollateralContext(input = {}, config = {}) {
@@ -1451,6 +1520,7 @@ function buildFriendlyReviewMessage(draft) {
   const questions = Array.isArray(draft.suggest_next_questions)
     ? draft.suggest_next_questions
     : [];
+  const chainId = draft.chain_id ?? market.chain_id ?? null;
   const lines = [
     needs ? "I need a little more before this draft can be approved." : "Draft ready for review.",
     market.title ? `Market: ${market.title}` : null,
@@ -1461,6 +1531,7 @@ function buildFriendlyReviewMessage(draft) {
     market.close_time ? `Close: ${formatUtcForReview(market.close_time)}` : null,
     market.resolution_time ? `Resolution: ${formatUtcForReview(market.resolution_time)}` : null,
     market.source_of_truth ? `Source: ${market.source_of_truth}` : null,
+    formatChainLine(chainId),
     formatTokenLine(market),
     market.resolution_criteria ? `Resolution criteria: ${market.resolution_criteria}` : null,
     needs && questions.length ? `Questions: ${questions.join(" ")}` : null,
@@ -1475,6 +1546,14 @@ function buildFriendlyReviewMessage(draft) {
 function formatOutcomeForReview(outcome) {
   return sanitizeOutcomeLabel(outcome) || JSON.stringify(outcome);
 }
+
+function formatChainLine(chainId) {
+  if (chainId === 8453) return "Chain: Base (8453)";
+  if (chainId === 42161) return "Chain: Arbitrum (42161)";
+  if (chainId) return `Chain: ${chainId}`;
+  return null;
+}
+
 function formatTokenLine(market = {}) {
   if (market.collateral_symbol && market.collateral_address) {
     return `Token: ${market.collateral_symbol} (${market.collateral_address})`;
