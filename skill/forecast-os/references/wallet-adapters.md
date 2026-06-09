@@ -44,6 +44,10 @@ For creation, [Base MCP](https://mcp.base.org) prepares a typed-data signing req
 smart-wallet/WebAuthn signatures are valid when they are verified through
 EIP-1271/ERC-6492 and signed over the canonical `CREATE_UPCOMING_MARKET` typed
 data with the current pending nonce.
+The signed payload is EIP-712 typed data, but the returned signature may be a
+long smart-account hex envelope rather than a compact 65-byte EOA signature.
+Do not reject a Base MCP adapter output solely because the hex signature is
+longer than an EOA signature.
 
 The shared adapter contract lives at:
 
@@ -83,7 +87,7 @@ Input is the output of `prepare_create_intent` plus any provider configuration t
 
 ### Create Adapter Output
 
-Output must be safe to merge into `publish_approved_market` or `run_skill_step`:
+Output must be safe to merge into `publish_approved_market`:
 
 ```json
 {
@@ -94,7 +98,8 @@ Output must be safe to merge into `publish_approved_market` or `run_skill_step`:
     "wallet_audit": {
       "provider": "provider-name",
       "nonce": 123,
-      "signature_method": "eip712_typed_data"
+      "signature_method": "eip712_typed_data",
+      "signature_compatibility": "provider-specific"
     }
   }
 }
@@ -134,22 +139,23 @@ Output must be safe to pass as `funding_request`:
 1. Draft and approve the market normally.
 2. Run `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
 3. Run the selected provider adapter under `adapters/wallets/<provider>/`.
-4. Pass the adapter's `event` object to `run_skill_step` with the stored `create_market` workflow state.
+4. Pass the adapter output file to `publish_approved_market` with the stored `create_market` workflow id.
 
 Prefer passing the adapter output file directly to the action bridge:
 
 ```txt
-node scripts/forecastos_action.mjs run_skill_step \
-  --input <create-market-step-json> \
+node scripts/forecastos_action.mjs publish_approved_market \
+  --input <workflow-id-json> \
   --wallet-output <wallet-adapter-output-json>
 ```
 
-This avoids shell environment mistakes where a signature is assigned to a local
-variable but not exported to the command that builds the create input.
+Use raw `run_skill_step` only when the host already has the exact stored state
+object in memory. Do not reconstruct workflow state or write files under
+`.forecastos/workflows/` by hand.
 
-The adapter output must contain `creator_address` and `creator_signature`, plus non-secret audit metadata. The adapter must checksum the EVM address before signing so `creator_address` and the EIP-712 `message.account` are identical EIP-55 strings. Do not ask users to paste raw signatures in chat.
+The adapter output must contain `creator_address` and `creator_signature`, plus non-secret audit metadata. The adapter must checksum the EVM address before signing so `creator_address` and the EIP-712 `message.account` are identical EIP-55 strings. Do not ask users to paste raw signatures in chat; adapter-returned hex signatures are trusted wallet/action outputs, not chat-solicited secrets.
 
-When the same EVM wallet will create now and fund later, its policy should allow both `eth_signTypedData_v4` and `eth_sendTransaction` with tight chain, contract, and amount constraints. Provider adapters may refuse wallets missing either capability.
+When the same EVM wallet will create now and fund later, its policy should allow typed-data signing and transaction sending with tight chain, contract, and amount constraints. Provider adapters may refuse wallets missing either capability. Provider methods differ: Privy uses `eth_signTypedData_v4`; Base MCP uses `sign` over a `typed_data` payload and may return EIP-1271/ERC-6492-compatible smart-account signatures.
 
 Bankr create follows the shared adapter contract. Keep endpoint details in
 `adapters/wallets/bankr/README.md`.

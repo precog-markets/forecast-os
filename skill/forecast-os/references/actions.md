@@ -17,15 +17,16 @@ When a wallet adapter returns signed fields, pass the adapter output as a file
 instead of threading signatures through shell variables:
 
 ```txt
-node scripts/forecastos_action.mjs run_skill_step \
-  --input <create-market-step-json> \
+node scripts/forecastos_action.mjs publish_approved_market \
+  --input <workflow-id-json> \
   --wallet-output <wallet-adapter-output-json>
 ```
 
-`--adapter-output` is accepted as an alias. For `run_skill_step`, the adapter's
-`event` object is merged into the action event. For direct `create_market`, the
-adapter's `event` fields are merged into the create input. For `fund_market`,
-the adapter's `funding_request` is merged into the funding request.
+`--adapter-output` is accepted as an alias. For `publish_approved_market`, the
+adapter's `event` object is merged into the persisted `create_market` workflow
+event. For direct `create_market`, the adapter's `event` fields are merged into
+the create input. For `fund_market`, the adapter's `funding_request` is merged
+into the funding request.
 
 Optional state directory override:
 
@@ -94,6 +95,7 @@ The shipped `config.json` contains public defaults so users can run the skill wi
 - `draft_market`
 - `run_skill_step`
 - `prepare_create_intent`
+- `publish_approved_market`
 - `create_market`
 - `await_precog_approval`
 - `prepare_funding_intent`
@@ -155,15 +157,16 @@ Creation payload hygiene:
 
 Normal chat Precog creation flow after approval:
 
-1. Call `prepare_create_intent` to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
-2. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
-3. Prefer `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>`. It loads the persisted `create_market` workflow by `workflow_id`, submits the Precog upcoming-market request, and advances `.forecastos` to `await_precog_approval`. Use raw `run_skill_step --wallet-output` only when a host already has the exact stored state object in memory.
+1. Advance the approved workflow into the stored `create_market` step with `run_skill_step`; keep the returned `workflow_id` internally.
+2. Call `prepare_create_intent` through that stored workflow to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
+3. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
+4. Call `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>`. It loads the persisted `create_market` workflow by `workflow_id`, submits the Precog upcoming-market request, and advances `.forecastos` to `await_precog_approval`. Use raw `run_skill_step --wallet-output` only when a host already has the exact stored state object in memory.
 
 After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market. The create result also includes a machine-readable `pending_check` request with hourly cadence, workflow id, market id, command, stop conditions, and `auto_redraft_on_rejection: true`; create the host automation or cron job from that object immediately.
 
-[Base MCP](https://mcp.base.org) creation note: Base Account signatures may be smart-wallet/WebAuthn signatures verified through EIP-1271/ERC-6492. They are valid Precog authorization signatures when Base MCP signs the canonical `PrecogMarketAuthorization` typed data with `CREATE_UPCOMING_MARKET`, the wallet account, config chain ID, config verifying contract, and the current pending nonce.
+[Base MCP](https://mcp.base.org) creation note: Base Account signatures may be smart-wallet/WebAuthn signatures verified through EIP-1271/ERC-6492. They are valid Precog authorization signatures when Base MCP signs the canonical `PrecogMarketAuthorization` typed data with `CREATE_UPCOMING_MARKET`, the wallet account, config chain ID, config verifying contract, and the current pending nonce. The Base MCP request id is not the signature. After approval, Base MCP may return a long hex smart-account signature envelope; pass that adapter output through and do not reject it for not being a compact 65-byte EOA signature.
 
-`publish_approved_market` is the host-safe publish wrapper. Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself. If a stale `create_market` workflow state is retried after the persisted workflow has already advanced, ForecastOS returns the persisted state and does not send a duplicate create API call.
+`publish_approved_market` is the host-safe publish wrapper. Direct `create_market` is still available as a low-level action, but it only returns the create result and does not advance stored workflow state by itself. Do not create or edit `.forecastos/workflows/*` files by hand. If a stale `create_market` workflow state is retried after the persisted workflow has already advanced, ForecastOS returns the persisted state and does not send a duplicate create API call.
 
 For concrete wallet providers, use the matching top-level adapter under `adapters/wallets/<provider>/` after `prepare_create_intent`. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads. Bankr support lives under `adapters/wallets/bankr/`; keep Bankr endpoint and setup details in the Bankr adapter docs. See `references/wallet-adapters.md` and `adapters/wallets/contract.md`.
 

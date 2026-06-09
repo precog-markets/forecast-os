@@ -90,7 +90,7 @@ export function resolveCreate({
     creator_address: checksummedWalletAddress,
     creator_signature: creatorSignature,
     wallet_audit: walletAudit,
-    next_action: "run_skill_step",
+    next_action: "publish_approved_market",
   };
 }
 

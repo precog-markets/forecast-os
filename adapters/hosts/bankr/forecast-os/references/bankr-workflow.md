@@ -12,12 +12,14 @@ provides the action bridge, bundled config, and `adapters/wallets/bankr/`.
 1. Generate and approve a ForecastOS draft.
 2. Generate `prepare_create_intent`.
 3. Resolve the intent through `adapters/wallets/bankr/resolve_create.mjs`.
-4. Pass the returned `event` to `run_skill_step` for the current create state.
+4. Pass the returned adapter output to `publish_approved_market` with the persisted workflow id.
 5. Return the generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link and schedule the returned `pending_check` command hourly.
 
 The Bankr create adapter calls `GET /wallet/me` and `POST /wallet/sign` with
-`signatureType: "eth_signTypedData_v4"`. The current Precog create endpoint
-requires an EOA-style 65-byte EIP-712 signature.
+`signatureType: "eth_signTypedData_v4"`. This Bankr adapter currently accepts
+only EOA-style 65-byte EIP-712 signatures from Bankr Wallet API responses. That
+is provider-specific; it must not be generalized to Base MCP or other smart
+account adapters.
 
 ## Pending Checks
 

@@ -33,7 +33,7 @@ const checksumFixtureAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
 test("wallet adapter contract documents create and funding outputs", async () => {
   const contract = await readFile(join(walletAdaptersRoot, "contract.md"), "utf8");
 
-  assert.ok(contract.includes('"next_action": "run_skill_step"'));
+  assert.ok(contract.includes('"next_action": "publish_approved_market"'));
   assert.ok(contract.includes('"next_action": "fund_market"'));
   assert.ok(contract.includes("wallet_audit"));
   assert.ok(contract.includes("Adapters must not print secrets"));
@@ -126,7 +126,7 @@ test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed
   assert.equal(resolved.event.image_url, "https://example.com/image.png");
   assert.equal(resolved.event.wallet_audit.provider, "privy");
   assert.equal(resolved.event.wallet_audit.nonce, 7);
-  assert.equal(resolved.next_action, "run_skill_step");
+  assert.equal(resolved.next_action, "publish_approved_market");
   assert.ok(requests.some((request) => String(request.url).includes("/wallets?chain_type=ethereum")));
 });
 
@@ -434,7 +434,7 @@ test("Base MCP funding resolver maps a single calldata envelope to send_calls", 
   });
 });
 
-test("Base MCP create resolver returns run_skill_step output for smart-account signatures", () => {
+test("Base MCP create resolver returns publish output for smart-account signatures", () => {
   const resolved = resolveBaseMcpCreate({
     intent: buildCreateIntentFixture(),
     walletAddress: "0x2222222222222222222222222222222222222222",
@@ -454,7 +454,7 @@ test("Base MCP create resolver returns run_skill_step output for smart-account s
     creatorSignature: smartSignature,
   });
 
-  assert.equal(signed.next_action, "run_skill_step");
+  assert.equal(signed.next_action, "publish_approved_market");
   assert.equal(signed.event.creator_address, "0x2222222222222222222222222222222222222222");
   assert.equal(signed.event.creator_signature, smartSignature);
   assert.equal(signed.event.wallet_audit.provider, "base-mcp");
@@ -462,7 +462,7 @@ test("Base MCP create resolver returns run_skill_step output for smart-account s
   assert.equal(signed.event.wallet_audit.nonce, 9);
 });
 
-test("Base MCP create resolver returns run_skill_step output for EOA signatures", () => {
+test("Base MCP create resolver returns publish output for EOA signatures", () => {
   const resolved = resolveBaseMcpCreate({
     intent: buildCreateIntentFixture(),
     walletAddress: "0x2222222222222222222222222222222222222222",
@@ -470,7 +470,7 @@ test("Base MCP create resolver returns run_skill_step output for EOA signatures"
     creatorSignature: "0x" + "ab".repeat(65),
   });
 
-  assert.equal(resolved.next_action, "run_skill_step");
+  assert.equal(resolved.next_action, "publish_approved_market");
   assert.equal(resolved.event.creator_address, "0x2222222222222222222222222222222222222222");
   assert.equal(resolved.event.creator_signature, "0x" + "ab".repeat(65));
   assert.equal(resolved.event.wallet_audit.provider, "base-mcp");
@@ -574,7 +574,7 @@ test("Base MCP funding resolver accepts Base Account smart-wallet signatures", (
   assert.equal(resolved.next_action, "fund_market");
 });
 
-test("Bankr create resolver signs EIP-712 typed data and returns run_skill_step output", async () => {
+test("Bankr create resolver signs EIP-712 typed data and returns publish output", async () => {
   const requests = [];
   const resolved = await resolveBankrCreate({
     intent: buildCreateIntentFixture(),
@@ -601,7 +601,7 @@ test("Bankr create resolver signs EIP-712 typed data and returns run_skill_step 
     },
   });
 
-  assert.equal(resolved.next_action, "run_skill_step");
+  assert.equal(resolved.next_action, "publish_approved_market");
   assert.equal(resolved.event.creator_address, "0x2222222222222222222222222222222222222222");
   assert.equal(resolved.event.creator_signature, "0x" + "ab".repeat(65));
   assert.equal(resolved.event.wallet_audit.provider, "bankr");

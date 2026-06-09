@@ -28,13 +28,13 @@ An agent may attempt `create_market` only when:
 - `.forecastos/config.json` includes `precog.open_api_key`
 - `image_url` is present
 - `creator_address` and `creator_signature` have been resolved by trusted wallet/action tooling, when submitting through the action bridge
-- the wallet policy allows EIP-712 typed-data signing
+- the wallet/action tool can sign the canonical Precog typed-data payload for `CREATE_UPCOMING_MARKET`
 - chain/collateral preference is resolved; if missing, ask clearly and offer defaults (`USDC on Base` or `USDC on Arbitrum`)
 - collateral uses the configured default collateral for the active chain (`precog.chain_id`, supported: Base and Arbitrum) unless the operator explicitly provides another `collateral_address`
 
 `create_market` always submits to the configured Precog API root. Polymarket, Kalshi, and similar external market providers are read-only context providers; they cannot receive ForecastOS creation or funding actions. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
-If any condition is missing, ask in human language. When chain/collateral is missing, ask first (for example, `With collateral from which chain?`) and offer defaults `USDC on Base` or `USDC on Arbitrum`. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission. For creation, offer concrete options such as [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Base Account smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.
+If any condition is missing, ask in human language. When chain/collateral is missing, ask first (for example, `With collateral from which chain?`) and offer defaults `USDC on Base` or `USDC on Arbitrum`. In normal chat, do not ask the user to paste raw wallet addresses or signatures; ask what wallet/action tool should be used for the Precog submission. For creation, offer concrete options such as [Bankr](https://bankr.bot), [Privy](https://www.privy.io/ai), [Base MCP](https://mcp.base.org), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/). Base Account smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce, even when the returned hex signature is an EIP-1271/ERC-6492-compatible envelope rather than a compact EOA signature.
 
 ## Funding Policy
 

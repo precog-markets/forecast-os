@@ -35,14 +35,15 @@ Create adapters consume the result of `prepare_create_intent` and return:
       "policy_ids": ["policy-ref"],
       "chain_id": 8453,
       "nonce": 0,
-      "method": "eth_signTypedData_v4"
+      "method": "eth_signTypedData_v4",
+      "signature_compatibility": "provider-specific"
     }
   },
-  "next_action": "run_skill_step"
+  "next_action": "publish_approved_market"
 }
 ```
 
-Pass `event` back to `scripts/forecastos_action.mjs run_skill_step` with the stored `create_market` workflow state. This lets ForecastOS submit the create request and advance to `await_precog_approval`.
+Pass the adapter output file to `scripts/forecastos_action.mjs publish_approved_market` with the persisted `workflow_id`. This lets ForecastOS load the stored `create_market` workflow, submit the create request, and advance to `await_precog_approval`. Provider methods vary: Privy may use `eth_signTypedData_v4`, while Base MCP uses `sign` and may return Base Account smart-wallet signatures marked with `signature_compatibility`.
 
 ## Funding Intent Output
 

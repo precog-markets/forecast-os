@@ -59,8 +59,8 @@ node skill/forecast-os/scripts/forecastos_action.mjs consume_prediction --input 
 
 ## Prepare Create Intent
 
-After the user approves a draft, prepare the wallet-agnostic Precog create
-intent:
+After the user approves a draft and ForecastOS has persisted the workflow at
+`create_market`, prepare the wallet-agnostic Precog create intent:
 
 ```txt
 node skill/forecast-os/scripts/forecastos_action.mjs prepare_create_intent --input <json-file>
@@ -100,6 +100,10 @@ Use the wallet returned by `get_wallets` as the EIP-712 `account`. [Base MCP](ht
 prepare the typed-data signing request. Base Account smart-account/WebAuthn
 signatures are valid Precog authorization signatures when signed over the
 canonical `CREATE_UPCOMING_MARKET` typed data with the current pending nonce.
+The request id returned by Base MCP is not the signature. After approval,
+`get_request_status` may return a long EIP-1271/ERC-6492-compatible Base Account
+hex signature envelope; pass that adapter output through and do not reject it
+for not being a compact 65-byte EOA signature.
 
 Run the resolver before asking for the signature:
 
@@ -132,18 +136,21 @@ Map the [Base MCP](https://mcp.base.org) signing result into the ForecastOS wall
       "policy_ids": [],
       "chain_id": 8453,
       "nonce": "<typed_data.message.nonce>",
-      "method": "sign"
+      "method": "sign",
+      "signature_compatibility": "base_account_eip1271_erc6492_supported_for_precog_create"
     }
   },
-  "next_action": "run_skill_step"
+  "next_action": "publish_approved_market"
 }
 ```
 
-Then pass `event` to the current ForecastOS `create_market` workflow state via
-`run_skill_step`:
+Then pass the adapter output to the persisted ForecastOS `create_market`
+workflow via `publish_approved_market`:
 
 ```txt
-node skill/forecast-os/scripts/forecastos_action.mjs run_skill_step --input <json-file>
+node skill/forecast-os/scripts/forecastos_action.mjs publish_approved_market \
+  --input <workflow-id-json> \
+  --wallet-output <wallet-adapter-output-json>
 ```
 
 Prefer passing the saved [Base MCP](https://mcp.base.org) signing result through `--wallet-output` /
@@ -270,7 +277,7 @@ to `https://core.precog.markets/launchpad/`.
 3. get_wallets -> wallet address and Base MCP onboarding/disclaimer
 4. prepare_create_intent -> EIP-712 create authorization
 5. Base MCP sign -> creator_signature
-6. run_skill_step/create_market -> Precog upcoming market
+6. publish_approved_market -> Precog upcoming market
 7. await_precog_approval until status is VALIDATED
 8. prepare_funding_intent -> funding authorization/context
 9. If an unsigned funding envelope or batch exists:

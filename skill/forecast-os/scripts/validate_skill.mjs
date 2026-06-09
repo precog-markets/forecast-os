@@ -241,6 +241,16 @@ assert(
   "references/actions.md must lock prepare_create_intent to Precog CREATE_UPCOMING_MARKET",
 );
 assert(
+  actionsDoc.includes("`publish_approved_market`") &&
+    actionsDoc.includes("Do not create or edit `.forecastos/workflows/*` files by hand"),
+  "references/actions.md must document publish_approved_market as the host-safe create wrapper and forbid manual workflow files",
+);
+assert(
+  actionsDoc.includes("Base MCP request id is not the signature") &&
+    actionsDoc.includes("not being a compact 65-byte EOA signature"),
+  "references/actions.md must clarify Base MCP smart-account signature envelopes",
+);
+assert(
   actionsDoc.includes("Base (`8453`) and Arbitrum (`42161`)"),
   "references/actions.md must document Base and Arbitrum chain support",
 );

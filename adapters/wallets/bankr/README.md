@@ -24,9 +24,11 @@ The adapter calls:
 - `GET /wallet/me`
 - `POST /wallet/sign` with `signatureType: "eth_signTypedData_v4"`
 
-It returns an `event` object for `scripts/forecastos_action.mjs run_skill_step`.
-Create signatures must be EOA-style 65-byte EIP-712 signatures because the
-current Precog create endpoint requires that shape.
+It returns an `event` object for the ForecastOS publish step.
+This Bankr adapter currently accepts only EOA-style 65-byte EIP-712 signatures
+from Bankr Wallet API responses. That is a Bankr adapter constraint, not a
+generic Precog or ForecastOS rule; other adapters such as Base MCP may return
+smart-account/WebAuthn signature envelopes.
 
 ## Funding
 

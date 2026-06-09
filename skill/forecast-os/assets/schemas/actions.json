@@ -205,6 +205,44 @@
       },
       "additionalProperties": true
     },
+    "publish_approved_market": {
+      "type": "object",
+      "required": [
+        "workflow_id"
+      ],
+      "properties": {
+        "workflow_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Persisted create_market workflow id. The bridge loads .forecastos/workflows/all/<workflow_id>.json; do not hand-write workflow files."
+        },
+        "event": {
+          "type": "object",
+          "description": "Optional adapter event fields. Prefer passing adapter output with --wallet-output."
+        },
+        "image_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "category": {
+          "type": "string"
+        },
+        "creator_address": {
+          "type": "string"
+        },
+        "creator_signature": {
+          "type": "string",
+          "description": "Resolved output from trusted wallet/action tooling; not a normal chat-facing user prompt. Base MCP may return long EIP-1271/ERC-6492-compatible hex signatures."
+        },
+        "wallet_provider": {
+          "type": "string"
+        },
+        "wallet_audit": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
     "prepare_funding_intent": {
       "type": "object",
       "required": [

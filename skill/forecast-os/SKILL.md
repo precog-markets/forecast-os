@@ -45,7 +45,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 
 Creation defaults to Precog unless the user explicitly asks for draft-only work or a non-Precog venue. After approval, ask which wallet/action tool the user wants to use. Do not ask for raw wallet addresses or signatures in normal chat.
 
-Use `prepare_create_intent` before live creation. It prepares the Precog `CREATE_UPCOMING_MARKET` EIP-712 handoff; wallet/action tooling resolves nonce lookup, creator account, signature, and final payload. Prefer `publish_approved_market --workflow-id <workflow_id> --wallet-output <wallet-output-json>` after wallet resolution.
+Use `prepare_create_intent` before live creation. It prepares the Precog `CREATE_UPCOMING_MARKET` typed-data handoff; wallet/action tooling resolves nonce lookup, creator account, signature, and final payload. In normal chat, publish with `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>` after wallet resolution so ForecastOS loads the persisted `create_market` workflow. Do not hand-write `.forecastos/workflows/*` files.
 
 Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 Provider-specific wallet adapter details live in `adapters/wallets/<provider>` in the full ForecastOS repo.

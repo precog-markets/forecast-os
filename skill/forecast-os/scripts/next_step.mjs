@@ -34,6 +34,7 @@ function guidanceFor(step, workflow) {
   const commands = {
     runSkillStep: "node scripts/forecastos_action.mjs run_skill_step --input <json-file>",
     prepareCreateIntent: "node scripts/forecastos_action.mjs prepare_create_intent --input <json-file>",
+    publishApprovedMarket: `node scripts/forecastos_action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>`,
     createMarket: "node scripts/forecastos_action.mjs create_market --input <json-file>",
     awaitPrecog:
       "node scripts/forecastos_action.mjs await_precog_approval --input <json-file>",
@@ -93,9 +94,10 @@ function guidanceFor(step, workflow) {
         "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) to create the market.",
-        "Before creation, any wallet/action tool must allow EIP-712 typed-data signing for CREATE_UPCOMING_MARKET.",
-        "Base MCP smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.",
-        "After the wallet/action tool resolves creator_address and creator_signature, prefer publish_approved_market with the existing workflow_id and --wallet-output <adapter-output-json> so the bridge loads persisted create_market state and workflow memory advances.",
+        "Before creation, any wallet/action tool must be allowed to sign the canonical Precog typed-data payload for CREATE_UPCOMING_MARKET.",
+        "Base MCP smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce, even when the returned hex signature is an EIP-1271/ERC-6492 envelope rather than a compact EOA signature.",
+        `After the wallet/action tool resolves creator_address and creator_signature, publish with: ${commands.publishApprovedMarket}. The bridge loads persisted create_market state and workflow memory advances.`,
+        "Do not create or edit .forecastos/workflows/* files by hand. If workflow state is unclear, inspect the existing workflow rather than inventing a workflow_id.",
         "Use the direct create_market action only as a low-level API call when you intentionally do not need workflow state advancement.",
         "If the user already picked chain/collateral, respect it. Otherwise use configured defaults after asking the chain question.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",

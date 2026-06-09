@@ -968,7 +968,8 @@ test("create workflow step prepares create intent when wallet fields are missing
   assert.equal(result.tool_result.resolved_action, "create_market");
   assert.equal(result.tool_result.chain_id, configChainId);
   assert.equal(result.needs_human_input, true);
-  assert.ok(result.agent_message.includes("run_skill_step --wallet-output"));
+  assert.ok(result.agent_message.includes("publish_approved_market"));
+  assert.ok(result.agent_message.includes("--wallet-output"));
   assert.ok(result.agent_message.includes("wallet/action adapter"));
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", `${workflowId}.json`))).step,
@@ -1144,9 +1145,7 @@ test("forecastos_action publish_approved_market loads persisted workflow and wal
     { approved: true, approval: "yes", approved_by: "operator" },
   );
 
-  const inputPath = join(rootDir, "publish.json");
   const walletOutputPath = join(rootDir, "wallet-output.json");
-  await writeFile(inputPath, JSON.stringify({ workflow_id: workflowId }));
   await writeFile(
     walletOutputPath,
     JSON.stringify({
@@ -1178,8 +1177,8 @@ test("forecastos_action publish_approved_market loads persisted workflow and wal
       pathToFileURL(helperPath).href,
       join(skillRoot, "scripts", "forecastos_action.mjs"),
       "publish_approved_market",
-      "--input",
-      inputPath,
+      "--workflow-id",
+      workflowId,
       "--wallet-output",
       walletOutputPath,
     ],
@@ -1196,6 +1195,45 @@ test("forecastos_action publish_approved_market loads persisted workflow and wal
   assert.equal(
     (await readJson(join(stateDir, "workflows", "all", workflowId + ".json"))).step,
     "await_precog_approval",
+  );
+});
+
+test("forecastos_action publish_approved_market missing workflow error discourages manual state", async () => {
+  const rootDir = join(skillRoot, "test-output", "publish-missing-workflow");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(rootDir, { recursive: true });
+  const walletOutputPath = join(rootDir, "wallet-output.json");
+  await writeFile(
+    walletOutputPath,
+    JSON.stringify({
+      event: {
+        creator_address: "0x2222222222222222222222222222222222222222",
+        creator_signature: "0x" + "ab".repeat(65),
+      },
+    }),
+  );
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        join(skillRoot, "scripts", "forecastos_action.mjs"),
+        "publish_approved_market",
+        "--workflow-id",
+        "workflow_missing",
+        "--wallet-output",
+        walletOutputPath,
+      ],
+      { env: { ...process.env, FORECASTOS_STATE_DIR: stateDir } },
+    ),
+    (error) => {
+      const stderr = String(error.stderr ?? "");
+      assert.ok(stderr.includes("could not find workflow workflow_missing"));
+      assert.ok(stderr.includes("inspect_state.mjs"));
+      assert.ok(stderr.includes("do not create workflow files manually"));
+      return true;
+    },
   );
 });
 
@@ -1278,6 +1316,9 @@ test("skill docs tell agents to use the action bridge and split yes/no prompts",
 
   assert.ok(skill.includes("Do not hand-write or paste ForecastOS-looking JSON"));
   assert.ok(skill.includes("run_skill_step"));
+  assert.ok(skill.includes("publish_approved_market"));
+  assert.ok(skill.includes("Do not hand-write `.forecastos/workflows/*` files"));
+  assert.ok(!skill.includes("publish_approved_market --workflow-id <workflow_id> --wallet-output"));
   assert.ok(skill.includes("Do not use only `Yes` / `No` outcomes"));
   assert.ok(template.includes("at least three explicit outcome labels"));
   assert.ok(template.includes("Team X qualifies but is eliminated before the final"));
@@ -2400,6 +2441,23 @@ test("docs and runtime do not use legacy string signing guidance", async () => {
     }
   }
 });
+
+test("docs distinguish Base MCP smart-account signature envelopes from EOA-only rules", async () => {
+  const files = [
+    "references/actions.md",
+    "references/tool-schemas.md",
+    "references/action-policy.md",
+    "references/wallet-adapters.md",
+    "scripts/forecastos_runtime.mjs",
+  ];
+  const combined = (await Promise.all(files.map((file) => readFile(join(skillRoot, file), "utf8")))).join("\n");
+
+  assert.ok(combined.includes("EIP-1271/ERC-6492"));
+  assert.ok(combined.includes("long") && combined.includes("65-byte EOA"));
+  assert.ok(combined.includes("Base MCP request id is not the signature"));
+  assert.ok(!combined.includes("Unlike creation, funding accepts Base Account smart-wallet signature shapes"));
+  assert.ok(!combined.includes("current Precog create endpoint requires an EOA-style 65-byte"));
+});
 test("next_step create guidance asks for chain/collateral when missing", async () => {
   const rootDir = join(skillRoot, "test-output", "next-step-create");
   const stateDir = join(rootDir, ".forecastos");
@@ -2432,7 +2490,10 @@ test("next_step create guidance asks for chain/collateral when missing", async (
   assert.ok(guidance.notes.some((note) => note.includes("With collateral from which chain?")));
   assert.ok(guidance.notes.some((note) => note.includes("USDC on Base")));
   assert.ok(guidance.notes.some((note) => note.includes("USDC on Arbitrum")));
-  assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
+  assert.ok(guidance.notes.some((note) => note.includes("canonical Precog typed-data payload")));
+  assert.ok(guidance.notes.some((note) => note.includes("EIP-1271/ERC-6492")));
+  assert.ok(guidance.notes.some((note) => note.includes("publish_approved_market")));
+  assert.ok(guidance.notes.some((note) => note.includes("Do not create or edit .forecastos/workflows")));
 });
 test("next_step funding guidance mentions wallet policy and token approval", async () => {
   const rootDir = join(skillRoot, "test-output", "next-step-fund");

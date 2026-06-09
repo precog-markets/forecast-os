@@ -70,7 +70,7 @@ export async function resolveCreate({
     fail(`Bankr signing response signer ${signed.signer} did not match wallet ${wallet.address}.`);
   }
   if (!isEoaEip712Signature(signed.signature)) {
-    fail("Bankr create signature is not an EOA-style 65-byte EIP-712 signature. The current Precog create endpoint requires EOA-compatible signatures.");
+    fail("Bankr create signature is not an EOA-style 65-byte EIP-712 signature. This Bankr adapter currently supports only EOA-compatible Bankr Wallet API signatures; other adapters may support smart-account signature envelopes.");
   }
 
   return {
@@ -101,7 +101,7 @@ export async function resolveCreate({
     },
     nonce: typedData.message?.nonce,
     chain_id: chainId,
-    next_action: "run_skill_step",
+    next_action: "publish_approved_market",
   };
 }
 

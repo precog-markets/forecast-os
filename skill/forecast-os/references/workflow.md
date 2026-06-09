@@ -59,7 +59,7 @@ Use `scripts/next_step.mjs` to inspect a workflow and determine the next valid a
 
 - `needs_info`: ask the user the friendly questions from `suggest_next_questions`, then rerun `run_skill_step`.
 - `await_approval`: show `render_review`, then wait for a simple approval such as `yes`, `approved`, or `looks good`.
-- `create_market`: call `forecastos_action.mjs create_market` to submit the approved Precog upcoming market.
+- `create_market`: prepare the wallet intent if wallet fields are missing; after wallet resolution, call `forecastos_action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>` so the bridge loads the persisted workflow. Do not hand-write workflow JSON or call direct `create_market` in normal chat.
 - `await_precog_approval`: call `await_precog_approval` only after a market ID exists, or use `scripts/check_pending_market.mjs --workflow-id <workflow_id> --auto-redraft` as the one-shot command for an external hourly scheduler. Creation results include a `pending_check` object with the exact hourly command, market id, workflow id, and stop conditions. The job should continue while `continue_schedule` is true and stop when the script returns false.
 - `fund`: require operator approval and a funding request.
 - `consume_prediction`: check upcoming deployment, then read the deployed market. Do not invent prices or probabilities.

@@ -28,11 +28,11 @@ Keep the transaction-send rule Base-only (`chain_id = 8453`) and prefer contract
 
 ## Output
 
-The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass the adapter output file directly to `scripts/forecastos_action.mjs run_skill_step` with the stored `create_market` workflow state:
+The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass the adapter output file directly to `scripts/forecastos_action.mjs publish_approved_market` with the persisted `create_market` workflow id:
 
 ```txt
-node skill/forecast-os/scripts/forecastos_action.mjs run_skill_step \
-  --input <create-market-step-json> \
+node skill/forecast-os/scripts/forecastos_action.mjs publish_approved_market \
+  --input <workflow-id-json> \
   --wallet-output <privy-resolve-create-output-json>
 ```
 

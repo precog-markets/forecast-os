@@ -55,8 +55,8 @@ adapter output.
 - The host adapter remains responsible for making ForecastOS available in the
   user runtime. For example, Codex can use `adapters/hosts/codex/mcp.json`.
 - [Base MCP](https://mcp.base.org) is the wallet/action adapter: complete `get_wallets` onboarding
-  before wallet-dependent actions, use EIP-712 signing for Precog
-  authorization when available, and use `send_calls` only for ordered unsigned
+  before wallet-dependent actions, request a signature over ForecastOS typed
+  data for Precog authorization, and use `send_calls` only for ordered unsigned
   EVM transaction batches.
 - Base Account signatures may be smart-wallet signatures verified through
   EIP-1271, with ERC-6492 relevant before deployment. ForecastOS accepts those
@@ -70,6 +70,10 @@ adapter output.
 Creation is prepared as a [Base MCP](https://mcp.base.org) signing request. Base Account
 smart-account/WebAuthn signatures are valid when Base MCP signs the canonical
 Precog `CREATE_UPCOMING_MARKET` typed data with the current pending nonce.
+The Base MCP request id is not a signature. After approval, `get_request_status`
+may return a long Base Account hex signature envelope; that output is valid for
+ForecastOS/Precog and must not be rejected for not being a compact 65-byte EOA
+signature.
 Use `resolve_create.mjs` to generate the [Base MCP](https://mcp.base.org) signing request:
 
 ```txt

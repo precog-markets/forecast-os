@@ -20,6 +20,7 @@ const ACTIONS = new Set([
 const action = process.argv[2];
 const inputPath = argValue("--input");
 const walletOutputPath = argValue("--wallet-output") ?? argValue("--adapter-output");
+const workflowIdArg = argValue("--workflow-id");
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const skillRoot = dirname(scriptDir);
 const defaultStateDir = join(skillRoot, ".forecastos");
@@ -29,7 +30,7 @@ if (!ACTIONS.has(action)) {
   fail(`Unsupported action '${action ?? ""}'. Supported actions: ${[...ACTIONS].join(", ")}`);
 }
 
-const rawInput = inputPath ? parseJsonInput(await readInput(inputPath)) : {};
+const rawInput = normalizeCliInput(action, inputPath ? parseJsonInput(await readInput(inputPath)) : {});
 const walletOutput = walletOutputPath ? parseJsonInput(await readFile(walletOutputPath, "utf8")) : undefined;
 const input = normalizeInput(action, mergeWalletOutput(action, rawInput, walletOutput));
 enforceApproval(action, input);
@@ -115,6 +116,16 @@ function normalizeInput(actionName, input) {
             }
           : input.event?.draft_input,
       },
+    };
+  }
+  return input;
+}
+
+function normalizeCliInput(actionName, input) {
+  if (actionName === "publish_approved_market" && workflowIdArg) {
+    return {
+      ...input,
+      workflow_id: input.workflow_id ?? workflowIdArg,
     };
   }
   return input;
@@ -228,12 +239,16 @@ async function dispatch(forecastos, actionName, input) {
 
 async function publishApprovedMarket(forecastos, input = {}) {
   const workflowId = input.workflow_id ?? input.state?.workflow_id ?? input.workflow?.workflow_id;
-  if (!workflowId) fail("publish_approved_market requires workflow_id for the persisted create_market workflow.");
+  if (!workflowId) {
+    fail("publish_approved_market requires workflow_id for the persisted create_market workflow. Pass --input <json containing workflow_id> or --workflow-id <workflow_id>; do not hand-write .forecastos/workflows files.");
+  }
 
   const state = input.state ?? input.workflow ?? await loadWorkflowState(workflowId);
-  if (!state) fail(`publish_approved_market could not find workflow ${workflowId} in ${stateDir}.`);
+  if (!state) {
+    fail(`publish_approved_market could not find workflow ${workflowId} in ${stateDir}. Run node scripts/inspect_state.mjs or node scripts/next_step.mjs --workflow-id <existing_workflow_id> to find an existing persisted workflow; do not create workflow files manually.`);
+  }
   if (state.step !== "create_market") {
-    fail(`publish_approved_market requires workflow ${workflowId} to be at create_market, found ${state.step ?? "unknown"}.`);
+    fail(`publish_approved_market requires workflow ${workflowId} to be at create_market, found ${state.step ?? "unknown"}. Use node scripts/next_step.mjs --workflow-id ${workflowId} to continue from the persisted state instead of rewriting workflow JSON.`);
   }
 
   const event = withoutUndefined({
@@ -247,7 +262,7 @@ async function publishApprovedMarket(forecastos, input = {}) {
     wallet_audit: input.wallet_audit ?? input.event?.wallet_audit,
   });
   if (!event.creator_address || !event.creator_signature) {
-    fail("publish_approved_market requires wallet output containing creator_address and creator_signature. Pass --wallet-output <adapter-output-json>.");
+    fail("publish_approved_market requires wallet output containing event.creator_address and event.creator_signature (or top-level creator_address/creator_signature). Pass --wallet-output <adapter-output-json> from the selected wallet adapter; Base MCP request ids are not signatures.");
   }
 
   return forecastos.runSkillStep(state, event);

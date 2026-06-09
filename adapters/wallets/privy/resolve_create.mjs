@@ -83,7 +83,7 @@ export async function resolveCreate({
     },
     nonce,
     chain_id: Number(chainId),
-    next_action: "run_skill_step",
+    next_action: "publish_approved_market",
   };
 }
 
