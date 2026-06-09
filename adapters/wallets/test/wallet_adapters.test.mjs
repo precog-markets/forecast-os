@@ -130,6 +130,62 @@ test("Privy create resolver selects wallet, fetches nonce, and signs Privy typed
   assert.ok(requests.some((request) => String(request.url).includes("/wallets?chain_type=ethereum")));
 });
 
+test("Privy create resolver supports Arbitrum create intents", async () => {
+  const requests = [];
+  const intent = buildArbitrumCreateIntentFixture();
+  const fetch = async (url, options = {}) => {
+    requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+    if (String(url).includes("/wallets?")) {
+      return jsonResponse({
+        data: [
+          {
+            id: "wallet_arb",
+            address: "0x2222222222222222222222222222222222222222",
+            chain_type: "ethereum",
+            policy_ids: ["policy_arb"],
+          },
+        ],
+      });
+    }
+    if (String(url).includes("/policies/policy_arb")) {
+      return jsonResponse({
+        id: "policy_arb",
+        rules: [
+          { method: "eth_signTypedData_v4", action: "ALLOW" },
+          { method: "eth_sendTransaction", action: "ALLOW" },
+        ],
+      });
+    }
+    if (String(url) === "https://arb-rpc.example") {
+      return jsonResponse({ jsonrpc: "2.0", id: 1, result: "0xa" });
+    }
+    if (String(url).endsWith("/wallets/wallet_arb/rpc")) {
+      assert.equal(requests.at(-1).body.params.typed_data.domain.chainId, 42161);
+      assert.equal(requests.at(-1).body.params.typed_data.message.chainId, 42161);
+      assert.equal(requests.at(-1).body.params.typed_data.message.nonce, 10);
+      return jsonResponse({ method: "eth_signTypedData_v4", data: { signature: "0xArbitrumSignature" } });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  const resolved = await resolveCreate({
+    intent,
+    walletId: "wallet_arb",
+    env: {
+      PRIVY_APP_ID: "app",
+      PRIVY_APP_SECRET: "secret",
+      FORECASTOS_ARBITRUM_RPC_URL: "https://arb-rpc.example",
+    },
+    fetch,
+  });
+
+  assert.equal(resolved.chain_id, 42161);
+  assert.equal(resolved.event.wallet_audit.chain_id, 42161);
+  assert.equal(resolved.event.wallet_audit.nonce, 10);
+  assert.equal(resolved.event.creator_signature, "0xArbitrumSignature");
+  assert.ok(requests.some((request) => String(request.url) === "https://arb-rpc.example"));
+});
+
 test("Privy RPC body matches strict typed-data schema", () => {
   const typedData = buildPrivyCreateTypedData(
     buildCreateIntentFixture().eip712_typed_data_template,
@@ -799,6 +855,26 @@ function buildCreateIntentFixture() {
     precog_payload_template: {
       image_url: "https://example.com/image.png",
       category: "culture",
+    },
+  };
+}
+
+function buildArbitrumCreateIntentFixture() {
+  const intent = buildCreateIntentFixture();
+  return {
+    ...intent,
+    chain_id: 42161,
+    eip712_typed_data_template: {
+      ...intent.eip712_typed_data_template,
+      domain: {
+        ...intent.eip712_typed_data_template.domain,
+        chainId: 42161,
+        verifyingContract: "0x0000000000990400E12543B7f400136e8672E2F0",
+      },
+      message: {
+        ...intent.eip712_typed_data_template.message,
+        chainId: 42161,
+      },
     },
   };
 }

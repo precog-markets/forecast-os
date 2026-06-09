@@ -15,7 +15,9 @@ Use `--wallet-address <address>` instead of `--wallet-id` when the operator pref
 - `PRIVY_APP_ID`
 - `PRIVY_APP_SECRET`
 - A [Privy](https://www.privy.io/ai) Ethereum wallet policy allowing both `eth_signTypedData_v4` and `eth_sendTransaction`
-- Base RPC via `FORECASTOS_BASE_RPC_URL`, `BASE_RPC_URL`, `--rpc-url`, or the default `https://mainnet.base.org`
+- RPC access for the active create chain:
+  - Base (`8453`) via `FORECASTOS_BASE_RPC_URL`, `BASE_RPC_URL`, `--rpc-url`, or the default `https://mainnet.base.org`
+  - Arbitrum (`42161`) via `FORECASTOS_ARBITRUM_RPC_URL`, `ARBITRUM_RPC_URL`, `--rpc-url`, or the default `https://arb1.arbitrum.io/rpc`
 
 ## Policy Shape
 
@@ -24,7 +26,7 @@ For now, ForecastOS expects the selected [Privy](https://www.privy.io/ai) wallet
 - `eth_signTypedData_v4` for Precog authorization signatures.
 - `eth_sendTransaction` for future funding, token approval, and submit transactions.
 
-Keep the transaction-send rule Base-only (`chain_id = 8453`) and prefer contract/amount constraints for USDC and Precog funding paths when those addresses are known. Avoid broad `method: "*"` policies unless the wallet is otherwise tightly governed.
+Keep transaction-send rules constrained to the active ForecastOS chain, currently Base (`8453`) or Arbitrum (`42161`), and prefer contract/amount constraints for USDC and Precog funding paths when those addresses are known. Avoid broad `method: "*"` policies unless the wallet is otherwise tightly governed.
 
 ## Output
 

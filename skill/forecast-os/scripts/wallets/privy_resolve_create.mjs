@@ -14,7 +14,7 @@ if (isMain(import.meta.url)) {
       intent: input.result ?? input,
       walletId: argValue("--wallet-id"),
       walletAddress: argValue("--wallet-address"),
-      rpcUrl: argValue("--rpc-url") ?? process.env.FORECASTOS_BASE_RPC_URL ?? process.env.BASE_RPC_URL,
+      rpcUrl: argValue("--rpc-url"),
       env: process.env,
       fetch: globalThis.fetch,
     });

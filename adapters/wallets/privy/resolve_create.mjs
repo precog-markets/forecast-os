@@ -7,6 +7,7 @@ import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
 
 const PRIVY_API_ROOT = "https://api.privy.io/v1";
 const DEFAULT_BASE_RPC_URL = "https://mainnet.base.org";
+const DEFAULT_ARBITRUM_RPC_URL = "https://arb1.arbitrum.io/rpc";
 
 if (isMain(import.meta.url)) {
   try {
@@ -17,7 +18,7 @@ if (isMain(import.meta.url)) {
       intent: input.result ?? input,
       walletId: argValue("--wallet-id"),
       walletAddress: argValue("--wallet-address"),
-      rpcUrl: argValue("--rpc-url") ?? process.env.FORECASTOS_BASE_RPC_URL ?? process.env.BASE_RPC_URL,
+      rpcUrl: argValue("--rpc-url"),
       env: process.env,
       fetch: globalThis.fetch,
     });
@@ -47,11 +48,8 @@ export async function resolveCreate({
   const { eligibleWallets, diagnostics } = await walletsWithPolicyCapabilities(fetch, auth, wallets);
   const selected = selectWallet(eligibleWallets, { walletId, walletAddress, diagnostics });
   const creatorAddress = normalizeEvmChecksumAddress(selected.address, "creator_address");
-  const chainId = intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId;
-  if (Number(chainId) !== 8453) {
-    fail(`Privy create resolver currently supports Base chain 8453, received ${chainId}.`);
-  }
-  const nonce = await fetchPendingNonce(fetch, rpcUrl ?? DEFAULT_BASE_RPC_URL, creatorAddress);
+  const chainId = requireSupportedCreateChain(intent.chain_id ?? intent.eip712_typed_data_template?.domain?.chainId);
+  const nonce = await fetchPendingNonce(fetch, rpcUrlForChain(chainId, { rpcUrl, env }), creatorAddress, chainId);
   const typedData = buildCreateTypedData(intent.eip712_typed_data_template, creatorAddress, nonce);
   const signature = await signTypedData(fetch, auth, selected.id, typedData);
 
@@ -67,7 +65,7 @@ export async function resolveCreate({
         wallet_id: selected.id,
         wallet_address: creatorAddress,
         policy_ids: selected.policy_ids ?? [],
-        chain_id: Number(chainId),
+        chain_id: chainId,
         nonce,
         method: "eth_signTypedData_v4",
         typed_data_primary_type: typedData.primary_type,
@@ -82,7 +80,7 @@ export async function resolveCreate({
       policy_ids: selected.policy_ids ?? [],
     },
     nonce,
-    chain_id: Number(chainId),
+    chain_id: chainId,
     next_action: "publish_approved_market",
   };
 }
@@ -218,7 +216,24 @@ function selectWallet(wallets, { walletId, walletAddress, diagnostics } = {}) {
   throw error;
 }
 
-async function fetchPendingNonce(fetch, rpcUrl, address) {
+function requireSupportedCreateChain(value) {
+  const chainId = Number(value);
+  if (chainId === 8453 || chainId === 42161) return chainId;
+  fail(`Privy create resolver supports configured Base (8453) and Arbitrum (42161) chains, received ${value}.`);
+}
+
+function rpcUrlForChain(chainId, { rpcUrl, env = process.env } = {}) {
+  if (rpcUrl) return rpcUrl;
+  if (chainId === 8453) {
+    return env.FORECASTOS_BASE_RPC_URL ?? env.BASE_RPC_URL ?? DEFAULT_BASE_RPC_URL;
+  }
+  if (chainId === 42161) {
+    return env.FORECASTOS_ARBITRUM_RPC_URL ?? env.ARBITRUM_RPC_URL ?? DEFAULT_ARBITRUM_RPC_URL;
+  }
+  fail(`Unsupported Privy create chain ${chainId}.`);
+}
+
+async function fetchPendingNonce(fetch, rpcUrl, address, chainId) {
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -230,7 +245,7 @@ async function fetchPendingNonce(fetch, rpcUrl, address) {
     }),
   });
   const body = await readJsonResponse(response);
-  if (!response.ok || body.error) fail(`Base RPC nonce lookup failed: ${response.status}`);
+  if (!response.ok || body.error) fail(`Chain ${chainId} RPC nonce lookup failed: ${response.status}`);
   return Number.parseInt(String(body.result ?? "0x0").replace(/^0x/, ""), 16);
 }
 
