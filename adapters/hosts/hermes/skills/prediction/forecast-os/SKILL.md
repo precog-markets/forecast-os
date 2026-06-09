@@ -61,12 +61,20 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    `run_skill_step --input <json-file>` call using the returned `state` object.
    At `create_market`, ForecastOS prepares the wallet create intent automatically
    when signature fields are missing.
-6. **Privy signing checklist** before `resolve-privy-create.mjs`:
+6. **Privy signing checklist** when the user picks Privy:
+   - Run `node ${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs` if Privy
+     adapter resolution has not been verified this session.
+   - Run **exactly**:
+     `node ${HERMES_SKILL_DIR}/scripts/resolve-privy-create.mjs --input <create-intent.json> --wallet-id <id>`
+   - **Do not** search or expect `adapters/wallets/` under the skill install
+     directory. Wallet adapters live in the ForecastOS repo root.
    - Confirm Privy app credentials are loaded in the shell (do not assume unset
      from empty shell expansion; do not paste secrets in chat).
    - Use one wallet id consistently for this create flow.
    - Read `chain_id` from the create intent; verify the wallet policy ALLOWs
      `eth_signTypedData_v4` for that chain (see Privy adapter README).
+   - On `FORECASTOS_REPO_ROOT_REQUIRED`, ask the operator to set
+     `FORECASTOS_REPO_ROOT` to the ForecastOS repo root and rerun setup check.
    - On `PRIVY_POLICY_DENIED` or `PRIVY_POLICY_CHAIN_MISMATCH`, read `guidance`
      from stderr and patch/add a chain-specific ALLOW rule. Do not retry other
      wallets blindly.
@@ -115,6 +123,11 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
 - Do not call direct `create_market` as the normal publish path. It lacks the
   wallet-resolved fields unless a wallet adapter has already returned them.
 - Privy supports Base (`8453`) and Arbitrum (`42161`). Base MCP is Base-only.
+- A copied Hermes skill is not the full ForecastOS repo. Privy signing resolves
+  through `scripts/resolve-privy-create.mjs` and the repo-root adapter at
+  `adapters/wallets/privy/resolve_create.mjs`. Set `FORECASTOS_REPO_ROOT` when
+  the skill is installed outside the monorepo. Do not grep for adapters under
+  the skill install path.
 - File inputs are preferred. The action wrapper also supports `--input -` for
   heredocs when the terminal session needs stdin.
 

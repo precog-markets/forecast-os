@@ -2,13 +2,40 @@ import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildPrivyAdapterPath,
+  buildRepoRootGuidance,
+  buildRepoRootRequiredError,
+  resolveForecastOSRepoRoot as resolveRepoRootFromSkill,
+  resolvePrivyAdapterScript as resolvePrivyFromSkill,
+} from "./repo-discovery.mjs";
 
 export const OUTDATED_RUNTIME_MESSAGE =
   "This Hermes skill is using an outdated ForecastOS runtime; reinstall/symlink the Hermes skill or set FORECASTOS_REPO_ROOT to the repo root.";
 
+export function resolveHermesSkillRoot(fromUrl = import.meta.url) {
+  const scriptDir = dirname(fileURLToPath(fromUrl));
+  return dirname(scriptDir);
+}
+
+export async function resolveForecastOSRepoRoot(env = process.env, hermesSkillRoot = resolveHermesSkillRoot()) {
+  const resolved = await resolveRepoRootFromSkill(env, hermesSkillRoot);
+  if (resolved.ok && resolved.repoRoot) {
+    return resolved.repoRoot;
+  }
+  return resolve(
+    env.FORECASTOS_REPO_ROOT ?? join(hermesSkillRoot, "..", "..", "..", "..", "..", ".."),
+  );
+}
+
+export async function resolvePrivyAdapterScript(env = process.env, hermesSkillRoot = resolveHermesSkillRoot()) {
+  return resolvePrivyFromSkill(env, hermesSkillRoot);
+}
+
+export { buildRepoRootGuidance, buildRepoRootRequiredError, buildPrivyAdapterPath };
+
 export function resolveHermesRuntimePaths() {
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
-  const hermesSkillRoot = dirname(scriptDir);
+  const hermesSkillRoot = resolveHermesSkillRoot();
   const repoRoot = resolve(
     process.env.FORECASTOS_REPO_ROOT ?? join(hermesSkillRoot, "..", "..", "..", "..", "..", ".."),
   );
@@ -67,6 +94,8 @@ export function printRuntimeError(error) {
         action: error?.action,
         repo_root: error?.repoRoot,
         action_script: error?.actionScript,
+        checked_paths: error?.checked_paths,
+        guidance: error?.guidance,
       },
       null,
       2,

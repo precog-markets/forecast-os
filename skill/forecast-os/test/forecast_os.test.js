@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -1810,8 +1811,8 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   assert.ok(actionWrapper.includes("assertActionBridgeSupports"));
   assert.ok(runtimeWrapper.includes("outdated ForecastOS runtime"));
   assert.ok(prepareWrapper.includes("prepare_create_intent"));
-  assert.ok(privyWrapper.includes("adapters"));
-  assert.ok(privyWrapper.includes("resolve_create.mjs"));
+  assert.ok(privyWrapper.includes("resolvePrivyAdapterScript"));
+  assert.ok(hermesSkill.includes("Do not") && hermesSkill.includes("adapters/wallets/"));
   assert.ok(combined.includes("approval rules"));
   assert.ok(combined.includes("does not replace the skill package"));
   assert.ok(pluginYaml.includes("provides_tools"));
@@ -2286,6 +2287,45 @@ test("Privy skill shim reports FORECASTOS_REPO_ROOT adapter candidates", async (
   );
   assert.ok(candidates.some((path) => path.includes("adapters")));
   assert.ok(candidates.length >= 2);
+});
+
+test("core skill resolve-privy-create alias delegates to Privy shim", async () => {
+  const alias = await readFile(join(skillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
+  assert.ok(alias.includes("privy_resolve_create.mjs"));
+  assert.ok(alias.includes("spawn"));
+});
+
+test("repo discovery resolves ForecastOS root via parent walk", async () => {
+  const { resolveForecastOSRepoRoot, resolvePrivyAdapterScript } = await import("../scripts/lib/repo_discovery.mjs");
+  const resolved = await resolveForecastOSRepoRoot({}, skillRoot);
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.repoRoot, monorepoRoot);
+  assert.ok(resolved.adapterScript.endsWith(join("adapters", "wallets", "privy", "resolve_create.mjs")));
+
+  const privy = await resolvePrivyAdapterScript({}, skillRoot);
+  assert.equal(privy.ok, true);
+  assert.equal(privy.repoRoot, monorepoRoot);
+  assert.ok(privy.adapterScript.endsWith(join("adapters", "wallets", "privy", "resolve_create.mjs")));
+});
+
+test("repo discovery returns FORECASTOS_REPO_ROOT guidance when adapter missing", async () => {
+  const { resolvePrivyAdapterScript } = await import("../scripts/lib/repo_discovery.mjs");
+  const fakeRoot = join(tmpdir(), `forecastos-privy-discovery-${randomUUID()}`);
+  await mkdir(fakeRoot, { recursive: true });
+  try {
+    const resolution = await resolvePrivyAdapterScript({}, fakeRoot);
+    assert.equal(resolution.ok, false);
+    assert.ok(resolution.guidance.includes("Do not look for adapters/wallets under a copied Hermes skill"));
+    assert.ok(resolution.guidance.includes("resolve-privy-create.mjs"));
+    assert.ok(resolution.checkedPaths.length > 0);
+    assert.ok(
+      resolution.checkedPaths.some((path) =>
+        path.replace(/\\/g, "/").includes("adapters/wallets/privy/resolve_create.mjs"),
+      ),
+    );
+  } finally {
+    await rm(fakeRoot, { recursive: true, force: true });
+  }
 });
 
 test("draft validation blocks long questions and outcomes", async () => {

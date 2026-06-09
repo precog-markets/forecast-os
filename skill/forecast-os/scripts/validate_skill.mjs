@@ -144,10 +144,17 @@ await assertMissing(join(root, "scripts", "sign_precog_ethers.mjs"), "sign_preco
 const walletShimPath = join(root, "scripts", "wallets", "privy_resolve_create.mjs");
 const walletShim = await readFile(walletShimPath, "utf8");
 assert(
-  walletShim.includes("adapters/wallets/privy/resolve_create.mjs"),
-  "Privy skill script must be a compatibility shim to adapters/wallets/privy/resolve_create.mjs",
+  walletShim.includes("repo_discovery.mjs") && walletShim.includes("getPrivyAdapterCandidates"),
+  "Privy skill script must resolve adapters/wallets/privy/resolve_create.mjs via repo discovery",
 );
 assert(!walletShim.includes("PRIVY_API_ROOT"), "Portable skill shim must not contain provider implementation details");
+await assertFile(join(root, "scripts", "resolve-privy-create.mjs"));
+const privyAlias = await readFile(join(root, "scripts", "resolve-privy-create.mjs"), "utf8");
+assert(
+  privyAlias.includes("privy_resolve_create.mjs"),
+  "resolve-privy-create.mjs must delegate to scripts/wallets/privy_resolve_create.mjs",
+);
+await assertFile(join(root, "scripts", "lib", "repo_discovery.mjs"));
 const scriptNames = await readdir(join(root, "scripts"));
 for (const scriptName of scriptNames.filter((name) => name.endsWith(".mjs"))) {
   const script = await readFile(join(root, "scripts", scriptName), "utf8");
@@ -229,6 +236,21 @@ assert(
 assert(
   skill.includes("decision/planning uncertainty"),
   "SKILL.md must explicitly trigger on future decision/planning uncertainty",
+);
+assert(
+  skill.includes("resolve-privy-create.mjs") &&
+    skill.includes("FORECASTOS_REPO_ROOT") &&
+    skill.toLowerCase().includes("do not search for `adapters/wallets/` under the skill directory"),
+  "SKILL.md must document Privy wrapper discovery and copied-install repo-root guidance",
+);
+
+const walletAdaptersDoc = await readFile(join(root, "references", "wallet-adapters.md"), "utf8");
+assert(
+  walletAdaptersDoc.includes("resolve-privy-create.mjs") &&
+    walletAdaptersDoc.includes("FORECASTOS_REPO_ROOT") &&
+    walletAdaptersDoc.includes("Do not search for") &&
+    walletAdaptersDoc.includes("adapters/wallets"),
+  "references/wallet-adapters.md must document Privy wrapper resolution and forbid skill-local adapter search",
 );
 
 const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8");
@@ -695,6 +717,13 @@ async function assertHermesHostAdapter(monorepoRoot) {
       !hermesSkill.includes("PRIVY_APP_SECRET"),
     "Hermes core skill must not prompt for wallet-provider secrets on load",
   );
+  assert(
+    hermesSkill.includes("Do not") &&
+      hermesSkill.includes("adapters/wallets/") &&
+      hermesSkill.includes("FORECASTOS_REPO_ROOT") &&
+      hermesSkill.includes("copied Hermes skill"),
+    "Hermes SKILL.md must forbid skill-local adapter search and document FORECASTOS_REPO_ROOT for copied installs",
+  );
 
   const hermesDocs = [
     await readFile(join(hermesRoot, "README.md"), "utf8"),
@@ -745,8 +774,15 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSetupScript.includes("hermes_action_wrapper") &&
       hermesSetupScript.includes("hermes_prepare_create_wrapper") &&
       hermesSetupScript.includes('actionBridgeSupportCheck("prepare_create_intent")') &&
-      hermesSetupScript.includes("hermes_privy_wrapper"),
+      hermesSetupScript.includes("hermes_privy_wrapper") &&
+      hermesSetupScript.includes("resolvePrivyAdapterScript"),
     "Hermes setup check must verify Privy adapter and Hermes wrapper paths",
+  );
+  const hermesPrivyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
+  assert(
+    hermesPrivyWrapper.includes("resolvePrivyAdapterScript") &&
+      hermesPrivyWrapper.includes("buildRepoRootRequiredError"),
+    "Hermes Privy wrapper must resolve repo-root adapter and fail with actionable repo-root guidance",
   );
 }
 

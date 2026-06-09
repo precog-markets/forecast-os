@@ -5,13 +5,16 @@ import { constants } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { actionBridgeSupportCheck } from "./forecastos-runtime.mjs";
+import {
+  actionBridgeSupportCheck,
+  resolveForecastOSRepoRoot,
+  resolveHermesSkillRoot,
+  resolvePrivyAdapterScript,
+} from "./forecastos-runtime.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const hermesSkillRoot = dirname(scriptDir);
-const repoRoot = resolve(
-  process.env.FORECASTOS_REPO_ROOT ?? join(hermesSkillRoot, "..", "..", "..", "..", "..", ".."),
-);
+const hermesSkillRoot = resolveHermesSkillRoot(import.meta.url);
+const repoRoot = await resolveForecastOSRepoRoot(process.env, hermesSkillRoot);
 const nodeBin = process.env.FORECASTOS_NODE_BIN ?? "node";
 
 const checks = [
@@ -21,15 +24,15 @@ const checks = [
   await actionBridgeSupportCheck("publish_approved_market"),
   await checkFile("skill_config", join(repoRoot, "skill", "forecast-os", ".forecastos", "config.json")),
   await checkDir("wallet_adapters", join(repoRoot, "adapters", "wallets")),
-  await checkFile("privy_create_adapter", join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs")),
+  await checkPrivyAdapterResolution(process.env, hermesSkillRoot),
   await checkFile("hermes_action_wrapper", join(hermesSkillRoot, "scripts", "forecastos-action.mjs")),
   await checkFile("hermes_prepare_create_wrapper", join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs")),
   await checkFile("hermes_privy_wrapper", join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs")),
   await checkFile("hermes_skill", join(hermesSkillRoot, "SKILL.md")),
-  await checkPrivyTypedDataPolicyCoverage(process.env),
+  await checkPrivyTypedDataPolicyCoverage(process.env, repoRoot),
 ];
 
-const ok = checks.every((check) => check.ok);
+const ok = checks.every((check) => check.ok || check.optional);
 process.stdout.write(
   JSON.stringify(
     {
@@ -74,7 +77,28 @@ async function checkDir(name, path) {
   }
 }
 
-async function checkPrivyTypedDataPolicyCoverage(env = {}) {
+async function checkPrivyAdapterResolution(env, skillRoot) {
+  const resolution = await resolvePrivyAdapterScript(env, skillRoot);
+  if (resolution.ok) {
+    return {
+      name: "privy_create_adapter",
+      ok: true,
+      path: resolution.adapterScript,
+      repo_root: resolution.repoRoot,
+    };
+  }
+  return {
+    name: "privy_create_adapter",
+    ok: false,
+    optional: true,
+    checked_paths: resolution.checkedPaths,
+    guidance:
+      resolution.guidance ??
+      "Set FORECASTOS_REPO_ROOT to the ForecastOS repo root, then rerun check-hermes-setup.mjs.",
+  };
+}
+
+async function checkPrivyTypedDataPolicyCoverage(env = {}, repoRootPath = repoRoot) {
   const appId = env.PRIVY_APP_ID;
   const appSecret = env.PRIVY_APP_SECRET;
   const walletId = env.PRIVY_WALLET_ID;
@@ -82,6 +106,7 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}) {
     return {
       name: "privy_typed_data_policy",
       ok: true,
+      optional: true,
       skipped: true,
       reason: "Set PRIVY_APP_ID, PRIVY_APP_SECRET, and PRIVY_WALLET_ID to probe typed-data policy coverage.",
     };
@@ -90,6 +115,7 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}) {
     return {
       name: "privy_typed_data_policy",
       ok: true,
+      optional: true,
       skipped: true,
       reason: "Fetch API unavailable; skipped Privy policy probe.",
     };
@@ -103,7 +129,7 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}) {
       policies.push(await readPrivyPolicy(fetch, auth, policyId));
     }
     const { extractAllowedTypedDataChainIds } = await import(
-      pathToFileURL(join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs")).href
+      pathToFileURL(join(repoRootPath, "adapters", "wallets", "privy", "resolve_create.mjs")).href
     );
     const { chainIds, hasUnrestrictedRule } = extractAllowedTypedDataChainIds(policies);
     const supports8453 = hasUnrestrictedRule || chainIds.includes("8453");
@@ -114,6 +140,7 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}) {
     return {
       name: "privy_typed_data_policy",
       ok: true,
+      optional: true,
       wallet_id: walletId,
       policy_ids: wallet.policy_ids ?? [],
       allowed_chain_ids: chainIds,
@@ -126,6 +153,7 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}) {
     return {
       name: "privy_typed_data_policy",
       ok: true,
+      optional: true,
       warning: error?.message ?? String(error),
     };
   }

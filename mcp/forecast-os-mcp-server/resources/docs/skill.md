@@ -80,9 +80,12 @@ node scripts/next_step.mjs --workflow-id <workflow_id>
 node scripts/forecastos_action.mjs publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>
 node scripts/forecastos_action.mjs <action> --input <json-file>
 node scripts/forecastos_action.mjs <action> <json-file>
+node scripts/resolve-privy-create.mjs --input <create-intent.json> --wallet-id <privy-wallet-id>
 ```
 
 The Arbitrum Warcraft example runner under `scripts/examples/arbitrum-warcraft-2026/` is for operator/CI reference only. Do not use it as the default path for live user create requests.
+
+Set `FORECASTOS_REPO_ROOT` when this skill is copied into Hermes or another host outside the ForecastOS monorepo. Privy signing resolves the repo-root adapter through `scripts/resolve-privy-create.mjs`.
 
 ## Pitfalls
 
@@ -90,3 +93,4 @@ The Arbitrum Warcraft example runner under `scripts/examples/arbitrum-warcraft-2
 - Confirm Base vs Arbitrum with the user before drafting. Do not assume config default Base (`8453`) or jump to example scripts when the user asks to create a market.
 - If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for the missing fields and rerun with complete input. Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
 - For Arbitrum creation, pass `chain_id: 42161` and Arbitrum USDC through draft/approval/create events. Privy supports Arbitrum; Base MCP is Base-only.
+- A copied skill install is not the full ForecastOS repo. For Privy, run `scripts/resolve-privy-create.mjs`; do not search for `adapters/wallets/` under the skill directory. Set `FORECASTOS_REPO_ROOT` to the repo root when copied outside the monorepo.

@@ -16,6 +16,18 @@ Provider-specific wallet code lives outside the portable skill:
 adapters/wallets/<provider>/
 ```
 
+When the skill is copied into Hermes or another host, wallet adapters are **not**
+bundled inside the skill install directory. Do not search for
+`<skill-dir>/adapters/wallets/`. Resolve Privy through:
+
+```txt
+node scripts/resolve-privy-create.mjs --input <create-intent.json> --wallet-id <id>
+```
+
+Set `FORECASTOS_REPO_ROOT` to the ForecastOS repo root when the skill is
+installed outside the monorepo. On `FORECASTOS_REPO_ROOT_REQUIRED`, read
+`guidance` from stderr and rerun after exporting the repo path.
+
 [Base MCP](https://mcp.base.org) integration is complementary to host
 adapters such as Codex, Claude, Hermes, or OpenClaw. See:
 

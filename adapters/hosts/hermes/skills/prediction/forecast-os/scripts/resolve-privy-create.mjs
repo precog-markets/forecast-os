@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 // Forward Hermes Privy create signing to the canonical ForecastOS Privy adapter.
 import { spawn } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  buildRepoRootRequiredError,
+  printRuntimeError,
+  resolveHermesSkillRoot,
+  resolvePrivyAdapterScript,
+} from "./forecastos-runtime.mjs";
 
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-const hermesSkillRoot = dirname(scriptDir);
-const repoRoot = resolve(
-  process.env.FORECASTOS_REPO_ROOT ?? join(hermesSkillRoot, "..", "..", "..", "..", "..", ".."),
-);
+const hermesSkillRoot = resolveHermesSkillRoot();
 const nodeBin = process.env.FORECASTOS_NODE_BIN ?? "node";
-const adapterScript = join(repoRoot, "adapters", "wallets", "privy", "resolve_create.mjs");
+const resolution = await resolvePrivyAdapterScript(process.env, hermesSkillRoot);
 
-const child = spawn(nodeBin, [adapterScript, ...process.argv.slice(2)], {
-  cwd: repoRoot,
+if (!resolution.ok || !resolution.adapterScript || !resolution.repoRoot) {
+  printRuntimeError(buildRepoRootRequiredError(resolution, hermesSkillRoot));
+  process.exit(1);
+}
+
+const child = spawn(nodeBin, [resolution.adapterScript, ...process.argv.slice(2)], {
+  cwd: resolution.repoRoot,
   env: {
     ...process.env,
-    FORECASTOS_REPO_ROOT: repoRoot,
-    FORECASTOS_SKILL_DIR: join(repoRoot, "skill", "forecast-os"),
+    FORECASTOS_REPO_ROOT: resolution.repoRoot,
+    FORECASTOS_SKILL_DIR: process.env.FORECASTOS_SKILL_DIR ?? `${resolution.repoRoot}/skill/forecast-os`,
   },
   stdio: "inherit",
 });
