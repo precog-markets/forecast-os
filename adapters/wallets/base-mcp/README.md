@@ -5,6 +5,8 @@ the wallet/action layer while preserving ForecastOS workflow boundaries.
 
 ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config.
 This adapter is intentionally Base-only.
+When chain/collateral is missing, ForecastOS should ask first (`USDC on Base`
+or `USDC on Arbitrum`) before selecting the wallet adapter.
 
 Base custom plugins are markdown specs that teach an assistant how to combine
 protocol-specific calls with [Base MCP](https://mcp.base.org) wallet tools. In ForecastOS terms, that

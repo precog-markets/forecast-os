@@ -60,7 +60,7 @@ Live Precog calls read config from the active state directory's `config.json`, w
 }
 ```
 
-The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS reads `precog.chain_id` from config and should not ask the user for chain selection. ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config. ForecastOS defaults to the configured collateral from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
+The shipped `config.json` contains public defaults so users can run the skill without setup. ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config. If chain/collateral is missing in user input, ask explicitly (for example, `With collateral from which chain?`) and offer defaults `USDC on Base` and `USDC on Arbitrum`. If the user already specifies chain/collateral, respect it. ForecastOS defaults to the configured collateral from `precog.default_collateral_address`; only use a create-action `collateral_address` when the operator explicitly asks for another collateral. `precog.signature_actions` must match the Precog backend action strings used in EIP-712 authorization. `api_root` lives in config and should not be hardcoded in runtime files. `config.local.json` is ignored and may override any `precog` field for local testing. `deployed_master_address` is config-only and is the EIP-712 verifying contract. MCP must not expose config files.
 
 ## Supported Actions
 
@@ -122,7 +122,7 @@ Creation payload hygiene:
 - Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.
 - `chain_id` is sourced from config `precog.chain_id` and sent in the create payload.
 - `creator_address` must be a 20-byte EVM address and is normalized to EIP-55 checksum casing before ForecastOS sends the Precog create payload. The same checksummed address must be used inside the EIP-712 typed-data `message.account` that the wallet signs.
-- `chain_id` is never requested from the user. `collateral_address` defaults to the configured chain collateral unless explicitly overridden.
+- If chain/collateral is missing, ask for chain preference with explicit options (`USDC on Base` or `USDC on Arbitrum`) before live create/fund actions. `collateral_address` defaults to the configured chain collateral unless explicitly overridden.
 - `start_timestamp` must be before `end_timestamp`.
 - ForecastOS draft categories such as `agent_launch`, `strategy`, and `other` are mapped to Precog category `AI`. Other draft categories pass through unchanged. Omit an action-level `category` unless the operator intentionally overrides the draft category.
 

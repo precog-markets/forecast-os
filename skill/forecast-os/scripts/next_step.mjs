@@ -89,6 +89,7 @@ function guidanceFor(step, workflow) {
       ],
       suggested_command: commands.prepareCreateIntent,
       notes: [
+        "If chain/collateral is not already specified, ask clearly: With collateral from which chain? Offer defaults: USDC on Base or USDC on Arbitrum.",
         "The draft is approved. Ask: What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Do not ask the user for raw wallet address or signature fields in normal chat.",
         "If no wallet/action tool is configured, direct the user to the [Precog creation area](https://core.precog.markets/launchpad/) to create the market.",
@@ -96,7 +97,7 @@ function guidanceFor(step, workflow) {
         "Base MCP smart-account/WebAuthn signatures are valid when signed over the canonical Precog typed data and current pending nonce.",
         "After the wallet/action tool resolves creator_address and creator_signature, prefer publish_approved_market with the existing workflow_id and --wallet-output <adapter-output-json> so the bridge loads persisted create_market state and workflow memory advances.",
         "Use the direct create_market action only as a low-level API call when you intentionally do not need workflow state advancement.",
-        "ForecastOS reads the active chain from config (supported: Base and Arbitrum) and uses the configured default collateral unless the operator explicitly provides another collateral_address.",
+        "If the user already picked chain/collateral, respect it. Otherwise use configured defaults after asking the chain question.",
         "Precog requires a valid image_url; local ForecastOS drafts do not invent one.",
         "For concrete wallet providers, read references/wallet-adapters.md and use the matching top-level adapter under adapters/wallets/<provider>/ after prepare_create_intent.",
       ],
@@ -123,9 +124,10 @@ function guidanceFor(step, workflow) {
       required_fields: ["amount", "wallet_or_action_tool availability", "funding_asset or collateral_symbol"],
       suggested_command: commands.prepareFundingIntent,
       notes: [
+        "If chain/collateral is not already specified, ask clearly: With collateral from which chain? Offer defaults: USDC on Base or USDC on Arbitrum.",
         "Generate a wallet-agnostic funding intent, then ask what wallet or wallet/action tool should resolve funding. Options include Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         "Use Precog display units for amount, for example amount 1 for 1 MATE; do not send wei/base units or token symbols.",
-        "Do not ask for chain_id; ForecastOS reads the configured chain (supported: Base and Arbitrum) from the active .forecastos/config.json.",
+        "When the user did not specify chain/collateral, ask first, then proceed with the selected chain or configured default.",
         "Before funding, make sure the wallet policy allows EIP-712 signing and transaction signing/sending.",
         "If the collateral token allowance is insufficient, the wallet/action tool must approve the token before funding.",
         "After the wallet/action tool resolves token approval if needed, sends the funding transaction, signs EIP-712 with the post-transaction pending nonce, and returns tx_hash, funder_address, and funder_signature, call fund_market.",

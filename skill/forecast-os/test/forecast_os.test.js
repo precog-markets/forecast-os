@@ -277,7 +277,9 @@ test("forecastos_action creates and advances files in .forecastos", async () => 
 
   assert.equal(approved.status, "ok");
   assert.equal(approved.result.state.step, "create_market");
-  assert.ok(approved.result.agent_message.includes("What wallet or wallet/action tool"));
+  assert.ok(approved.result.agent_message.includes("With collateral from which chain?"));
+  assert.ok(approved.result.agent_message.includes("USDC on Base"));
+  assert.ok(approved.result.agent_message.includes("USDC on Arbitrum"));
   assert.ok(approved.result.agent_message.includes("Bankr"));
   assert.ok(approved.result.agent_message.includes("Privy"));
   assert.ok(approved.result.agent_message.includes("Base MCP"));
@@ -2351,7 +2353,7 @@ test("docs and runtime do not use legacy string signing guidance", async () => {
     }
   }
 });
-test("next_step presents human create guidance without chain or collateral as normal asks", async () => {
+test("next_step create guidance asks for chain/collateral when missing", async () => {
   const rootDir = join(skillRoot, "test-output", "next-step-create");
   const stateDir = join(rootDir, ".forecastos");
   await rm(rootDir, { recursive: true, force: true });
@@ -2380,7 +2382,9 @@ test("next_step presents human create guidance without chain or collateral as no
   assert.ok(guidance.notes.some((note) => note.includes("Base MCP smart-account/WebAuthn signatures")));
   assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("https://core.precog.markets/launchpad/")));
-  assert.ok(guidance.notes.some((note) => note.includes("supported: Base and Arbitrum")));
+  assert.ok(guidance.notes.some((note) => note.includes("With collateral from which chain?")));
+  assert.ok(guidance.notes.some((note) => note.includes("USDC on Base")));
+  assert.ok(guidance.notes.some((note) => note.includes("USDC on Arbitrum")));
   assert.ok(guidance.notes.some((note) => note.includes("EIP-712 typed-data signing")));
 });
 test("next_step funding guidance mentions wallet policy and token approval", async () => {
@@ -2403,6 +2407,9 @@ test("next_step funding guidance mentions wallet policy and token approval", asy
 
   assert.equal(guidance.next_action, "prepare_funding_intent");
   assert.ok(guidance.notes.some((note) => note.includes("what wallet or wallet/action tool")));
+  assert.ok(guidance.notes.some((note) => note.includes("With collateral from which chain?")));
+  assert.ok(guidance.notes.some((note) => note.includes("USDC on Base")));
+  assert.ok(guidance.notes.some((note) => note.includes("USDC on Arbitrum")));
   assert.ok(guidance.notes.some((note) => note.includes("Bankr") && note.includes("Privy") && note.includes("Base MCP")));
   assert.ok(guidance.notes.some((note) => note.includes("[Precog creation area](https://core.precog.markets/launchpad/)")));
   assert.ok(guidance.notes.some((note) => note.includes("wallet policy")));

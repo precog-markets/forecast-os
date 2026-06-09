@@ -6,6 +6,20 @@
         "chain_id": 8453,
         "default_collateral_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         "default_collateral_symbol": "USDC",
+        "default_collateral_options": [
+            {
+                "label": "USDC on Base",
+                "chain_id": 8453,
+                "symbol": "USDC",
+                "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+            },
+            {
+                "label": "USDC on Arbitrum",
+                "chain_id": 42161,
+                "symbol": "USDC",
+                "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+            }
+        ],
         "supported_chains": {
             "8453": {
                 "name": "base",

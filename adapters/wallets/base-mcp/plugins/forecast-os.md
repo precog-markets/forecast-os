@@ -17,6 +17,8 @@ drafting, creating, funding, and consuming Precog markets. ForecastOS core
 supports configured Base (`8453`) and Arbitrum (`42161`) chains. Use the
 ForecastOS skill/action bridge for workflow state and Precog API submission, and
 use [Base MCP](https://mcp.base.org) only as the wallet/action adapter for Base.
+If chain/collateral is missing from user input, ask first (`USDC on Base` or
+`USDC on Arbitrum`) before choosing a wallet/action adapter.
 
 **Supported chain:** Base mainnet (`8453` / `0x2105`), mapped to [Base MCP](https://mcp.base.org) chain
 name `base`.

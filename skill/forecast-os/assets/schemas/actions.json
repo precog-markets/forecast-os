@@ -107,7 +107,7 @@
         "collateral_address": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional advanced override. Defaults to configured chain collateral from .forecastos/config.json (Base 8453 or Arbitrum 42161)."
+          "description": "Optional advanced override. If chain/collateral was not already provided, ask explicitly and offer defaults (USDC on Base or USDC on Arbitrum), then use configured chain collateral from .forecastos/config.json."
         },
         "collateral_symbol": {
           "type": "string",
@@ -183,7 +183,7 @@
         "collateral_address": {
           "type": "string",
           "minLength": 1,
-          "description": "Optional advanced override. Defaults to configured chain collateral from .forecastos/config.json (Base 8453 or Arbitrum 42161)."
+          "description": "Optional advanced override. If chain/collateral was not already provided, ask explicitly and offer defaults (USDC on Base or USDC on Arbitrum), then use configured chain collateral from .forecastos/config.json."
         },
         "creator_address": {
           "type": "string",

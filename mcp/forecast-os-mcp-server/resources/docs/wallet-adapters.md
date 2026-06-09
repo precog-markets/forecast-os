@@ -2,6 +2,10 @@
 
 Use wallet adapters when an operator chooses a concrete wallet/action provider for a ForecastOS Precog create or funding handoff. Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 
+Before wallet resolution, if chain/collateral is missing from user input, ask
+explicitly: `With collateral from which chain?` and offer defaults `USDC on
+Base` and `USDC on Arbitrum`.
+
 ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through active
 config. Provider adapters can support one or both chains. Follow each provider
 adapter's chain mapping rules.

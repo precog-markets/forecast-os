@@ -5,6 +5,8 @@ Wallet adapters resolve ForecastOS wallet-agnostic intents into the signed field
 ForecastOS core supports Base (`8453`) and Arbitrum (`42161`) through config.
 Each provider adapter must explicitly document supported chains and fail fast on
 unsupported chain IDs.
+If chain/collateral is missing in user input, core ForecastOS UX asks first and
+offers `USDC on Base` or `USDC on Arbitrum` before adapter selection.
 
 ## Boundaries
 

@@ -63,9 +63,14 @@ core supports:
 - Base (`8453`)
 - Arbitrum (`42161`)
 
-Agents should not ask users to choose chain IDs in chat. They should use the
-active config chain and configured default collateral unless the operator
-explicitly requests overrides.
+When chain/collateral is missing from user input, agents should ask clearly:
+`With collateral from which chain?` and offer defaults:
+
+- USDC on Base
+- USDC on Arbitrum
+
+If the user already specifies chain/collateral, agents should respect that
+selection.
 
 ## Optional MCP Setup
 

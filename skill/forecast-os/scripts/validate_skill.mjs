@@ -191,8 +191,8 @@ assert(
   "SKILL.md must include prediction and decision support guidance",
 );
 assert(
-  skill.includes("supported chains are Base and Arbitrum"),
-  "SKILL.md must state Base and Arbitrum chain support",
+  skill.includes("USDC on Base") && skill.includes("USDC on Arbitrum"),
+  "SKILL.md must include explicit chain/collateral selection defaults for Base and Arbitrum",
 );
 assert(
   skill.includes("Before inventing or guessing a probability, search read-only"),
@@ -231,6 +231,12 @@ assert(
 assert(
   actionsDoc.includes("Base (`8453`) and Arbitrum (`42161`)"),
   "references/actions.md must document Base and Arbitrum chain support",
+);
+assert(
+  actionsDoc.includes("With collateral from which chain?") &&
+    actionsDoc.includes("USDC on Base") &&
+    actionsDoc.includes("USDC on Arbitrum"),
+  "references/actions.md must document ask-if-missing chain/collateral guidance with Base/Arbitrum USDC defaults",
 );
 assert(
   skill.includes("pending_check") &&

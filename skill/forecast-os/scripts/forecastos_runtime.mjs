@@ -105,7 +105,7 @@ class ForecastOSLocalRuntime {
     );
     return withoutUndefined({
       intent_type: "forecastos.create_market",
-      wallet_tool_hint: "Use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. ForecastOS core supports configured Base and Arbitrum chains.",
+      wallet_tool_hint: "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
       wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
       wallet_policy_required: ["eip712_typed_data_signing"],
@@ -177,7 +177,7 @@ class ForecastOSLocalRuntime {
           approval_text: event.approval_text ?? current.approval_text,
         }, "approval_recorded"),
         needs_human_input: true,
-        agent_message: "Approval recorded. What wallet or wallet/action tool would you like to use to publish this? Options include Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+        agent_message: "Approval recorded. If chain/collateral is not already specified, ask: With collateral from which chain? Default options are USDC on Base or USDC on Arbitrum. Then ask which wallet or wallet/action tool to use (Bankr, Privy, Base MCP for Base, another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/)).",
       });
     }
 
@@ -203,7 +203,7 @@ class ForecastOSLocalRuntime {
             }, "create_intent_prepared"),
             tool_result: intent,
             needs_human_input: true,
-            agent_message: "The draft is approved. Resolve this create intent with Privy, Bankr, Base MCP (Base), or another configured wallet/action adapter, then submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
+            agent_message: "The draft is approved. If chain/collateral is still missing, ask: With collateral from which chain? (USDC on Base or USDC on Arbitrum). Then resolve this create intent with Privy, Bankr, Base MCP (Base), or another configured wallet/action adapter, and submit with run_skill_step --wallet-output <wallet-adapter-output-json>.",
           });
         } catch (error) {
           return this.#saveResult({
@@ -281,8 +281,8 @@ class ForecastOSLocalRuntime {
           tool_result: serializeError(error),
           needs_human_input: true,
           agent_message: missingSignature
-            ? "The draft is approved, but the create submission is missing the wallet signature. Resolve the create intent with Bankr, Privy, Base MCP (Base), or another configured wallet/action tool, then rerun run_skill_step with --wallet-output <wallet-adapter-output-json>."
-            : "The draft is approved, but live publishing still needs a compatible wallet/action tool. Ask whether the user wants to use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
+            ? "The draft is approved, but the create submission is missing the wallet signature. If chain/collateral is missing, ask first (USDC on Base or USDC on Arbitrum), then resolve the create intent with Bankr, Privy, Base MCP (Base), or another configured wallet/action tool, and rerun run_skill_step with --wallet-output <wallet-adapter-output-json>."
+            : "The draft is approved, but live publishing still needs a compatible wallet/action tool. If chain/collateral is missing, ask first (USDC on Base or USDC on Arbitrum), then ask whether the user wants to use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the [Precog creation area](https://core.precog.markets/launchpad/).",
         });
       }
     }
@@ -519,7 +519,7 @@ class ForecastOSLocalRuntime {
     return withoutUndefined({
       intent_type: "forecastos.fund_market",
       wallet_provider: provider,
-      wallet_tool_hint: "Use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. ForecastOS core supports configured Base and Arbitrum chains. For Base MCP funding, send the prepared calls first, then sign FUND_UPCOMING_MARKET with the post-transaction pending nonce before submitting to Precog.",
+      wallet_tool_hint: "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. For Base MCP funding, send the prepared calls first, then sign FUND_UPCOMING_MARKET with the post-transaction pending nonce before submitting to Precog.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
       wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
       wallet_policy_required: [
