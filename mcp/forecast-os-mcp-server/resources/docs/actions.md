@@ -157,10 +157,12 @@ Creation payload hygiene:
 
 Normal chat Precog creation flow after approval:
 
-1. Advance the approved workflow into the stored `create_market` step with `run_skill_step`; keep the returned `workflow_id` internally.
-2. Call `prepare_create_intent` through that stored workflow to generate the wallet-agnostic Precog create payload and EIP-712 typed-data template.
-3. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`.
+1. Advance the approved workflow with `run_skill_step` using the full returned `state` plus `event.approved: true`, `event.image_url`, and explicit `chain_id`.
+2. At `create_market`, prefer another `run_skill_step` call with `event.image_url`; the runtime auto-prepares the wallet create intent. Standalone `prepare_create_intent` accepts `{ "workflow_id": "<id>", "image_url": "..." }` as a fallback.
+3. Let the selected wallet/action tool resolve `creator_address` and `creator_signature`. For Privy, use `scripts/resolve-privy-create.mjs` only; do not search for adapters under the skill install directory.
 4. Call `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-adapter-output-json>`. It loads the persisted `create_market` workflow by `workflow_id`, submits the Precog upcoming-market request, and advances `.forecastos` to `await_precog_approval`. Use raw `run_skill_step --wallet-output` only when a host already has the exact stored state object in memory.
+
+Copied skill installs need a readable local `.forecastos/config.json`. When it is missing, copy the shipped config from `skill/forecast-os/.forecastos/config.json` or set `FORECASTOS_REPO_ROOT` so the runtime can fall back to the repo shipped config.
 
 After creation, report the created market title and generated `https://core.precog.markets/launchpad/{chainId}/{marketId}/{slug}` link to the user so they can share or check the market. The create result also includes a machine-readable `pending_check` request with hourly cadence, workflow id, market id, command, stop conditions, and `auto_redraft_on_rejection: true`; create the host automation or cron job from that object immediately.
 

@@ -242,8 +242,9 @@ assert(
     skill.includes("FORECASTOS_REPO_ROOT") &&
     skill.toLowerCase().includes("do not search for `adapters/wallets/` under the skill directory") &&
     skill.includes("Post-Approval Create") &&
-    skill.includes("inspect_state.mjs"),
-  "SKILL.md must document Privy wrapper discovery, copied-install repo-root guidance, and post-approval playbook",
+    skill.includes("inspect_state.mjs") &&
+    skill.includes("references/chat-ux.md"),
+  "SKILL.md must document Privy wrapper discovery, copied-install repo-root guidance, post-approval playbook, and chat-ux failure wording",
 );
 
 const walletAdaptersDoc = await readFile(join(root, "references", "wallet-adapters.md"), "utf8");
@@ -253,6 +254,16 @@ assert(
     walletAdaptersDoc.includes("Do not search for") &&
     walletAdaptersDoc.includes("adapters/wallets"),
   "references/wallet-adapters.md must document Privy wrapper resolution and forbid skill-local adapter search",
+);
+
+const chatUxDoc = await readFile(join(root, "references", "chat-ux.md"), "utf8");
+assert(
+  chatUxDoc.includes("Approved on Arbitrum USDC") &&
+    chatUxDoc.includes("event.approved: true") &&
+    chatUxDoc.includes("Never `sed`-edit") &&
+    chatUxDoc.includes("FORECASTOS_REPO_ROOT") &&
+    chatUxDoc.includes("resolve-privy-create.mjs"),
+  "references/chat-ux.md must document post-approval handoff, correct approval shape, anti-bypass guidance, and copied-install config recovery",
 );
 
 const actionsDoc = await readFile(join(root, "references", "actions.md"), "utf8");
@@ -268,6 +279,12 @@ assert(
   actionsDoc.includes("`publish_approved_market`") &&
     actionsDoc.includes("Do not create or edit `.forecastos/workflows/*` files by hand"),
   "references/actions.md must document publish_approved_market as the host-safe create wrapper and forbid manual workflow files",
+);
+assert(
+  actionsDoc.includes("event.approved: true") &&
+    actionsDoc.includes("prefer another `run_skill_step`") &&
+    actionsDoc.includes("FORECASTOS_REPO_ROOT"),
+  "references/actions.md must document the post-approval run_skill_step flow and copied-install config fallback",
 );
 assert(
   actionsDoc.includes("Base MCP request id is not the signature") &&

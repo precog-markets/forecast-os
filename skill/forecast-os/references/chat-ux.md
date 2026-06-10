@@ -11,6 +11,12 @@ Use this file before writing user-facing ForecastOS draft, approval, wallet hand
 - Use UTC labels for close and resolution times.
 - Mention the configured token in draft summaries, for example `Token: USDC`.
 
+## Operator Vs User Voice
+
+- Default: short summary plus one clear next-step question.
+- Debug mode (user asks for operator detail): you may cite `workflow_id`, `state_dir`, or the first blocking issue from stderr.
+- Never paste full CLI stderr JSON in normal chat.
+
 ## Draft Summary Shape
 
 ```txt
@@ -44,19 +50,63 @@ missing_fields: ["source_of_truth", "resolution_time"]
 
 ## Approval And Wallet Handoff
 
-After `yes` approval:
+After `yes` approval, confirm chain and collateral in plain language, then ask for a signing path:
 
 ```txt
-Approved. What wallet or action tool would you like me to use to publish this to Precog?
+Approved on Arbitrum USDC. What wallet or action tool would you like me to use to publish this to Precog?
 
-If no wallet/action tool is available here, you can launch it manually at https://core.precog.markets/launchpad/.
+Options include Privy or the Precog launchpad. If no wallet/action tool is available here, you can launch it manually at https://core.precog.markets/launchpad/.
+```
+
+Use `event.approved: true` in the bridge input. Do not use a nested `event.approval` object.
+
+After create-intent preparation succeeds:
+
+```txt
+Create intent is ready. I'll sign this with <wallet> next, then submit it to Precog.
+```
+
+After successful creation:
+
+```txt
+Your market is live on Precog: <title>
+
+Share/check link: https://core.precog.markets/launchpad/<chainId>/<marketId>/<slug>
+
+I'll keep checking approval status hourly until Precog validates or rejects it.
 ```
 
 Do not ask users to paste raw `creator_address`, `creator_signature`, `funder_address`, or `funder_signature` in normal chat. Those are resolved outputs from trusted wallet/action tooling.
 
-## Failure Messages
+## Post-Approval Failure Messages
 
-Keep failures actionable:
+Keep failures actionable. Prefer re-running the bridge over editing files by hand.
+
+**Missing or invalid local config**
+
+```txt
+ForecastOS can't read a complete config for this skill install. Copy skill/forecast-os/.forecastos/config.json into the active skill's .forecastos directory, or set FORECASTOS_REPO_ROOT to the ForecastOS repo root. I won't invent a partial config file.
+```
+
+**Blocked draft at create time**
+
+```txt
+This draft still has unresolved validation issues, so I can't prepare the create intent yet. Tell me what to change, or I'll re-draft with explicit chain_id and the missing fields. I won't edit .forecastos files manually.
+```
+
+**Privy adapter not found**
+
+```txt
+Privy signing needs the repo-root adapter through scripts/resolve-privy-create.mjs. Set FORECASTOS_REPO_ROOT to the ForecastOS repo root and retry. I won't search for adapters/wallets under the skill install directory.
+```
+
+**Wrong approval input shape**
+
+```txt
+Approval didn't advance because the bridge needs event.approved: true with the full state object from the prior run_skill_step result. I'll retry with the correct approval payload.
+```
+
+**Wallet signature mismatch**
 
 ```txt
 Precog accepted the draft shape, but creation failed because the wallet signature did not match the creator account. Please retry with your wallet/action tool so it signs the current Precog EIP-712 create intent.
@@ -67,16 +117,40 @@ Do not dump raw API responses unless the user asks for operator detail.
 ## Blocked Drafts And CLI Mistakes
 
 If `draft_market` or `run_skill_step` returns a blocked draft, ask the user for
-the missing source, close time, or resolution time and rerun with complete input.
+the missing source, close time, resolution time, or chain and rerun with complete input.
 Do not hand-write `.forecastos/drafts/*` or `.forecastos/workflows/*`.
+
+Never `sed`-edit, Python-write, or manually patch `.forecastos/*`. Never hand-write partial `config.json`.
+
+Inspect persisted state with `node scripts/inspect_state.mjs` (ESM CLI). Do not use `require(...)` on skill scripts.
 
 If the bridge appears to "reset to intake", verify the command used
 `--input <json-file>` or positional shorthand `<action> <json-file>`. An action
 run without input produces an empty draft or fresh workflow.
 
+Prefer `chain_id` on draft and approval input. `requested_chain_id` is accepted by the runtime but discouraged.
+
+## Anti-Patterns
+
+Do not say these in normal chat:
+
+```txt
+The repo is out of date — pull latest main.
+```
+
+When the issue is usually local config or `.forecastos` state, not git sync.
+
+```txt
+prepare_create_intent failed. I'll patch .forecastos/drafts/*.json and retry.
+```
+
+```txt
+{"action":"prepare_create_intent","status":"error", ... entire stderr ...}
+```
+
 ## Good And Bad Examples
 
-Good:
+Good draft:
 
 ```txt
 Draft ready.
@@ -91,7 +165,13 @@ Source: Riot Games and LoL Esports official results.
 Reply yes to approve, or tell me what to change.
 ```
 
-Bad:
+Good post-approval:
+
+```txt
+Approved on Arbitrum USDC. Pick a signing path: Privy or Precog launchpad.
+```
+
+Bad draft output:
 
 ```json
 {
@@ -99,4 +179,10 @@ Bad:
   "quality": 91,
   "market": { "...": "..." }
 }
+```
+
+Bad post-approval recovery:
+
+```txt
+prepare_create_intent failed. I'll patch .forecastos/drafts/*.json and retry.
 ```

@@ -45,7 +45,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 
 Creation defaults to Precog unless the user explicitly asks for draft-only work or a non-Precog venue. After approval, ask which wallet/action tool the user wants to use. Do not ask for raw wallet addresses or signatures in normal chat.
 
-Use `prepare_create_intent` before live creation. It prepares the Precog `CREATE_UPCOMING_MARKET` typed-data handoff; wallet/action tooling resolves nonce lookup, creator account, signature, and final payload. In normal chat, publish with `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>` after wallet resolution so ForecastOS loads the persisted `create_market` workflow. Do not hand-write `.forecastos/workflows/*` files.
+Use `run_skill_step` at `create_market` with `event.image_url` to prepare the wallet create intent in normal chat. Standalone `prepare_create_intent` with `workflow_id` is a fallback. After wallet resolution, publish with `publish_approved_market --input <workflow-id-json> --wallet-output <wallet-output-json>` so ForecastOS loads the persisted `create_market` workflow. Do not hand-write `.forecastos/workflows/*` files.
 
 Wallet adapters do not choose the market venue; they only resolve signing/action fields for Precog payloads.
 Provider-specific wallet adapter details live in `adapters/wallets/<provider>` in the full ForecastOS repo.
@@ -90,7 +90,7 @@ Set `FORECASTOS_REPO_ROOT` when this skill is copied into Hermes or another host
 ## Post-Approval Create
 
 After approval, pass the full `state` from the prior `run_skill_step` result.
-Use `chain_id` (42161 for Arbitrum), not `requested_chain_id`.
+Prefer `chain_id` (42161 for Arbitrum). `requested_chain_id` is accepted but discouraged.
 
 ```json
 {
@@ -115,3 +115,4 @@ prepare the wallet create intent. Use `node scripts/inspect_state.mjs` to read
 - For Arbitrum creation, pass `chain_id: 42161` and Arbitrum USDC through draft/approval/create events. Privy supports Arbitrum; Base MCP is Base-only.
 - A copied skill install is not the full ForecastOS repo. For Privy, run `scripts/resolve-privy-create.mjs`; do not search for `adapters/wallets/` under the skill directory. Set `FORECASTOS_REPO_ROOT` to the repo root when copied outside the monorepo.
 - Never `sed`-edit or Python-write `.forecastos/*`. Never hand-write partial `config.json`. If config is missing, copy `skill/forecast-os/.forecastos/config.json` into the active skill install.
+- For user-facing failure wording after approval or wallet handoff, read `references/chat-ux.md`.
