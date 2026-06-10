@@ -75,9 +75,14 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
      `eth_signTypedData_v4` for that chain (see Privy adapter README).
    - On `FORECASTOS_REPO_ROOT_REQUIRED`, ask the operator to set
      `FORECASTOS_REPO_ROOT` to the ForecastOS repo root and rerun setup check.
-   - On `PRIVY_POLICY_DENIED` or `PRIVY_POLICY_CHAIN_MISMATCH`, read `guidance`
-     from stderr and patch/add a chain-specific ALLOW rule. Do not retry other
-     wallets blindly.
+   - On `PRIVY_POLICY_DENIED` or `PRIVY_POLICY_CHAIN_MISMATCH`, read `guidance`,
+     `rule_template`, and `patch_command` from stderr. After operator approval,
+     run `node ${HERMES_SKILL_DIR}/scripts/patch-privy-chain-policy.mjs
+     --wallet-id <id> --chain-id <8453|42161> --confirm`. Do not invent dashboard
+     JSON or fake nested `"chainId"` / `"allow"` policy shapes. Use the Privy
+     adapter README rule format only. After patching, re-run
+     `resolve-privy-create.mjs` on the persisted create intent and
+     `publish_approved_market`; do not reuse Base MCP wallet output.
 7. Submit with `publish_approved_market --workflow-id <workflow_id>
    --wallet-output <adapter-output-json>`.
 8. Return the created market title and generated launchpad share/check link
@@ -162,6 +167,8 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
 - Do not call direct `create_market` as the normal publish path. It lacks the
   wallet-resolved fields unless a wallet adapter has already returned them.
 - Privy supports Base (`8453`) and Arbitrum (`42161`). Base MCP is Base-only.
+  Before Base Privy signing, run `check-hermes-setup.mjs` and confirm
+  `supports_base: true` or patch with `patch-privy-chain-policy.mjs --confirm`.
 - A copied Hermes skill is not the full ForecastOS repo. Privy signing resolves
   through `scripts/resolve-privy-create.mjs` and the repo-root adapter at
   `adapters/wallets/privy/resolve_create.mjs`. Set `FORECASTOS_REPO_ROOT` when

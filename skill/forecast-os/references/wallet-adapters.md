@@ -180,7 +180,16 @@ Privy wallet RPC request in host-specific code. The adapter sends
 regression. If it returns `PRIVY_POLICY_DENIED` or “RPC request denied due to
 policy violation,” ask the operator to update the selected wallet policy to
 allow `eth_signTypedData_v4`; include `eth_sendTransaction` too if the wallet
-will later fund the market.
+will later fund the market. Privy does not support `in` for typed-data
+`chainId`; add one ALLOW rule per chain. After operator approval, run:
+
+```txt
+node scripts/patch-privy-chain-policy.mjs --wallet-id <id> --chain-id 8453 --confirm
+```
+
+The canonical repo adapter is `adapters/wallets/privy/patch_forecastos_chain_policy.mjs`.
+On `PRIVY_POLICY_CHAIN_MISMATCH`, read `patch_command` and `rule_template` from stderr.
+Do not invent nested dashboard JSON such as `{ "chainId": 8453, "allow": [...] }`.
 
 ## Funding Flow
 

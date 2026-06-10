@@ -100,6 +100,12 @@ This draft still has unresolved validation issues, so I can't prepare the create
 The resolution criteria names a fallback outcome that isn't in the outcomes list—for example Invalid / ambiguous. I can add that outcome or rewrite the Fallback line. Which do you prefer?
 ```
 
+**Privy policy blocks Base signing**
+
+```txt
+Your Privy wallet policy only allows typed-data signing on Arbitrum right now. I can add the Base (8453) ALLOW rule with your confirmation, then re-sign and publish. I won't invent custom policy JSON.
+```
+
 **Privy adapter not found**
 
 ```txt

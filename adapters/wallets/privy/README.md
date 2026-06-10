@@ -48,6 +48,25 @@ Privy does **not** support `in` for typed-data `chainId` conditions. Use **one A
 
 Duplicate the rule with `"value": "8453"` for Base. The adapter preflights policy rules before signing and fails early with `PRIVY_POLICY_CHAIN_MISMATCH` when the target chain is missing.
 
+## Patch Missing Chain
+
+After operator approval, add a missing typed-data ALLOW rule with:
+
+```txt
+node adapters/wallets/privy/patch_forecastos_chain_policy.mjs \
+  --wallet-id <privy-wallet-id> \
+  --chain-id 8453 \
+  --confirm
+```
+
+Copied skill / Hermes installs can use:
+
+```txt
+node scripts/patch-privy-chain-policy.mjs --wallet-id <id> --chain-id 8453 --confirm
+```
+
+The script requires `--confirm` and uses Privy's `POST /v1/policies/{policy_id}/rules` API with the ForecastOS rule shape above. Re-run `resolve_create.mjs` after patching; do not reuse wallet output from a different provider.
+
 ## Output
 
 The adapter returns the standard create adapter shape from `adapters/wallets/contract.md`. Pass the adapter output file directly to `scripts/forecastos_action.mjs publish_approved_market` with the persisted `create_market` workflow id:

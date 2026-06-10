@@ -8,6 +8,8 @@ import {
   buildPrivyTypedDataRpcBody,
   resolveCreate,
 } from "../privy/resolve_create.mjs";
+import { buildTypedDataAllowRule } from "../privy/policy_rules.mjs";
+import { patchForecastOSChainPolicy } from "../privy/patch_forecastos_chain_policy.mjs";
 import {
   buildCreateTypedData as buildBaseMcpCreateTypedData,
   resolveCreate as resolveBaseMcpCreate,
@@ -357,9 +359,102 @@ test("Privy create resolver preflights typed-data chain policy mismatch", async 
       assert.deepEqual(error.allowed_chain_ids, ["8453"]);
       assert.ok(error.guidance.includes("42161"));
       assert.ok(error.guidance.includes("8453"));
+      assert.ok(error.patch_command?.includes("patch_forecastos_chain_policy.mjs"));
+      assert.equal(error.rule_template?.conditions?.[0]?.value, "42161");
       return true;
     },
   );
+});
+
+test("buildTypedDataAllowRule uses Privy typed-data domain chainId conditions", () => {
+  const rule = buildTypedDataAllowRule(8453);
+  assert.equal(rule.method, "eth_signTypedData_v4");
+  assert.equal(rule.action, "ALLOW");
+  assert.equal(rule.conditions[0].field_source, "ethereum_typed_data_domain");
+  assert.equal(rule.conditions[0].field, "chainId");
+  assert.equal(rule.conditions[0].operator, "eq");
+  assert.equal(rule.conditions[0].value, "8453");
+});
+
+test("patch_forecastos_chain_policy rejects without --confirm", async () => {
+  await assert.rejects(
+    patchForecastOSChainPolicy({
+      walletId: "wallet_1",
+      chainId: 8453,
+      confirm: false,
+      env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+      fetch: async () => jsonResponse({}),
+    }),
+    (error) => {
+      assert.equal(error.code, "PRIVY_POLICY_PATCH_CONFIRMATION_REQUIRED");
+      return true;
+    },
+  );
+});
+
+test("patch_forecastos_chain_policy adds missing Base typed-data rule", async () => {
+  const posts = [];
+  let policyRules = [
+    {
+      method: "eth_signTypedData_v4",
+      action: "ALLOW",
+      conditions: [
+        {
+          field_source: "ethereum_typed_data_domain",
+          field: "chainId",
+          operator: "eq",
+          value: "42161",
+        },
+      ],
+    },
+    { method: "eth_sendTransaction", action: "ALLOW" },
+  ];
+  const fetch = async (url, options = {}) => {
+    if (String(url).includes("/wallets/wallet_arb_only") && (!options.method || options.method === "GET")) {
+      return jsonResponse({
+        id: "wallet_arb_only",
+        policy_ids: ["policy_arb_only"],
+      });
+    }
+    if (String(url).includes("/policies/policy_arb_only") && (!options.method || options.method === "GET")) {
+      return jsonResponse({
+        id: "policy_arb_only",
+        rules: policyRules,
+      });
+    }
+    if (String(url).includes("/policies/policy_arb_only/rules") && options.method === "POST") {
+      const body = JSON.parse(options.body);
+      posts.push(body);
+      policyRules = [...policyRules, body];
+      return jsonResponse({ id: "rule_base", ...body });
+    }
+    throw new Error(`Unexpected URL ${url} ${options.method ?? "GET"}`);
+  };
+
+  const first = await patchForecastOSChainPolicy({
+    walletId: "wallet_arb_only",
+    chainId: 8453,
+    confirm: true,
+    env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+    fetch,
+  });
+
+  assert.equal(first.added_rules.length, 1);
+  assert.equal(first.added_rules[0].chain_id, 8453);
+  assert.equal(first.supports_target_chain, true);
+  assert.equal(posts[0].conditions[0].value, "8453");
+
+  const second = await patchForecastOSChainPolicy({
+    walletId: "wallet_arb_only",
+    chainId: 8453,
+    confirm: true,
+    env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+    fetch,
+  });
+
+  assert.equal(second.added_rules.length, 0);
+  assert.ok(second.skipped_policies.length >= 1);
+  assert.equal(posts.length, 1);
 });
 
 test("Privy create resolver ignores DENY typed-data policy rules", async () => {
@@ -521,7 +616,10 @@ test("portable skill points to wallet adapters without embedding provider implem
 
   assert.ok(skill.includes("adapters/wallets/<provider>"));
   assert.ok(skill.includes("references/wallet-adapters.md"));
-  assert.ok(shim.includes("adapters/wallets/privy/resolve_create.mjs"));
+  assert.ok(
+    shim.includes("getPrivyAdapterCandidates") ||
+      shim.includes("adapters/wallets/privy/resolve_create.mjs"),
+  );
   assert.ok(!shim.includes("PRIVY_API_ROOT"));
 });
 

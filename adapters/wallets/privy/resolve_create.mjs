@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeEvmChecksumAddress } from "../address_utils.mjs";
+import { buildForecastOSTypedDataPolicyGuidance } from "./policy_rules.mjs";
 
 const PRIVY_API_ROOT = "https://api.privy.io/v1";
 const DEFAULT_BASE_RPC_URL = "https://mainnet.base.org";
@@ -318,6 +319,7 @@ function fail(message) {
 function buildPrivyApiError(message, response, endpoint, body, context = {}) {
   const chainId = context.chainId;
   if (isPrivyPolicyDenied(body)) {
+    const policyHelp = buildTypedDataPolicyGuidance(chainId, [], context.walletId);
     const error = new Error(`${message}: Privy wallet policy denied eth_signTypedData_v4.`);
     error.code = "PRIVY_POLICY_DENIED";
     error.status = response.status;
@@ -326,7 +328,9 @@ function buildPrivyApiError(message, response, endpoint, body, context = {}) {
     error.wallet_id = context.walletId;
     error.chain_id = chainId;
     error.required_methods = context.requiredMethods ?? ["eth_signTypedData_v4"];
-    error.guidance = buildTypedDataPolicyGuidance(chainId);
+    error.guidance = policyHelp.guidance;
+    error.rule_template = policyHelp.rule_template;
+    error.patch_command = policyHelp.patch_command;
     return error;
   }
   const error = new Error(`${message}: ${response.status}`);
@@ -360,6 +364,8 @@ function serializeError(error) {
     allowed_chain_ids: error?.allowed_chain_ids,
     required_methods: error?.required_methods,
     guidance: error?.guidance,
+    rule_template: error?.rule_template,
+    patch_command: error?.patch_command,
     wallets: error?.wallets,
     wallet_diagnostics: error?.wallet_diagnostics,
   });
@@ -404,20 +410,18 @@ export function assertTypedDataPolicyAllowsChain(policies = [], chainId, walletI
   error.wallet_id = walletId;
   error.chain_id = chainId;
   error.allowed_chain_ids = chainIds;
-  error.guidance = buildTypedDataPolicyGuidance(chainId, chainIds);
+  const policyHelp = buildTypedDataPolicyGuidance(chainId, chainIds, walletId);
+  error.guidance = policyHelp.guidance;
+  error.rule_template = policyHelp.rule_template;
+  error.patch_command = policyHelp.patch_command;
   throw error;
 }
 
-function buildTypedDataPolicyGuidance(chainId, allowedChainIds = []) {
-  const target = chainId ? `chainId eq ${chainId}` : "the target chain";
-  const allowed =
-    allowedChainIds.length > 0
-      ? ` Current ALLOW rules only cover chainId: ${allowedChainIds.join(", ")}.`
-      : " No chain-specific ALLOW rule matched this create intent.";
-  return [
-    `Update the selected Privy wallet policy to ALLOW eth_signTypedData_v4 with ${target}.`,
-    "Privy does not support `in` for chainId; add one ALLOW rule per chain (8453 and 42161).",
-    "Include eth_sendTransaction on the same policy if the wallet will fund later.",
-    allowed.trim(),
-  ].join(" ");
+function buildTypedDataPolicyGuidance(chainId, allowedChainIds = [], walletId) {
+  return buildForecastOSTypedDataPolicyGuidance({
+    chainId,
+    allowedChainIds,
+    walletId,
+    patchScriptPath: "adapters/wallets/privy/patch_forecastos_chain_policy.mjs",
+  });
 }

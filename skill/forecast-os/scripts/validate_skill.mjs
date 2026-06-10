@@ -149,6 +149,7 @@ assert(
 );
 assert(!walletShim.includes("PRIVY_API_ROOT"), "Portable skill shim must not contain provider implementation details");
 await assertFile(join(root, "scripts", "resolve-privy-create.mjs"));
+await assertFile(join(root, "scripts", "patch-privy-chain-policy.mjs"));
 const privyAlias = await readFile(join(root, "scripts", "resolve-privy-create.mjs"), "utf8");
 assert(
   privyAlias.includes("privy_resolve_create.mjs"),
@@ -250,6 +251,8 @@ assert(
 const walletAdaptersDoc = await readFile(join(root, "references", "wallet-adapters.md"), "utf8");
 assert(
   walletAdaptersDoc.includes("resolve-privy-create.mjs") &&
+    walletAdaptersDoc.includes("patch-privy-chain-policy.mjs") &&
+    walletAdaptersDoc.includes("patch_forecastos_chain_policy.mjs") &&
     walletAdaptersDoc.includes("FORECASTOS_REPO_ROOT") &&
     walletAdaptersDoc.includes("Do not search for") &&
     walletAdaptersDoc.includes("adapters/wallets"),
@@ -695,6 +698,7 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertFile(join(hermesSkillRoot, "scripts", "forecastos-runtime.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
   await assertFile(join(hermesPluginRoot, "__init__.py"));
 
@@ -728,6 +732,7 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     hermesSkill.includes("prepare-create-intent.mjs") &&
       hermesSkill.includes("resolve-privy-create.mjs") &&
+      hermesSkill.includes("patch-privy-chain-policy.mjs") &&
       hermesSkill.includes("run_skill_step") &&
       hermesSkill.includes("--wallet-output") &&
       hermesSkill.includes("Do not call direct `create_market` as the normal publish path") &&
@@ -802,6 +807,9 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSetupScript.includes("hermes_prepare_create_wrapper") &&
       hermesSetupScript.includes('actionBridgeSupportCheck("prepare_create_intent")') &&
       hermesSetupScript.includes("hermes_privy_wrapper") &&
+      hermesSetupScript.includes("hermes_privy_patch_wrapper") &&
+      hermesSetupScript.includes("missing_chain_ids") &&
+      hermesSetupScript.includes("patch_command") &&
       hermesSetupScript.includes("resolvePrivyAdapterScript") &&
       hermesSetupScript.includes("hermes_state_config") &&
       hermesSetupScript.includes("hermes_state_dir"),

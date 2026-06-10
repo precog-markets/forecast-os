@@ -30,6 +30,7 @@ const checks = [
   await checkFile("hermes_action_wrapper", join(hermesSkillRoot, "scripts", "forecastos-action.mjs")),
   await checkFile("hermes_prepare_create_wrapper", join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs")),
   await checkFile("hermes_privy_wrapper", join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs")),
+  await checkFile("hermes_privy_patch_wrapper", join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs")),
   await checkFile("hermes_skill", join(hermesSkillRoot, "SKILL.md")),
   await checkPrivyTypedDataPolicyCoverage(process.env, repoRoot),
 ];
@@ -173,12 +174,26 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}, repoRootPath = repoRo
     const { extractAllowedTypedDataChainIds } = await import(
       pathToFileURL(join(repoRootPath, "adapters", "wallets", "privy", "resolve_create.mjs")).href
     );
+    const { buildPatchCommand, buildTypedDataAllowRule } = await import(
+      pathToFileURL(join(repoRootPath, "adapters", "wallets", "privy", "policy_rules.mjs")).href
+    );
     const { chainIds, hasUnrestrictedRule } = extractAllowedTypedDataChainIds(policies);
     const supports8453 = hasUnrestrictedRule || chainIds.includes("8453");
     const supports42161 = hasUnrestrictedRule || chainIds.includes("42161");
+    const missingChainIds = [];
+    if (!supports8453) missingChainIds.push(8453);
+    if (!supports42161) missingChainIds.push(42161);
     const warnings = [];
     if (!supports8453) warnings.push("Missing eth_signTypedData_v4 ALLOW for Base chainId 8453.");
     if (!supports42161) warnings.push("Missing eth_signTypedData_v4 ALLOW for Arbitrum chainId 42161.");
+    const patchScript = join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs");
+    const patchCommands = missingChainIds.map((chainId) =>
+      buildPatchCommand({
+        walletId,
+        chainId,
+        scriptPath: patchScript,
+      }),
+    );
     return {
       name: "privy_typed_data_policy",
       ok: true,
@@ -186,10 +201,14 @@ async function checkPrivyTypedDataPolicyCoverage(env = {}, repoRootPath = repoRo
       wallet_id: walletId,
       policy_ids: wallet.policy_ids ?? [],
       allowed_chain_ids: chainIds,
+      missing_chain_ids: missingChainIds,
       has_unrestricted_rule: hasUnrestrictedRule,
       supports_base: supports8453,
       supports_arbitrum: supports42161,
       warnings,
+      rule_template: missingChainIds.length ? buildTypedDataAllowRule(missingChainIds[0]) : null,
+      patch_command: patchCommands[0] ?? null,
+      patch_commands: patchCommands,
     };
   } catch (error) {
     return {
