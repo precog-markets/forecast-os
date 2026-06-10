@@ -37,6 +37,8 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Normalize and display all market times in UTC.
 - Show configured collateral in draft summaries, for example `Token: USDC`, and show `Chain: Base (8453)` or `Chain: Arbitrum (42161)` when selected.
 - Read chain and collateral from active ForecastOS context. **Before the first draft**, confirm chain with the user (`With collateral from which chain?`) and offer `USDC on Base` or `USDC on Arbitrum` even when they mention a chain name in the initial prompt. The runtime blocks drafts until `chain_id` or chain-specific collateral is explicit. Pass the selected chain through draft/approval/create events; do not hand-write `.forecastos/workflows/*` files or bypass `publish_approved_market`.
+- For non-default collateral (for example USDT on Arbitrum), pass `collateral_address` and `collateral_symbol` with `chain_id`. Aliases `requested_collateral_address` and `requested_collateral_symbol` are accepted on draft input. ForecastOS warns when the token is not in configured `default_collateral_options`; Precog may still reject unsupported tokens at create time.
+- `draft_market` persists workflow state at `await_approval`. Approval must reuse the full returned `state` object (including `workflow_id`, `draft_id`, and `draft_hash`); do not hand-write workflow IDs.
 - Use `.forecastos/` as structured workflow memory. `FORECASTOS_STATE_DIR` may override the default state directory.
 - Do not require MCP for normal drafting or creation. Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.

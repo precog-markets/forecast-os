@@ -98,7 +98,8 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
 ## Post-Approval Create
 
 After the user approves, pass the **full `state` object** from the prior
-`run_skill_step` result. Use `chain_id` (not `requested_chain_id`).
+`draft_market` or `run_skill_step` result. Use `chain_id` (not `requested_chain_id`).
+Never hand-write `workflow_id`; reuse the persisted workflow from the draft response.
 
 Approval step (`step: await_approval`):
 

@@ -13,6 +13,8 @@ When drafting:
 - Provide detailed `resolution_criteria` when possible using labeled lines for `Source of truth`, `Winning outcome rule`, `Resolution timing`, and `Fallback`.
 - Draft approval summaries display configured collateral token context such as `Token: USDC`, including the collateral address when available.
 - Supported configured chains are Base (`8453`) and Arbitrum (`42161`). If chain/collateral is missing, ask explicitly (`With collateral from which chain?`) and offer defaults `USDC on Base` and `USDC on Arbitrum`. If already specified, respect the user's selected chain/collateral.
+- For non-default collateral, include `chain_id`, `collateral_address`, and `collateral_symbol`. Aliases `requested_collateral_address` and `requested_collateral_symbol` are accepted on draft input.
+- `draft_market` returns workflow-backed output: reuse the full `state` object from the result for approval (`state.workflow_id`, `state.draft_id`, `state.draft_hash`).
 
 ```json
 {
@@ -23,7 +25,10 @@ When drafting:
   "requested_outcomes": ["Clawpump", "Liquid", "Virtuals", "Other"],
   "source_hints": ["Official launcher dashboards"],
   "requested_close_time": "2026-06-01T00:00:00Z",
-  "requested_resolution_time": "2026-07-01T00:00:00Z"
+  "requested_resolution_time": "2026-07-01T00:00:00Z",
+  "chain_id": 42161,
+  "collateral_address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  "collateral_symbol": "USDT"
 }
 ```
 

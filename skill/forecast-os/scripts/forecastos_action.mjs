@@ -148,6 +148,8 @@ function normalizeInput(actionName, input) {
     return {
       ...input,
       preferred_market_type: "multi_outcome",
+      collateral_address: input.collateral_address ?? input.requested_collateral_address,
+      collateral_symbol: input.collateral_symbol ?? input.requested_collateral_symbol,
     };
   }
   if (actionName === "run_skill_step" || actionName === "publish_approved_market") {
@@ -435,7 +437,9 @@ function buildForecastOSOptions(imported) {
 }
 
 async function dispatch(forecastos, actionName, input) {
-  if (actionName === "draft_market") return forecastos.draftMarket(input);
+  if (actionName === "draft_market") {
+    return forecastos.runSkillStep({ step: "intake" }, { input });
+  }
   if (actionName === "run_skill_step") {
     return forecastos.runSkillStep(input.state ?? {}, input.event ?? {});
   }

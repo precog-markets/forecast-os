@@ -8,6 +8,7 @@ import {
   readPrecogConfig,
   requireDefaultCollateralAddress,
   requireDeployedMasterAddress,
+  resolveCollateralFromHints,
   resolveWorkflowChainId,
 } from "./lib/config.mjs";
 import { buildCreatePayload } from "./lib/create_payload.mjs";
@@ -756,6 +757,7 @@ function buildDraft(input = {}, context = {}) {
   const precog = context.config?.precog ?? {};
   const chainExplicit = chainSelectionExplicit(input, precog);
   const collateralContext = buildDraftCollateralContext(input, context.config);
+  warnings.push(...(collateralContext.warnings ?? []));
   const resolvedChainId = chainExplicit
     ? (collateralContext.chain_id ?? chainIdFromInput(input, precog))
     : null;
@@ -953,10 +955,8 @@ function chainSelectionExplicit(input = {}, precog = {}) {
   if (Number.isInteger(chainId) && chainId > 0 && isSupportedChainId(chainId, precog)) {
     return true;
   }
-  const collateralChainId = chainFromCollateralAddress(
-    input.collateral_address,
-    precog,
-  );
+  const hints = chainHintsFrom(input);
+  const collateralChainId = chainFromCollateralAddress(hints.collateral_address, precog);
   return collateralChainId !== null;
 }
 
@@ -1001,50 +1001,35 @@ function chainFromCollateralAddress(address, precog = {}) {
 
 function buildDraftCollateralContext(input = {}, config = {}) {
   const precog = config?.precog ?? {};
-  const chainId = resolveWorkflowChainId(precog, chainHintsFrom(input));
-  const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
+  const resolved = resolveCollateralFromHints(precog, chainHintsFrom(input));
   return {
-    symbol: input.collateral_symbol ?? chainConfig?.default_collateral_symbol ?? precog.default_collateral_symbol ?? null,
-    address: input.collateral_address ?? chainConfig?.default_collateral_address ?? precog.default_collateral_address ?? null,
-    chain_id: chainId,
+    symbol: resolved.collateral_symbol,
+    address: resolved.collateral_address,
+    chain_id: resolved.chain_id,
+    warnings: resolved.warnings,
   };
 }
 
 async function resolveChainContextFromStore(store, event = {}, state = {}) {
   const config = typeof store.getConfig === "function" ? await store.getConfig(process.env) : {};
   const precog = config?.precog ?? {};
-  const chainId = resolveWorkflowChainId(precog, chainHintsFrom({ event, state }));
-  const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
+  const resolved = resolveCollateralFromHints(precog, chainHintsFrom({ event, state }));
   return {
-    chain_id: chainId,
-    collateral_address:
-      event.collateral_address ??
-      event.input?.collateral_address ??
-      state.collateral_address ??
-      chainConfig?.default_collateral_address ??
-      precog.default_collateral_address ??
-      null,
-    collateral_symbol:
-      event.collateral_symbol ??
-      event.input?.collateral_symbol ??
-      state.collateral_symbol ??
-      chainConfig?.default_collateral_symbol ??
-      precog.default_collateral_symbol ??
-      null,
+    chain_id: resolved.chain_id,
+    collateral_address: resolved.collateral_address,
+    collateral_symbol: resolved.collateral_symbol,
   };
 }
 
 async function patchDraftChainOnApproval(store, draftId, chainContext = {}) {
-  if (!draftId || !chainContext.chain_id || typeof store.get !== "function") return;
+  if (!draftId || typeof store.get !== "function") return;
   const draft = await store.get(draftId);
   if (!draft?.market) return;
   const hadChain = draft.market.chain_id != null;
-  if (!hadChain) {
+  let changed = false;
+  if (!hadChain && chainContext.chain_id) {
     draft.market.chain_id = chainContext.chain_id;
-    draft.market.collateral_address =
-      chainContext.collateral_address ?? draft.market.collateral_address;
-    draft.market.collateral_symbol =
-      chainContext.collateral_symbol ?? draft.market.collateral_symbol;
+    changed = true;
     draft.quality.blocking_issues = (draft.quality.blocking_issues ?? []).filter(
       (issue) => !String(issue).includes("Chain not selected"),
     );
@@ -1055,8 +1040,22 @@ async function patchDraftChainOnApproval(store, draftId, chainContext = {}) {
       draft.status = "pass";
       draft.quality.score = 90;
     }
-    await store.save(draft);
   }
+  if (
+    chainContext.collateral_address &&
+    chainContext.collateral_address !== draft.market.collateral_address
+  ) {
+    draft.market.collateral_address = chainContext.collateral_address;
+    changed = true;
+  }
+  if (
+    chainContext.collateral_symbol &&
+    chainContext.collateral_symbol !== draft.market.collateral_symbol
+  ) {
+    draft.market.collateral_symbol = chainContext.collateral_symbol;
+    changed = true;
+  }
+  if (changed) await store.save(draft);
 }
 
 function normalizeDraftOutcomes(value) {

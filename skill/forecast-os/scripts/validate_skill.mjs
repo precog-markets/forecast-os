@@ -310,6 +310,12 @@ assert(
   "references/actions.md must document ask-if-missing chain/collateral guidance with Base/Arbitrum USDC defaults",
 );
 assert(
+  skill.includes("requested_collateral_address") &&
+    actionsDoc.includes("requested_collateral_address") &&
+    actionsDoc.includes("draft_market` routes through"),
+  "SKILL.md and references/actions.md must document collateral override aliases and workflow-backed draft_market",
+);
+assert(
   skill.includes("pending_check") &&
     skill.includes("--auto-redraft") &&
     skill.includes("linked replacement draft for user approval"),

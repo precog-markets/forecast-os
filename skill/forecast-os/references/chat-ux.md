@@ -10,6 +10,7 @@ Use this file before writing user-facing ForecastOS draft, approval, wallet hand
 - Always end with the next action the user can take.
 - Use UTC labels for close and resolution times.
 - Mention the configured token in draft summaries, for example `Token: USDC`.
+- When the user asks for non-configured collateral (for example USDT on Arbitrum), confirm the override, show the resolved token and address in the draft summary, and warn that Precog may reject tokens outside configured `default_collateral_options`.
 
 ## Operator Vs User Voice
 

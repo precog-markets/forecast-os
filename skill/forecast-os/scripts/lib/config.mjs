@@ -54,9 +54,35 @@ export function chainConfigFor(precog, chainId) {
   return entry && typeof entry === "object" ? entry : null;
 }
 
+export function normalizeCollateralHints(input = {}) {
+  const event = input.event ?? {};
+  const eventInput = event.input ?? {};
+  return {
+    collateral_address:
+      input.collateral_address ??
+      input.requested_collateral_address ??
+      event.collateral_address ??
+      event.requested_collateral_address ??
+      eventInput.collateral_address ??
+      eventInput.requested_collateral_address ??
+      input.state?.collateral_address ??
+      null,
+    collateral_symbol:
+      input.collateral_symbol ??
+      input.requested_collateral_symbol ??
+      event.collateral_symbol ??
+      event.requested_collateral_symbol ??
+      eventInput.collateral_symbol ??
+      eventInput.requested_collateral_symbol ??
+      input.state?.collateral_symbol ??
+      null,
+  };
+}
+
 export function chainHintsFrom(input = {}) {
   const event = input.event ?? {};
   const eventInput = event.input ?? {};
+  const collateral = normalizeCollateralHints(input);
   return {
     chain_id:
       input.chain_id ??
@@ -65,16 +91,40 @@ export function chainHintsFrom(input = {}) {
       eventInput.chain_id ??
       eventInput.requested_chain_id ??
       input.state?.chain_id,
-    collateral_address:
-      input.collateral_address ??
-      event.collateral_address ??
-      eventInput.collateral_address ??
-      input.state?.collateral_address,
-    collateral_symbol:
-      input.collateral_symbol ??
-      event.collateral_symbol ??
-      eventInput.collateral_symbol ??
-      input.state?.collateral_symbol,
+    collateral_address: collateral.collateral_address,
+    collateral_symbol: collateral.collateral_symbol,
+  };
+}
+
+export function collateralWarningsForAddress(address, precog = {}) {
+  if (!address) return [];
+  const normalized = normalizeConfigAddress(address);
+  const known = (precog.default_collateral_options ?? []).some(
+    (option) => normalizeConfigAddress(option.address) === normalized,
+  );
+  if (known) return [];
+  return [
+    "Custom collateral is not in configured default_collateral_options; Precog may reject unsupported tokens.",
+  ];
+}
+
+export function resolveCollateralFromHints(precog = {}, hints = {}) {
+  const chainId = resolveWorkflowChainId(precog, hints);
+  const chainConfig = chainId ? chainConfigFor(precog, chainId) : null;
+  const explicitAddress = hints.collateral_address ? String(hints.collateral_address).trim() : null;
+  const explicitSymbol = hints.collateral_symbol ? String(hints.collateral_symbol).trim() : null;
+  const hasExplicitCollateral = Boolean(explicitAddress || explicitSymbol);
+  const address = hasExplicitCollateral
+    ? explicitAddress
+    : chainConfig?.default_collateral_address ?? precog.default_collateral_address ?? null;
+  const symbol = hasExplicitCollateral
+    ? explicitSymbol
+    : chainConfig?.default_collateral_symbol ?? precog.default_collateral_symbol ?? null;
+  return {
+    chain_id: chainId,
+    collateral_address: address,
+    collateral_symbol: symbol,
+    warnings: hasExplicitCollateral && explicitAddress ? collateralWarningsForAddress(explicitAddress, precog) : [],
   };
 }
 

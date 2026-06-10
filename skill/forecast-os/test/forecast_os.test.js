@@ -21,6 +21,7 @@ const configChainId = shippedConfig.precog.chain_id;
 const configChain = shippedConfig.precog.supported_chains[String(configChainId)];
 const configDeployedMasterAddress = configChain.deployed_master_address;
 const configCollateralAddress = configChain.default_collateral_address;
+const arbitrumUsdtAddress = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9";
 const configSignatureActions = shippedConfig.precog.signature_actions;
 const lowerCreatorAddress = "0x52908400098527886e0f7030069857d2e4169ee7";
 const checksumCreatorAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
@@ -28,12 +29,21 @@ const isRepoLayout = await exists(join(monorepoRoot, "VERSION")) &&
   await exists(join(monorepoRoot, "adapters"));
 const repoOnly = isRepoLayout ? test : test.skip;
 
+function actionDraftPayload(result) {
+  return result.result?.tool_result ?? result.result;
+}
+
+function actionWorkflowState(result) {
+  return result.result?.state ?? {};
+}
+
 function ensureDraftChain(input = {}) {
   if (
     input.chain_id !== undefined ||
     input.requested_chain_id !== undefined ||
     input.preferred_chain_id !== undefined ||
     input.collateral_address !== undefined ||
+    input.requested_collateral_address !== undefined ||
     input.preferred_chain ||
     input.chain
   ) {
@@ -137,18 +147,20 @@ repoOnly("forecastos_action defaults to bundled skill config when run from repo 
     { cwd: monorepoRoot, env: envWithoutForecastState() },
   );
   const result = JSON.parse(stdout);
+  const draftId = actionDraftPayload(result).draft_id;
 
   try {
     assert.equal(await exists(join(monorepoRoot, ".forecastos", "config.json")), false);
     assert.equal(result.status, "ok");
-    assert.equal(result.result.market.collateral_symbol, "USDC");
-    assert.equal(result.result.market.collateral_address, configCollateralAddress);
+    const draft = actionDraftPayload(result);
+    assert.equal(draft.market.collateral_symbol, "USDC");
+    assert.equal(draft.market.collateral_address, configCollateralAddress);
     assert.equal(
-      await exists(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`)),
+      await exists(join(skillRoot, ".forecastos", "drafts", `${draft.draft_id}.json`)),
       true,
     );
   } finally {
-    await rm(join(skillRoot, ".forecastos", "drafts", `${result.result.draft_id}.json`), {
+    await rm(join(skillRoot, ".forecastos", "drafts", `${draftId}.json`), {
       force: true,
     });
   }
@@ -383,7 +395,8 @@ test("forecastos_action accepts stdin input JSON", async () => {
   const result = JSON.parse(stdout);
 
   assert.equal(result.status, "ok");
-  assert.equal(result.result.market.question, "Which team wins the event?");
+  assert.equal(actionDraftPayload(result).market.question, "Which team wins the event?");
+  assert.equal(actionWorkflowState(result).step, "await_approval");
 });
 
 test("bundled runtime builds Precog create and fund requests from local config", async () => {
@@ -1814,7 +1827,9 @@ repoOnly("Cursor host adapter exposes a native Agent Skill package", async () =>
   );
   const draft = JSON.parse(forwarded.stdout);
   assert.equal(draft.status, "ok");
-  assert.ok(draft.result.review_message.includes("Which launcher leads June agents?"));
+  const reviewMessage =
+    actionDraftPayload(draft).review_message ?? draft.result.agent_message ?? "";
+  assert.ok(reviewMessage.includes("Which launcher leads June agents?"));
 });
 
 repoOnly("Hermes host adapter exposes a normal skill package and optional plugin wrapper", async () => {
@@ -1935,13 +1950,14 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   );
   const hermesDraft = JSON.parse(hermesForwarded.stdout);
   assert.equal(hermesDraft.status, "ok");
-  assert.equal(hermesDraft.result.market.question, "Which team wins the event?");
+  const hermesDraftPayload = actionDraftPayload(hermesDraft);
+  assert.equal(hermesDraftPayload.market.question, "Which team wins the event?");
 
   await writeFile(
     hermesPrepareInput,
     JSON.stringify({
-      draft_id: hermesDraft.result.draft_id,
-      approval_text: hermesDraft.result.approval_text,
+      draft_id: hermesDraftPayload.draft_id,
+      approval_text: hermesDraftPayload.approval_text,
       image_url: "https://example.com/image.png",
     }),
   );
@@ -2528,6 +2544,148 @@ test("draft review displays configured collateral token", async () => {
   assert.ok(draft.review_message.includes(`Token: USDC (${configCollateralAddress})`));
 });
 
+test("draft honors requested_collateral override with warning", async () => {
+  const rootDir = join(skillRoot, "test-output", "custom-collateral-draft");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createTestForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which artist tops the chart in June 2026?",
+    requested_outcomes: ["Artist A", "Artist B", "Other"],
+    source_hints: ["Official chart data"],
+    requested_close_time: "2026-06-30T23:59:59Z",
+    requested_resolution_time: "2026-07-03T00:00:00Z",
+    chain_id: 42161,
+    requested_collateral_address: arbitrumUsdtAddress,
+    requested_collateral_symbol: "USDT",
+  });
+
+  assert.equal(draft.market.collateral_symbol, "USDT");
+  assert.equal(draft.market.collateral_address, arbitrumUsdtAddress);
+  assert.ok(
+    draft.quality.warnings.some((warning) =>
+      warning.includes("default_collateral_options"),
+    ),
+  );
+});
+
+test("run_skill_step approval carries custom collateral into workflow state", async () => {
+  const forecastos = createTestForecastOS({
+    fetch: async () => {
+      throw new Error("run_skill_step should not call the network during draft/approval");
+    },
+  });
+  const drafted = await forecastos.runSkillStep({}, {
+    input: {
+      prompt: "Which artist tops the chart in June 2026?",
+      requested_outcomes: ["Artist A", "Artist B", "Other"],
+      source_hints: ["Official chart data"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+      chain_id: 42161,
+      requested_collateral_address: arbitrumUsdtAddress,
+      requested_collateral_symbol: "USDT",
+    },
+  });
+  assert.equal(drafted.state.step, "await_approval");
+  assert.equal(drafted.state.collateral_address, arbitrumUsdtAddress);
+  assert.equal(drafted.state.collateral_symbol, "USDT");
+
+  const approved = await forecastos.runSkillStep(drafted.state, {
+    approved: true,
+    approval_text: drafted.state.approval_text,
+    chain_id: 42161,
+    collateral_address: arbitrumUsdtAddress,
+    collateral_symbol: "USDT",
+  });
+  assert.equal(approved.state.step, "create_market");
+  assert.equal(approved.state.collateral_address, arbitrumUsdtAddress);
+  assert.equal(approved.state.collateral_symbol, "USDT");
+});
+
+test("approval patches collateral override when draft chain was already set", async () => {
+  const rootDir = join(skillRoot, "test-output", "collateral-approval-patch");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createTestForecastOS({ store: new DirectoryDraftStateStore(stateDir) });
+  const drafted = await forecastos.runSkillStep({}, {
+    input: {
+      prompt: "Which artist tops the chart in June 2026?",
+      requested_outcomes: ["Artist A", "Artist B", "Other"],
+      source_hints: ["Official chart data"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+      chain_id: 42161,
+    },
+  });
+  assert.equal(drafted.tool_result.market.collateral_symbol, "USDC");
+
+  const approved = await forecastos.runSkillStep(drafted.state, {
+    approved: true,
+    approval_text: drafted.state.approval_text,
+    chain_id: 42161,
+    collateral_address: arbitrumUsdtAddress,
+    collateral_symbol: "USDT",
+  });
+  assert.equal(approved.state.step, "create_market");
+  const savedDraft = await forecastos.store.get(drafted.state.draft_id);
+  assert.equal(savedDraft.market.collateral_address, arbitrumUsdtAddress);
+  assert.equal(savedDraft.market.collateral_symbol, "USDT");
+});
+
+test("forecastos_action draft_market approval with returned state advances to create_market", async () => {
+  const rootDir = join(skillRoot, "test-output", "draft-market-workflow-approval");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+  const inputPath = join(rootDir, "draft-input.json");
+  await writeFile(
+    inputPath,
+    JSON.stringify({
+      prompt: "Which launchpad wins June 2026?",
+      requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+      source_hints: ["Public launchpad dashboards"],
+      requested_close_time: "2026-06-30T23:59:59Z",
+      requested_resolution_time: "2026-07-03T00:00:00Z",
+      chain_id: 42161,
+      requested_collateral_address: arbitrumUsdtAddress,
+      requested_collateral_symbol: "USDT",
+    }),
+  );
+
+  const drafted = await runActionBridge("draft_market", inputPath, stateDir);
+  assert.equal(drafted.status, "ok");
+  assert.equal(actionWorkflowState(drafted).step, "await_approval");
+  assert.ok(actionWorkflowState(drafted).workflow_id);
+
+  const approvalPath = join(rootDir, "approve.json");
+  await writeFile(
+    approvalPath,
+    JSON.stringify({
+      state: actionWorkflowState(drafted),
+      event: {
+        approved: true,
+        approval_text: actionWorkflowState(drafted).approval_text,
+        chain_id: 42161,
+        collateral_address: arbitrumUsdtAddress,
+        collateral_symbol: "USDT",
+        image_url: "https://example.com/image.png",
+      },
+    }),
+  );
+  const approved = await runActionBridge("run_skill_step", approvalPath, stateDir);
+  assert.equal(approved.status, "ok");
+  assert.equal(approved.result.state.step, "create_market");
+  assert.equal(approved.result.state.collateral_address, arbitrumUsdtAddress);
+});
+
 test("check_pending_market classifies pending, approved, and rejected statuses", async () => {
   for (const [precogStatus, expectedStatus, expectedStep] of [
     ["CREATED", "pending", "await_precog_approval"],
@@ -2851,7 +3009,9 @@ test("forecastos_action accepts positional input shorthand for draft_market", as
 
   const drafted = await runActionBridgePositional("draft_market", inputPath, stateDir);
   assert.equal(drafted.status, "ok");
-  assert.equal(drafted.result.market.outcomes.length, 4);
+  assert.equal(actionDraftPayload(drafted).market.outcomes.length, 4);
+  assert.equal(actionWorkflowState(drafted).step, "await_approval");
+  assert.ok(actionWorkflowState(drafted).workflow_id);
 });
 
 test("forecastos_action fails clearly when input is missing", async () => {
