@@ -287,6 +287,11 @@ assert(
   "references/actions.md must document the post-approval run_skill_step flow and copied-install config fallback",
 );
 assert(
+  skill.includes("Every outcome named in the Fallback line must also appear in `outcomes`") &&
+    actionsDoc.includes("Every outcome named in the Fallback line must also appear in `outcomes`"),
+  "SKILL.md and references/actions.md must require fallback outcomes to appear in outcomes",
+);
+assert(
   actionsDoc.includes("Base MCP request id is not the signature") &&
     actionsDoc.includes("not being a compact 65-byte EOA signature"),
   "references/actions.md must clarify Base MCP smart-account signature envelopes",

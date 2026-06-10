@@ -145,7 +145,7 @@ Creation payload hygiene:
 - `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
 - `image_url` must be an `http` or `https` URL.
 - `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
-- `resolution_criteria` should be detailed enough to display directly in Launchpad. Prefer labeled lines: `Source of truth`, `Winning outcome rule`, `Resolution timing`, and `Fallback`.
+- `resolution_criteria` should be detailed enough to display directly in Launchpad. Prefer labeled lines: `Source of truth`, `Winning outcome rule`, `Resolution timing`, and `Fallback`. Every outcome named in the Fallback line must also appear in `outcomes`; otherwise the draft is blocked before approval.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Released in 2027,Released after 2027,No official release"`, and must contain at least three non-empty labels in ForecastOS. ForecastOS drafts may keep outcomes as arrays internally.
 - Outcome labels must not contain commas because the Precog create API treats commas as outcome separators. Use labels such as `June 1-15 2026`, not `June 1-15, 2026`.
 - Questions must be 65 characters or fewer, and outcome labels must be 32 characters or fewer after comma sanitization. If a draft exceeds either Launchpad-friendly limit, shorten the question or labels before approval.

@@ -1572,6 +1572,72 @@ test("draft_market generates detailed default resolution criteria", async () => 
   assert.ok(draft.review_message.includes("Resolution criteria:"));
 });
 
+test("draft_market blocks fallback outcome not listed in outcomes", async () => {
+  const forecastos = await createIsolatedForecastOS("fallback-outcome-mismatch-blocked");
+  const resolutionCriteria = [
+    "Source of truth: Riot Games / LoL Esports official post-event viewership report.",
+    "Winning outcome: The bracket containing the reported peak concurrent viewership figure for the Worlds 2027 final.",
+    "Resolution timing: 2027-11-20T12:00:00Z after Riot publishes official numbers.",
+    "Fallback: If Riot does not publish a final report by resolution time, market resolves as Invalid / ambiguous.",
+  ].join("\n");
+  const draft = await forecastos.draftMarket({
+    prompt: "Worlds 2027 final peak viewership?",
+    requested_outcomes: [
+      "Under 1.5M",
+      "1.5M - 2.5M",
+      "2.5M - 3.5M",
+      "3.5M - 5M",
+      "Over 5M",
+    ],
+    source_hints: ["Riot Games / LoL Esports official post-event viewership report"],
+    requested_close_time: "2027-11-15T00:00:00Z",
+    requested_resolution_time: "2027-11-20T12:00:00Z",
+    resolution_criteria: resolutionCriteria,
+  });
+
+  assert.equal(draft.status, "blocked");
+  assert.ok(
+    draft.quality.blocking_issues.some((issue) =>
+      issue.includes('references "Invalid / ambiguous" which is not a listed outcome'),
+    ),
+  );
+  assert.ok(
+    draft.suggest_next_questions.some((question) =>
+      question.includes("fallback outcome that is not in the outcomes list"),
+    ),
+  );
+});
+
+test("draft_market passes when fallback outcome is listed", async () => {
+  const forecastos = await createIsolatedForecastOS("fallback-outcome-mismatch-pass");
+  const resolutionCriteria = [
+    "Source of truth: Riot Games / LoL Esports official post-event viewership report.",
+    "Winning outcome: The bracket containing the reported peak concurrent viewership figure for the Worlds 2027 final.",
+    "Resolution timing: 2027-11-20T12:00:00Z after Riot publishes official numbers.",
+    "Fallback: If Riot does not publish a final report by resolution time, market resolves as Invalid / ambiguous.",
+  ].join("\n");
+  const draft = await forecastos.draftMarket({
+    prompt: "Worlds 2027 final peak viewership?",
+    requested_outcomes: [
+      "Under 1.5M",
+      "1.5M - 2.5M",
+      "2.5M - 3.5M",
+      "3.5M - 5M",
+      "Over 5M",
+      "Invalid / ambiguous",
+    ],
+    source_hints: ["Riot Games / LoL Esports official post-event viewership report"],
+    requested_close_time: "2027-11-15T00:00:00Z",
+    requested_resolution_time: "2027-11-20T12:00:00Z",
+    resolution_criteria: resolutionCriteria,
+  });
+
+  assert.equal(draft.status, "pass");
+  assert.ok(
+    !draft.quality.blocking_issues.some((issue) => issue.includes("which is not a listed outcome")),
+  );
+});
+
 test("skill docs forbid raw JSON as normal chat output and require next step prompt", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const workflow = await readFile(join(skillRoot, "references", "workflow.md"), "utf8");

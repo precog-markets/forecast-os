@@ -13,6 +13,7 @@ import {
 import { buildCreatePayload } from "./lib/create_payload.mjs";
 import { fail, PrecogApiError, serializeError as serializeRuntimeError } from "./lib/errors.mjs";
 import { normalizeEvmChecksumAddress } from "./lib/evm.mjs";
+import { validateResolutionCriteriaOutcomes } from "./lib/resolution_criteria.mjs";
 import { requireFields, withoutUndefined } from "./lib/object_utils.mjs";
 import {
   DirectoryDraftStateStore,
@@ -784,6 +785,20 @@ function buildDraft(input = {}, context = {}) {
       `Each outcome must be ${MAX_OUTCOME_LENGTH} characters or fewer for Launchpad display.`,
     );
   }
+  const resolutionCriteria =
+    normalizeResolutionCriteria(input.resolution_criteria) ??
+    buildDefaultResolutionCriteria({
+      question,
+      outcomes,
+      sourceOfTruth,
+      resolutionTime,
+    });
+  const criteriaMismatch = validateResolutionCriteriaOutcomes(resolutionCriteria, outcomes);
+  blockingIssues.push(...criteriaMismatch.blockingIssues);
+  warnings.push(...criteriaMismatch.warnings);
+  if (criteriaMismatch.blockingIssues.length) {
+    missingFields.push("fallback_outcome_mismatch");
+  }
   const suggestNextQuestions = buildSuggestNextQuestions(missingFields);
   const market = {
     market_type: "multi_outcome",
@@ -791,14 +806,7 @@ function buildDraft(input = {}, context = {}) {
     question,
     outcomes,
     description: input.description ?? "ForecastOS multi-outcome market draft.",
-    resolution_criteria:
-      normalizeResolutionCriteria(input.resolution_criteria) ??
-      buildDefaultResolutionCriteria({
-        question,
-        outcomes,
-        sourceOfTruth,
-        resolutionTime,
-      }),
+    resolution_criteria: resolutionCriteria,
     close_time: closeTime,
     resolution_time: resolutionTime,
     time_zone: "UTC",
@@ -929,6 +937,8 @@ function buildSuggestNextQuestions(missingFields = []) {
     close_time: "When should trading close? Please use UTC or include a timezone.",
     resolution_time: "When should the market resolve? Please use UTC or include a timezone.",
     chain_id: "With collateral from which chain? USDC on Base (8453) or USDC on Arbitrum (42161)?",
+    fallback_outcome_mismatch:
+      "The resolution criteria names a fallback outcome that is not in the outcomes list. Add that outcome (for example Invalid / ambiguous) or rewrite the Fallback line.",
   };
   return unique.map((field) => questions[field] ?? `Please provide ${field}.`);
 }

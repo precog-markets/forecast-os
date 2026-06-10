@@ -476,6 +476,26 @@ test("market shape validation rejects raw Yes/No and missing fields", () => {
   assert.ok(formatMarketShapeValidation(validation).includes("Ask the user for the missing details"));
 });
 
+test("market shape validation rejects fallback outcome mismatch", () => {
+  const validation = validateMarketShape({
+    market_type: "multi_outcome",
+    question: "Worlds 2027 final peak viewership?",
+    outcomes: ["Under 1.5M", "1.5M - 2.5M", "2.5M - 3.5M", "3.5M - 5M", "Over 5M"],
+    source_of_truth: "Riot Games / LoL Esports official post-event viewership report",
+    close_time: "2027-11-15T00:00:00Z",
+    resolution_time: "2027-11-20T12:00:00Z",
+    resolution_criteria:
+      "Fallback: If Riot does not publish a final report by resolution time, market resolves as Invalid / ambiguous.",
+  });
+
+  assert.equal(validation.valid, false);
+  assert.ok(
+    validation.blocking_issues.some((issue) =>
+      issue.includes('references "Invalid / ambiguous" which is not a listed outcome'),
+    ),
+  );
+});
+
 test("next-step explanation is human guidance and read-only", async () => {
   const guidance = await explainNextStep({ step: "create_market" });
 

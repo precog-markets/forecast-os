@@ -94,6 +94,12 @@ ForecastOS can't read a complete config for this skill install. Copy skill/forec
 This draft still has unresolved validation issues, so I can't prepare the create intent yet. Tell me what to change, or I'll re-draft with explicit chain_id and the missing fields. I won't edit .forecastos files manually.
 ```
 
+**Fallback outcome mismatch**
+
+```txt
+The resolution criteria names a fallback outcome that isn't in the outcomes list—for example Invalid / ambiguous. I can add that outcome or rewrite the Fallback line. Which do you prefer?
+```
+
 **Privy adapter not found**
 
 ```txt

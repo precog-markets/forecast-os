@@ -32,7 +32,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 ## Rules To Follow
 
 - Assume every ForecastOS draft is `multi_outcome`; do not reduce yes/no-shaped ideas to only `Yes` and `No`. Do not use only `Yes` / `No` outcomes in normal ForecastOS drafts.
-- Write detailed resolution criteria: source of truth, one winning outcome, resolution time, and fallback/no-result handling.
+- Write detailed resolution criteria: source of truth, one winning outcome, resolution time, and fallback/no-result handling. Every outcome named in the Fallback line must also appear in `outcomes`.
 - Keep outcome labels comma-free, questions at 65 characters or fewer, and outcome labels at 32 characters or fewer.
 - Normalize and display all market times in UTC.
 - Show configured collateral in draft summaries, for example `Token: USDC`, and show `Chain: Base (8453)` or `Chain: Arbitrum (42161)` when selected.

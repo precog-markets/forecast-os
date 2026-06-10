@@ -27,6 +27,14 @@ export function validateMarketShape(market: MarketShapeInput) {
   if (String(market.resolution_time ?? "").trim() && !String(market.resolution_time).endsWith("Z")) {
     warnings.push("resolution_time should be UTC ISO with Z.");
   }
+  if (String(market.resolution_criteria ?? "").trim() && outcomes.length) {
+    const criteriaMismatch = validateResolutionCriteriaOutcomes(
+      String(market.resolution_criteria),
+      outcomes,
+    );
+    blocking_issues.push(...criteriaMismatch.blockingIssues);
+    warnings.push(...criteriaMismatch.warnings);
+  }
 
   return {
     valid: blocking_issues.length === 0,
@@ -68,4 +76,70 @@ function normalizeOutcomes(outcomes: MarketShapeInput["outcomes"]): string[] {
     .split(",")
     .map((outcome) => outcome.trim())
     .filter(Boolean);
+}
+
+const RESOLVE_TARGET_PATTERN =
+  /(?:resolve(?:s)?(?:\s+as|\s+to)?|market resolves(?:\s+as|\s+to)?)\s+(?:"([^"]+)"|'([^']+)'|([^.\n"]+?))(?:\s*[.\n]|$)/gi;
+
+const FALLBACK_SECTION_PATTERN =
+  /(?:^|\n)\s*(?:Fallback|If no (?:listed|official|reliable)|If the (?:official source|source of truth))[^\n]*/gi;
+
+function extractFallbackOutcomeReferences(criteria: string): string[] {
+  const text = String(criteria ?? "").trim();
+  if (!text) return [];
+
+  const references = new Set<string>();
+  const fallbackSections = text.match(FALLBACK_SECTION_PATTERN) ?? [text];
+
+  for (const section of fallbackSections) {
+    for (const match of section.matchAll(RESOLVE_TARGET_PATTERN)) {
+      const reference = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+      if (reference && !isGenericResolutionPhrase(reference)) {
+        references.add(reference);
+      }
+    }
+  }
+
+  return [...references];
+}
+
+function findMissingFallbackOutcomes(criteria: string, outcomes: string[]): string[] {
+  const references = extractFallbackOutcomeReferences(criteria);
+  if (!references.length) return [];
+
+  const normalizedOutcomes = outcomes.map(normalizeOutcomeLabelForMatch);
+  return references.filter(
+    (reference) => !normalizedOutcomes.includes(normalizeOutcomeLabelForMatch(reference)),
+  );
+}
+
+function validateResolutionCriteriaOutcomes(criteria: string, outcomes: string[]) {
+  const blockingIssues: string[] = [];
+  const warnings: string[] = [];
+  const missing = findMissingFallbackOutcomes(criteria, outcomes);
+
+  for (const reference of missing) {
+    blockingIssues.push(
+      `Resolution criteria fallback references "${reference}" which is not a listed outcome. Add it as an outcome or rewrite the Fallback line.`,
+    );
+  }
+
+  return { blockingIssues, warnings };
+}
+
+function normalizeOutcomeLabelForMatch(value: string): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/\s+/g, " ");
+}
+
+function isGenericResolutionPhrase(value: string): boolean {
+  const normalized = normalizeOutcomeLabelForMatch(value);
+  return (
+    normalized.includes("listed outcome that best matches") ||
+    normalized.includes("the listed outcome that best matches") ||
+    normalized.includes("exactly one listed outcome")
+  );
 }

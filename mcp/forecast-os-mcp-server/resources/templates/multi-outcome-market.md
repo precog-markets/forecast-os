@@ -19,7 +19,9 @@
 
 Use this for every ForecastOS market. Even yes/no-looking prompts should be represented as `multi_outcome` with at least three explicit outcome labels.
 
-Include a clear fallback outcome such as `Other` or `Invalid / ambiguous` only when it is necessary for objective resolution.
+Include a clear fallback outcome such as `Other` or `Invalid / ambiguous` only when it is necessary for objective resolution. If the Fallback line names that outcome, it must also appear in `outcomes`.
+
+For viewership or numeric bucket markets, either add a sixth outcome such as `Invalid / ambiguous` when no official report can invalidate every bucket, or omit a no-data fallback only when the buckets truly cover every possible published figure.
 
 For a prompt like "Will Team X reach the final?", do not use only `Yes` and `No`. Prefer outcomes like:
 
