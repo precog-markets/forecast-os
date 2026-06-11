@@ -639,6 +639,84 @@ test("prepare_create_intent honors supported chain_id from approval context on d
   assert.equal(intent.eip712_typed_data_template.domain.chainId, 42161);
 });
 
+test("prepare_create_intent accepts canonical ipfs image_url", async () => {
+  const forecastos = createTestForecastOS({
+    fetch: async () => {
+      throw new Error("prepare_create_intent should not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in July 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-07-31T23:59:59Z",
+    requested_resolution_time: "2026-08-03T00:00:00Z",
+  });
+  const cid = "bafybeigdyrzt5sfp7udm7hx76xqys24gcmhd35fc6w4qj25fax4nju4rie";
+  const intent = await forecastos.prepareCreateIntent({
+    draft_id: draft.draft_id,
+    approval_text: draft.approval_text,
+    image_url: `ipfs://${cid}`,
+  });
+
+  assert.equal(intent.precog_payload_template.image_url, `ipfs://${cid}`);
+});
+
+test("prepare_create_intent canonicalizes ipfs://ipfs/<cid> image_url", async () => {
+  const forecastos = createTestForecastOS({
+    fetch: async () => {
+      throw new Error("prepare_create_intent should not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in July 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-07-31T23:59:59Z",
+    requested_resolution_time: "2026-08-03T00:00:00Z",
+  });
+  const cid = "bafybeigdyrzt5sfp7udm7hx76xqys24gcmhd35fc6w4qj25fax4nju4rie";
+  const intent = await forecastos.prepareCreateIntent({
+    draft_id: draft.draft_id,
+    approval_text: draft.approval_text,
+    image_url: `ipfs://ipfs/${cid}/cover.png`,
+  });
+
+  assert.equal(intent.precog_payload_template.image_url, `ipfs://${cid}/cover.png`);
+});
+
+test("prepare_create_intent rejects unsupported image_url protocols", async () => {
+  const forecastos = createTestForecastOS({
+    fetch: async () => {
+      throw new Error("prepare_create_intent should not call the network");
+    },
+  });
+  const draft = await forecastos.draftMarket({
+    prompt: "Which launchpad gets the most new agents in July 2026?",
+    requested_outcomes: ["Clawpump", "Liquid", "Virtuals", "Other"],
+    source_hints: ["Public launchpad dashboards"],
+    requested_close_time: "2026-07-31T23:59:59Z",
+    requested_resolution_time: "2026-08-03T00:00:00Z",
+  });
+
+  await assert.rejects(
+    forecastos.prepareCreateIntent({
+      draft_id: draft.draft_id,
+      approval_text: draft.approval_text,
+      image_url: "ftp://example.com/image.png",
+    }),
+    /must be a valid http\(s\) or ipfs URL/,
+  );
+  await assert.rejects(
+    forecastos.prepareCreateIntent({
+      draft_id: draft.draft_id,
+      approval_text: draft.approval_text,
+      image_url: "not-a-url",
+    }),
+    /must be a valid http\(s\) or ipfs URL/,
+  );
+});
+
 test("run_skill_step persists Arbitrum chain context through approval", async () => {
   const forecastos = createTestForecastOS({
     fetch: async () => {

@@ -145,7 +145,8 @@ Creation payload hygiene:
 
 - `question` is normalized to end with `?`.
 - `start_timestamp` defaults to the current UTC time unless explicitly provided. `end_timestamp` is derived from the draft close time unless an explicit `end_timestamp` override is provided. Do not use the resolution time as `end_timestamp`.
-- `image_url` must be an `http` or `https` URL.
+- `image_url` must be an `http`, `https`, or `ipfs` URL. ForecastOS accepts native `ipfs://<cid>` and `ipfs://<cid>/<path>` values and does not auto-convert them to gateway URLs.
+- If Precog rejects a native `ipfs://` value at API time, operators can manually supply a gateway HTTPS URL (for example a Pinata gateway URL) instead.
 - `image_url` should ideally point to a square image because market UIs may render thumbnail/card crops. Prefer trusted, relevant official/social images over strict aspect ratio, and do not block creation when only a good non-square image is available.
 - `resolution_criteria` should be detailed enough to display directly in Launchpad. Prefer labeled lines: `Source of truth`, `Winning outcome rule`, `Resolution timing`, and `Fallback`. Every outcome named in the Fallback line must also appear in `outcomes`; otherwise the draft is blocked before approval.
 - `outcomes` is sent to Precog as one comma-delimited string, for example `"Released in 2027,Released after 2027,No official release"`, and must contain at least three non-empty labels in ForecastOS. ForecastOS drafts may keep outcomes as arrays internally.

@@ -21,7 +21,7 @@ export function buildCreatePayload(draft, input, now) {
   const payload = withoutUndefined({
     question: normalizePrecogQuestion(input.question ?? draft.market.question),
     resolution_criteria: normalizeResolutionCriteria(input.resolution_criteria ?? draft.market.resolution_criteria),
-    image_url: normalizeUrl(input.image_url, "image_url"),
+    image_url: normalizeImageUrl(input.image_url, "image_url"),
     category: normalizePrecogCategory(input.category ?? draft.market.category),
     outcomes: normalizePrecogOutcomes(input.outcomes ?? draft.market.outcomes),
     start_timestamp: startTimestamp,
@@ -109,16 +109,56 @@ function isBinaryYesNoOutcomeSet(outcomes = []) {
   return labels.includes("yes") && labels.includes("no");
 }
 
-function normalizeUrl(value, label) {
+function normalizeImageUrl(value, label) {
   const url = String(value ?? "").trim();
   if (!url) fail(`create_market missing required field(s): ${label}.`);
+  if (url.startsWith("ipfs://")) {
+    return canonicalizeIpfsUri(url, label);
+  }
   try {
     const parsed = new URL(url);
     if (!["http:", "https:"].includes(parsed.protocol)) {
-      fail(`${label} must be an http(s) URL.`);
+      fail(`${label} must be a valid http(s) or ipfs URL.`);
     }
     return parsed.toString();
   } catch {
-    fail(`${label} must be a valid URL.`);
+    fail(`${label} must be a valid http(s) or ipfs URL.`);
   }
+}
+
+function canonicalizeIpfsUri(value, label) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail(`${label} must be a valid http(s) or ipfs URL.`);
+  }
+  if (parsed.protocol !== "ipfs:") {
+    fail(`${label} must be a valid http(s) or ipfs URL.`);
+  }
+
+  let cid = "";
+  let subpath = "";
+  if (!parsed.hostname) {
+    fail(`${label} must be a valid http(s) or ipfs URL.`);
+  }
+
+  if (parsed.hostname === "ipfs") {
+    const path = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    if (!path) fail(`${label} must be a valid http(s) or ipfs URL.`);
+    const normalizedPath = path.startsWith("ipfs/") ? path.slice("ipfs/".length) : path;
+    const slashIndex = normalizedPath.indexOf("/");
+    if (slashIndex === -1) {
+      cid = normalizedPath;
+    } else {
+      cid = normalizedPath.slice(0, slashIndex);
+      subpath = normalizedPath.slice(slashIndex);
+    }
+  } else {
+    cid = parsed.hostname;
+    subpath = parsed.pathname && parsed.pathname !== "/" ? parsed.pathname : "";
+  }
+
+  if (!cid) fail(`${label} must be a valid http(s) or ipfs URL.`);
+  return subpath ? `ipfs://${cid}${subpath}` : `ipfs://${cid}`;
 }

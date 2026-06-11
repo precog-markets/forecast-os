@@ -86,7 +86,8 @@
         },
         "image_url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri",
+          "description": "HTTP(S) or native ipfs:// image URI. ForecastOS does not auto-convert IPFS URIs to gateway URLs."
         },
         "category": {
           "type": "string",
@@ -162,7 +163,8 @@
         },
         "image_url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri",
+          "description": "HTTP(S) or native ipfs:// image URI. ForecastOS does not auto-convert IPFS URIs to gateway URLs."
         },
         "category": {
           "type": "string",
@@ -222,7 +224,8 @@
         },
         "image_url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri",
+          "description": "HTTP(S) or native ipfs:// image URI. ForecastOS does not auto-convert IPFS URIs to gateway URLs."
         },
         "category": {
           "type": "string"
