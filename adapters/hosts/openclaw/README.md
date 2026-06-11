@@ -21,3 +21,6 @@ Use the same command and args pattern from this adapter folder:
 ```
 
 MCP is optional read-only context. ForecastOS workflow execution remains in `skill/forecast-os/scripts/forecastos_action.mjs`.
+
+For operator-approved buy/sell on deployed Precog markets, use the generic trading
+scripts in `adapters/actions/precog/` (not OpenClaw-specific).

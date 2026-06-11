@@ -15,6 +15,19 @@ MCP is read-only. Do not add MCP tools for:
 - swaps
 - live Precog mutation
 - live wallet/action tool calls
+- placing Precog share trades
+
+## Trading Policy
+
+An agent may run `adapters/actions/precog/` quote, buy, sell, or positions scripts only when:
+
+- the operator explicitly asks to trade on a deployed Precog market
+- the market and outcome are identified from read-only ForecastOS or Precog context first
+- `quote.mjs` ran successfully and the full quote output was shown to the operator
+- the operator explicitly confirmed the quoted shares and `--max`/`--min` bounds
+- scripts run sequentially, one transaction at a time
+
+Do not chain buy/sell scripts without per-step confirmation. Do not modify trade parameters after a failure. ForecastOS must not embed trading execution in MCP or `forecastos_action.mjs`.
 
 ## Creation Policy
 
