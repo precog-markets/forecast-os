@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, pending Precog approval, market funding, buying or selling Precog shares, or future-event probabilities that should be grounded in market context.
+description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, listing or discovering open Precog markets on Base or Arbitrum, pending Precog approval, market funding, buying or selling Precog shares, or future-event probabilities that should be grounded in market context.
 version: 0.1.0
 author: ForecastOS
 license: UNLICENSED
@@ -21,7 +21,8 @@ users who explicitly want a plugin-provided tool.
 ## When to Use
 
 Use this skill when the user wants to draft, create, check, fund, or consume a
-ForecastOS/Precog market, asks whether a prediction market exists, or asks for
+ForecastOS/Precog market, asks to **list open prediction markets** (for example
+"markets on Base"), asks whether a prediction market exists, or asks for
 future-event probability context that should be grounded in prediction markets.
 
 ## Quick Reference
@@ -99,6 +100,29 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    auto-submit it.
 10. Fund only after Precog status is `VALIDATED` and a separate explicit funding
     approval exists.
+
+## Market Discovery Procedure
+
+Use this when the user asks to list, browse, or discover open Precog markets.
+Triggers include: "list markets", "prediction markets on Base", "what markets
+are open", or "is there a market about X".
+
+1. **Do not** use `web_search`, Base MCP `web_request`, or hand-rolled `curl` for
+   Precog listings. Do not claim MCP lacks a markets endpoint.
+2. Read config only from `${HERMES_SKILL_DIR}/.forecastos/config.json`. Never
+   guess nested paths like `forecast-os/forecast-os/.forecastos/...`.
+3. Run the list shim (no `FORECASTOS_REPO_ROOT` required):
+
+```txt
+node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id <id> --status OPEN
+```
+
+Chain map: Base mainnet `8453`, Base Sepolia `84532`, Arbitrum `42161`.
+
+4. Present the tab-separated output (`api_id`, `master_market_id`, `name`,
+   `outcomes`) to the user. Use `api_id` for later quote/trade commands.
+5. If config is missing, run `check-hermes-setup.mjs` and follow its copy
+   guidance. Do not tell the user to use the UI instead.
 
 ## Trading Procedure (deployed Precog markets)
 
@@ -186,6 +210,8 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
   Do not bypass the bridge by writing draft files manually.
 - Do not ask users to paste private keys, seed phrases, raw signatures, or raw
   custody credentials in chat.
+- Do not use `web_search` or Base MCP `web_request` to list Precog markets. Use
+  `list-precog-markets.mjs` with `--chain-id` instead.
 - Do not use Hermes skills or MCP to sign, custody wallets, fetch nonces,
   approve tokens, send transactions, or bypass ForecastOS approval rules.
 - Do not create Polymarket or Kalshi markets through ForecastOS; those providers

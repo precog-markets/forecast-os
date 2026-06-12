@@ -735,6 +735,14 @@ async function assertHermesHostAdapter(monorepoRoot) {
     "Hermes SKILL.md must use the expected Hermes sections",
   );
   assert(
+    hermesSkill.includes("## Market Discovery Procedure") &&
+      hermesSkill.includes("list-precog-markets.mjs") &&
+      hermesSkill.includes("web_search") &&
+      hermesSkill.includes("web_request") &&
+      hermesSkill.includes("${HERMES_SKILL_DIR}/.forecastos/config.json"),
+    "Hermes SKILL.md must document market discovery procedure and forbid web/MCP listing",
+  );
+  assert(
     hermesSkill.includes("Confirm chain first") &&
       hermesSkill.includes("Testing / CI Only") &&
       !hermesSkill.includes("| Arbitrum example runner |"),
@@ -836,9 +844,12 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSetupScript.includes("hermes_state_config") &&
       hermesSetupScript.includes("hermes_state_dir") &&
       hermesSetupScript.includes("precog_quote_script") &&
-      hermesSetupScript.includes("precog_actions_installed"),
-    "Hermes setup check must verify Privy adapter, Precog trading scripts, Hermes wrapper paths, and local state config",
+      hermesSetupScript.includes("precog_list_markets_ready") &&
+      hermesSetupScript.includes("precog_actions_installed") &&
+      hermesSetupScript.includes("hermes_list_precog_markets_shim"),
+    "Hermes setup check must verify Privy adapter, Precog trading/list scripts, Hermes wrapper paths, and local state config",
   );
+  await assertFile(join(hermesSkillRoot, "scripts", "precog-list-runtime.mjs"));
   const hermesPrivyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
   assert(
     hermesPrivyWrapper.includes("spawnRepoScript") &&

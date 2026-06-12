@@ -15,14 +15,28 @@ node ${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs
 
 ## Market discovery (any chain)
 
-List open markets with the Hermes shim (shows both API id and on-chain id):
+When a user asks to list prediction markets on Base (or any chain), run the
+Hermes list shim first. **Do not** use `web_search`, Base MCP `web_request`, or
+hand-rolled API calls.
 
 ```txt
 node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN
 ```
 
-Columns: `api_id`, `master_market_id`, `name`, `outcomes`. **Trade with
-`--market <api_id>`** — scripts resolve `master_market_id` for on-chain calls.
+- Works without `FORECASTOS_REPO_ROOT` (reads `${HERMES_SKILL_DIR}/.forecastos/config.json`)
+- Columns: `api_id`, `master_market_id`, `name`, `outcomes`
+- **Trade with `--market <api_id>`** — quote/prepare scripts resolve `master_market_id`
+
+Chain map: Base mainnet `8453`, Base Sepolia `84532`, Arbitrum `42161`.
+
+### Discovery failure playbook
+
+| Symptom | Fix |
+|---------|-----|
+| Config not found | Run `check-hermes-setup.mjs`; copy shipped `config.json` into `${HERMES_SKILL_DIR}/.forecastos/` |
+| Wrong config path | Use `${HERMES_SKILL_DIR}/.forecastos/config.json` only |
+| Agent tried web/MCP | Re-run `list-precog-markets.mjs` with `--chain-id` |
+| Empty list | Try `--status OPEN` on the correct `chain_id` |
 
 Use `chain_id=84532` for Base Sepolia listings. `supported_chains` in config is
 for create/fund defaults, not for whether the API accepts a chain.

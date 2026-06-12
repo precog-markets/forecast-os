@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { PRECOG_LIST_MARKETS_REL } from "./repo-discovery.mjs";
-import { spawnRepoScript } from "./spawn-repo-script.mjs";
+import { main } from "./precog-list-runtime.mjs";
 
-await spawnRepoScript({ relPath: PRECOG_LIST_MARKETS_REL, label: "Precog list markets script" });
+try {
+  await main();
+} catch (error) {
+  console.error(error.message ?? error);
+  process.exit(1);
+}

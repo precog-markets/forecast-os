@@ -9,6 +9,20 @@ import {
 } from "./repo-discovery.mjs";
 import { printRuntimeError, resolveHermesSkillRoot } from "./forecastos-runtime.mjs";
 
+export function buildRepoSpawnEnv({
+  env = process.env,
+  hermesSkillRoot,
+  repoRoot,
+} = {}) {
+  const skillRoot = hermesSkillRoot ?? resolveHermesSkillRoot();
+  return {
+    ...env,
+    FORECASTOS_REPO_ROOT: repoRoot,
+    FORECASTOS_SKILL_DIR: env.FORECASTOS_SKILL_DIR ?? join(repoRoot, "skill", "forecast-os"),
+    FORECASTOS_STATE_DIR: env.FORECASTOS_STATE_DIR ?? join(skillRoot, ".forecastos"),
+  };
+}
+
 export async function spawnRepoScript({
   relPath,
   label,
@@ -30,11 +44,11 @@ export async function spawnRepoScript({
 
   const child = spawn(nodeBin, [resolution.scriptPath, ...argv.slice(2)], {
     cwd: resolution.repoRoot,
-    env: {
-      ...env,
-      FORECASTOS_REPO_ROOT: resolution.repoRoot,
-      FORECASTOS_SKILL_DIR: env.FORECASTOS_SKILL_DIR ?? join(resolution.repoRoot, "skill", "forecast-os"),
-    },
+    env: buildRepoSpawnEnv({
+      env,
+      hermesSkillRoot,
+      repoRoot: resolution.repoRoot,
+    }),
     stdio: "inherit",
   });
 
