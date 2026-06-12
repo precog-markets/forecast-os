@@ -62,6 +62,8 @@ node adapters/actions/precog/positions.mjs --market 4 --wallet-address 0x...
 
 | User intent | Flag |
 |-------------|------|
+| Outcome by name | `--outcome-label Claude` |
+| Outcome by index | `--outcome 1` (1-based) |
 | Buy N shares | `--shares N` |
 | Spend budget | `--cost X` |
 | Target probability | `--price 0.X` |

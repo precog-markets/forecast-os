@@ -6,6 +6,11 @@ import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  BASE_MCP_TRADE_REL,
+  PRECOG_QUOTE_REL,
+  resolveRepoScript,
+} from "./repo-discovery.mjs";
+import {
   actionBridgeSupportCheck,
   resolveForecastOSRepoRoot,
   resolveHermesSkillRoot,
@@ -31,17 +36,25 @@ const checks = [
   await checkFile("hermes_prepare_create_wrapper", join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs")),
   await checkFile("hermes_privy_wrapper", join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs")),
   await checkFile("hermes_privy_patch_wrapper", join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs")),
+  await checkFile("hermes_quote_precog_shim", join(hermesSkillRoot, "scripts", "quote-precog.mjs")),
+  await checkFile("hermes_prepare_precog_buy_shim", join(hermesSkillRoot, "scripts", "prepare-precog-buy.mjs")),
+  await checkFile("hermes_resolve_base_mcp_trade_shim", join(hermesSkillRoot, "scripts", "resolve-base-mcp-trade.mjs")),
+  await checkPrecogQuoteScript(process.env, hermesSkillRoot),
+  await checkBaseMcpTradeResolver(process.env, hermesSkillRoot),
   await checkFile("hermes_skill", join(hermesSkillRoot, "SKILL.md")),
   await checkPrivyTypedDataPolicyCoverage(process.env, repoRoot),
 ];
 
 const ok = checks.every((check) => check.ok || check.optional);
+const precogQuoteCheck = checks.find((check) => check.name === "precog_quote_script");
+const precogActionsInstalled = Boolean(precogQuoteCheck?.ok);
 process.stdout.write(
   JSON.stringify(
     {
       ok,
       hermes_skill_root: hermesSkillRoot,
       forecastos_repo_root: repoRoot,
+      precog_actions_installed: precogActionsInstalled,
       checks,
     },
     null,
@@ -118,6 +131,48 @@ async function checkHermesStateDir(skillRoot) {
       guidance: `mkdir -p ${join(stateDir, "drafts")} ${join(stateDir, "workflows", "all")}`,
     };
   }
+}
+
+async function checkPrecogQuoteScript(env, skillRoot) {
+  const resolution = await resolveRepoScript(PRECOG_QUOTE_REL, env, skillRoot);
+  if (resolution.ok) {
+    return {
+      name: "precog_quote_script",
+      ok: true,
+      path: resolution.scriptPath,
+      repo_root: resolution.repoRoot,
+    };
+  }
+  return {
+    name: "precog_quote_script",
+    ok: false,
+    optional: true,
+    checked_paths: resolution.checkedPaths,
+    guidance:
+      resolution.guidance ??
+      "Set FORECASTOS_REPO_ROOT to a ForecastOS checkout that includes adapters/actions/precog.",
+  };
+}
+
+async function checkBaseMcpTradeResolver(env, skillRoot) {
+  const resolution = await resolveRepoScript(BASE_MCP_TRADE_REL, env, skillRoot);
+  if (resolution.ok) {
+    return {
+      name: "base_mcp_trade_resolver",
+      ok: true,
+      path: resolution.scriptPath,
+      repo_root: resolution.repoRoot,
+    };
+  }
+  return {
+    name: "base_mcp_trade_resolver",
+    ok: false,
+    optional: true,
+    checked_paths: resolution.checkedPaths,
+    guidance:
+      resolution.guidance ??
+      "Set FORECASTOS_REPO_ROOT to a ForecastOS checkout that includes adapters/wallets/base-mcp/resolve_trade.mjs.",
+  };
 }
 
 async function checkPrivyAdapterResolution(env, skillRoot) {

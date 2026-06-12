@@ -24,6 +24,7 @@ Codex / Claude / Hermes / OpenClaw host adapter
 adapters/wallets/base-mcp/plugins/forecast-os.md
 adapters/wallets/base-mcp/resolve_create.mjs
 adapters/wallets/base-mcp/resolve_funding.mjs
+adapters/wallets/base-mcp/resolve_trade.mjs
 ```
 
 Use that markdown file as the Base custom plugin spec when a host supports Base
@@ -104,3 +105,27 @@ This adapter validates and maps that prepared calldata into [Base MCP](https://m
 pending nonce, request the funding signature, and submit both values to Precog.
 The resolver accepts any hex Base Account signature because Precog verifies Base
 Account signatures through EIP-1271/ERC-6492.
+
+## Trading
+
+Deployed-market buy/sell uses `resolve_trade.mjs` after
+`adapters/actions/precog/prepare_buy.mjs` or `prepare_sell.mjs`. Unlike funding,
+trades do **not** require a post-transaction EIP-712 signature — only
+`send_calls` for the prepared approve/buy or sell batch.
+
+```txt
+node adapters/actions/precog/prepare_buy.mjs \
+  --market <id> --outcome-label <name> --shares <n> --max <amount> \
+  --wallet-address <base-mcp-address> --network mainnet > trade.json
+
+node adapters/wallets/base-mcp/resolve_trade.mjs \
+  --input trade.json --wallet-address <base-mcp-address>
+```
+
+The first resolver response is `base_mcp_send_calls_required` with a
+`send_calls` payload. If `--wallet-address` is omitted, the resolver returns
+`base_mcp_get_wallets_required` instead of failing opaquely.
+
+Hermes hosts can forward through
+`adapters/hosts/hermes/skills/prediction/forecast-os/scripts/resolve-base-mcp-trade.mjs`
+when `FORECASTOS_REPO_ROOT` is set.

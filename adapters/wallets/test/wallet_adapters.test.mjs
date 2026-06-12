@@ -1034,6 +1034,28 @@ test("Bankr trade resolver submits prepared buy transactions without typed data"
   assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/sign")).length, 0);
 });
 
+test("Base MCP trade resolver returns get_wallets guidance when wallet address is missing", () => {
+  const result = resolveBaseMcpTrade({
+    tradeIntent: {
+      intent_type: "forecastos.precog_trade",
+      action: "buy",
+      chain_id: 8453,
+      market_id: "4",
+      transactions: [{
+        step: "buy",
+        to: "0x00000000000c109080dfa976923384b97165a57a",
+        value: "0",
+        data: "0xfeedface",
+        chainId: 8453,
+      }],
+    },
+  });
+
+  assert.equal(result.status, "base_mcp_get_wallets_required");
+  assert.equal(result.next_action, "base_mcp_get_wallets");
+  assert.equal(result.base_mcp.send_calls.calls.length, 1);
+});
+
 test("Base MCP trade resolver returns send_calls without local signing", () => {
   const result = resolveBaseMcpTrade({
     tradeIntent: {

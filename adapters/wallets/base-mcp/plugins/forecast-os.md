@@ -292,6 +292,19 @@ to `https://core.precog.markets/launchpad/`.
 11. consume_prediction only after the upcoming market is DEPLOYED
 ```
 
+## Trading (deployed markets)
+
+For buy/sell on deployed Precog markets:
+
+```txt
+get_wallets -> quote-precog / quote.mjs -> operator confirmation
+prepare_buy.mjs -> resolve_trade.mjs -> Base MCP send_calls
+```
+
+Trading does not use EIP-712 post-transaction signatures. Run `get_wallets`
+before `prepare_buy.mjs` so allowance checks use the correct wallet address.
+Use `--outcome-label <name>` or 1-based `--outcome <n>`.
+
 ## Chain Mapping
 
 ```txt

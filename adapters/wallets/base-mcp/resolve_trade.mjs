@@ -17,7 +17,6 @@ if (isMain(import.meta.url)) {
     const inputPath = argValue("--input");
     const walletAddress = argValue("--wallet-address");
     if (!inputPath) fail("base_mcp_resolve_trade requires --input <prepare-trade-intent-json>.");
-    if (!walletAddress) fail("base_mcp_resolve_trade requires --wallet-address <address> from Base MCP get_wallets.");
 
     const tradeIntent = readWrappedJson(await readFile(inputPath, "utf8"));
     const result = resolveTrade({
@@ -40,12 +39,36 @@ export function resolveTrade({
   txHashes,
 } = {}) {
   validateTradeIntent(tradeIntent);
-  assertAddress(walletAddress, "walletAddress");
-  const checksummedWalletAddress = normalizeEvmChecksumAddress(walletAddress, "walletAddress");
   const chain = chainNameFor(tradeIntent.chain_id);
   const transactions = normalizePreparedTransactions(tradeIntent, chain);
   const sendCalls = buildSendCallsRequest(transactions, chain);
   const completed = Array.isArray(txHashes) && txHashes.length === transactions.length;
+  const hasWallet = Boolean(walletAddress);
+
+  if (!hasWallet && !completed) {
+    return {
+      status: "base_mcp_get_wallets_required",
+      action: tradeIntent.action,
+      market_id: tradeIntent.market_id,
+      base_mcp: {
+        onboarding_required: ["get_wallets", "present_wallet_status_and_disclaimer"],
+        send_calls: sendCalls,
+      },
+      notes: [
+        "Call Base MCP get_wallets and present_wallet_status_and_disclaimer before prepare_buy when allowance must be checked.",
+        "Re-run this resolver with --wallet-address <address> to attach wallet audit metadata before send_calls.",
+        "After send_calls confirm, re-run with --tx-hashes <hash1,hash2,...>.",
+      ],
+      next_action: "base_mcp_get_wallets",
+    };
+  }
+
+  if (!hasWallet && completed) {
+    fail("base_mcp_resolve_trade requires --wallet-address when recording submitted trade hashes.");
+  }
+
+  assertAddress(walletAddress, "walletAddress");
+  const checksummedWalletAddress = normalizeEvmChecksumAddress(walletAddress, "walletAddress");
 
   if (!completed) {
     return {

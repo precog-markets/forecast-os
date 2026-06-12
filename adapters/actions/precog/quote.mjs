@@ -9,6 +9,7 @@ import {
   marketPriceAfterTrade,
   getFuturePriceAfterTrade,
 } from "./lib/helper.mjs";
+import { parseOutcomeList, resolveOutcomeIndex } from "./lib/outcome.mjs";
 
 export async function main(deps = {}) {
   const _parseArgs = deps.parseArgs ?? parseArgs;
@@ -26,7 +27,10 @@ export async function main(deps = {}) {
     tokenBalance,
   } = { ...client, ...deps };
 
-  _requireArgs(a, ["market", "outcome"]);
+  _requireArgs(a, ["market"]);
+  if (!("outcome" in a) && !("outcome-label" in a)) {
+    throw new Error("Provide --outcome <n> (1-based) or --outcome-label <name>.");
+  }
   if (!("shares" in a) && !("cost" in a) && !("price" in a) && !("all" in a)) {
     throw new Error("Provide one of: --shares, --cost, --price <0.0-1.0>, --all");
   }
@@ -34,7 +38,6 @@ export async function main(deps = {}) {
   const showBuy = !("sell" in a);
   const showSell = !("buy" in a);
   const marketId = BigInt(a.market);
-  const outcome = Number.parseInt(a.outcome, 10);
 
   const [marketRes, colRes, setupRes, sharesRes, pricesRes] = await multiread([
     ["markets", [marketId]],
@@ -54,10 +57,12 @@ export async function main(deps = {}) {
   const [, alphaFP, , sellFeeFP] = setupRes.result;
   const [, sharesBalancesFP] = sharesRes.result;
 
-  const rawOuts = outcomes(outcomesRaw);
-  const outcomeList = (rawOuts.length === 1 && rawOuts[0].includes(","))
-    ? rawOuts[0].split(",").map((value) => value.trim()).filter(Boolean)
-    : rawOuts;
+  const outcomeList = parseOutcomeList(outcomesRaw);
+  const outcome = resolveOutcomeIndex({
+    outcome: a.outcome,
+    outcomeLabel: a["outcome-label"],
+    outcomeList,
+  });
   const label = outcomeList[outcome - 1] ?? `Outcome ${outcome}`;
 
   const alpha = fromFP64(alphaFP);

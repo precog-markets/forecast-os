@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: Draft, create, check, fund, and consume human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, pending Precog approval, market funding, or future-event probabilities that should be grounded in market context.
+description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, pending Precog approval, market funding, buying or selling Precog shares, or future-event probabilities that should be grounded in market context.
 version: 0.1.0
 author: ForecastOS
 license: UNLICENSED
@@ -36,6 +36,10 @@ future-event probability context that should be grounded in prediction markets.
 | Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs publish_approved_market --workflow-id <workflow_id> --wallet-output <wallet-output-json>` |
 | Hourly pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id> --auto-redraft` |
 | Version check | `node <forecastos-repo>/skill/forecast-os/scripts/check_version.mjs` |
+| Quote Precog trade | `node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market <id> --outcome-label <name> --shares <n> --buy --network mainnet` |
+| Prepare Precog buy | `node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs --market <id> --outcome-label <name> --shares <n> --max <from-quote> --wallet-address <0x...> --network mainnet` |
+| Resolve Base MCP trade | `node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs --input <trade.json> --wallet-address <0x...>` |
+| Precog positions | `node ${HERMES_SKILL_DIR}/scripts/positions-precog.mjs --market <id> --wallet-address <0x...>` |
 
 Set `FORECASTOS_REPO_ROOT` when this Hermes skill is copied away from the
 ForecastOS repo. Set `FORECASTOS_NODE_BIN` only when Hermes cannot run `node`
@@ -94,6 +98,29 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    auto-submit it.
 10. Fund only after Precog status is `VALIDATED` and a separate explicit funding
     approval exists.
+
+## Trading Procedure (deployed Precog markets)
+
+Use this for buy/sell on **deployed** markets. Never ask for `PRIVATE_KEY`.
+
+1. **Discover markets** with the Precog API using `open_api_key` from config:
+   `GET /api/v1/markets/?chain_id=<id>&status=OPEN`. This works for any chain
+   (for example `8453` Base or `84532` Base Sepolia) and does **not** require
+   a `supported_chains` entry for that chain.
+2. **Base MCP onboarding** before prepare: call `get_wallets` and present the
+   wallet disclaimer. Use the returned address for `--wallet-address`.
+3. **Quote** with `quote-precog.mjs`. Paste the full output verbatim and wait
+   for operator confirmation.
+4. **Prepare** with `prepare-precog-buy.mjs` or `prepare-precog-sell.mjs` using
+   exact `--shares` and `--max`/`--min` from the quote. Use `--outcome-label`
+   or 1-based `--outcome`. Base mainnet trades require `--network mainnet`.
+5. **Resolve** with `resolve-base-mcp-trade.mjs`, then run Base MCP `send_calls`
+   with the returned payload. Re-run with `--tx-hashes` after confirmation.
+6. **Do not** grep `adapters/actions/precog` under `~/.hermes/skills/`. Set
+   `FORECASTOS_REPO_ROOT` to the ForecastOS checkout (for example
+   `feat/add-trading`) and use the Hermes shims above.
+
+See `references/hermes-precog-trading.md` for a full Base MCP example.
 
 ## Post-Approval Create
 
@@ -172,9 +199,12 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
   `supports_base: true` or patch with `patch-privy-chain-policy.mjs --confirm`.
 - A copied Hermes skill is not the full ForecastOS repo. Privy signing resolves
   through `scripts/resolve-privy-create.mjs` and the repo-root adapter at
-  `adapters/wallets/privy/resolve_create.mjs`. Set `FORECASTOS_REPO_ROOT` when
-  the skill is installed outside the monorepo. Do not grep for adapters under
-  the skill install path.
+  `adapters/wallets/privy/resolve_create.mjs`. Precog trading resolves through
+  `quote-precog.mjs`, `prepare-precog-buy.mjs`, and `resolve-base-mcp-trade.mjs`
+  at the repo root under `adapters/actions/precog` and
+  `adapters/wallets/base-mcp`. Set `FORECASTOS_REPO_ROOT` when the skill is
+  installed outside the monorepo. Do not grep for adapters under the skill
+  install path.
 - File inputs are preferred. The action wrapper also supports `--input -` for
   heredocs when the terminal session needs stdin.
 

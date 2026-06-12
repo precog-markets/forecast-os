@@ -706,6 +706,11 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertFile(join(hermesSkillRoot, "scripts", "prepare-create-intent.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "quote-precog.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "prepare-precog-buy.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "resolve-base-mcp-trade.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "spawn-repo-script.mjs"));
+  await assertFile(join(hermesSkillRoot, "references", "hermes-precog-trading.md"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
   await assertFile(join(hermesPluginRoot, "__init__.py"));
 
@@ -739,7 +744,11 @@ async function assertHermesHostAdapter(monorepoRoot) {
   assert(
     hermesSkill.includes("prepare-create-intent.mjs") &&
       hermesSkill.includes("resolve-privy-create.mjs") &&
+      hermesSkill.includes("quote-precog.mjs") &&
+      hermesSkill.includes("prepare-precog-buy.mjs") &&
+      hermesSkill.includes("resolve-base-mcp-trade.mjs") &&
       hermesSkill.includes("patch-privy-chain-policy.mjs") &&
+      hermesSkill.includes("Trading Procedure") &&
       hermesSkill.includes("run_skill_step") &&
       hermesSkill.includes("--wallet-output") &&
       hermesSkill.includes("Do not call direct `create_market` as the normal publish path") &&
@@ -819,14 +828,16 @@ async function assertHermesHostAdapter(monorepoRoot) {
       hermesSetupScript.includes("patch_command") &&
       hermesSetupScript.includes("resolvePrivyAdapterScript") &&
       hermesSetupScript.includes("hermes_state_config") &&
-      hermesSetupScript.includes("hermes_state_dir"),
-    "Hermes setup check must verify Privy adapter, Hermes wrapper paths, and local state config",
+      hermesSetupScript.includes("hermes_state_dir") &&
+      hermesSetupScript.includes("precog_quote_script") &&
+      hermesSetupScript.includes("precog_actions_installed"),
+    "Hermes setup check must verify Privy adapter, Precog trading scripts, Hermes wrapper paths, and local state config",
   );
   const hermesPrivyWrapper = await readFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"), "utf8");
   assert(
-    hermesPrivyWrapper.includes("resolvePrivyAdapterScript") &&
-      hermesPrivyWrapper.includes("buildRepoRootRequiredError"),
-    "Hermes Privy wrapper must resolve repo-root adapter and fail with actionable repo-root guidance",
+    hermesPrivyWrapper.includes("spawnRepoScript") &&
+      hermesPrivyWrapper.includes("PRIVY_ADAPTER_REL"),
+    "Hermes Privy wrapper must forward to the repo-root adapter through spawn-repo-script",
   );
 }
 
