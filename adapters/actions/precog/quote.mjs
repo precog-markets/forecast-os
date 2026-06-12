@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs, requireArgs } from "./lib/args.mjs";
 import { bootstrapFromArgs } from "./lib/bootstrap.mjs";
 import * as client from "./lib/client.mjs";
+import { buildChainReadFailureError } from "./lib/market_resolve.mjs";
 import {
   LSLMSR,
   marketSharesFromCost,
@@ -15,11 +16,10 @@ export async function main(deps = {}) {
   const _parseArgs = deps.parseArgs ?? parseArgs;
   const _requireArgs = deps.requireArgs ?? requireArgs;
   const a = _parseArgs();
-  bootstrapFromArgs(a);
+  const marketContext = await (deps.bootstrapFromArgs ?? bootstrapFromArgs)(a, deps);
 
   const {
     multiread,
-    outcomes,
     pct,
     toFP64,
     fromFP64,
@@ -37,7 +37,8 @@ export async function main(deps = {}) {
 
   const showBuy = !("sell" in a);
   const showSell = !("buy" in a);
-  const marketId = BigInt(a.market);
+  const onChainMarketId = marketContext?.on_chain_market_id ?? a.market;
+  const marketId = BigInt(onChainMarketId);
 
   const [marketRes, colRes, setupRes, sharesRes, pricesRes] = await multiread([
     ["markets", [marketId]],
@@ -47,17 +48,28 @@ export async function main(deps = {}) {
     ["marketPrices", [marketId]],
   ], { allowFailure: true });
 
-  if (marketRes.status === "failure") throw new Error("Failed to load market");
-  if (colRes.status === "failure") throw new Error("Failed to load collateral info");
-  if (setupRes.status === "failure") throw new Error("Failed to load market setup info");
-  if (sharesRes.status === "failure") throw new Error("Failed to load market shares info");
+  if (marketRes.status === "failure") {
+    throw buildChainReadFailureError(marketContext ?? { on_chain_market_id: onChainMarketId, network: a.network ?? "mainnet" }, new Error("markets() read failed"));
+  }
+  if (colRes.status === "failure") {
+    throw buildChainReadFailureError(marketContext ?? { on_chain_market_id: onChainMarketId, network: a.network ?? "mainnet" }, new Error("collateral read failed"));
+  }
+  if (setupRes.status === "failure") {
+    throw buildChainReadFailureError(marketContext ?? { on_chain_market_id: onChainMarketId, network: a.network ?? "mainnet" }, new Error("setup read failed"));
+  }
+  if (sharesRes.status === "failure") {
+    throw buildChainReadFailureError(marketContext ?? { on_chain_market_id: onChainMarketId, network: a.network ?? "mainnet" }, new Error("shares read failed"));
+  }
 
-  const [question, , , , outcomesRaw] = marketRes.result;
+  const [questionOnChain, , , , outcomesRaw] = marketRes.result;
+  const question = marketContext?.question ?? questionOnChain;
   const [colToken, , colSymbol] = colRes.result;
   const [, alphaFP, , sellFeeFP] = setupRes.result;
   const [, sharesBalancesFP] = sharesRes.result;
 
-  const outcomeList = parseOutcomeList(outcomesRaw);
+  const outcomeList = marketContext?.outcome_list?.length
+    ? marketContext.outcome_list
+    : parseOutcomeList(outcomesRaw);
   const outcome = resolveOutcomeIndex({
     outcome: a.outcome,
     outcomeLabel: a["outcome-label"],
@@ -117,8 +129,9 @@ export async function main(deps = {}) {
     prob = `${pct(pricesRes.result[0][outcome])}%`;
   }
 
+  const displayApiId = marketContext?.precog_api_market_id ?? a.market;
   const hr = "-".repeat(57);
-  console.log(`\nQuote - Market ${a.market}: ${question}`);
+  console.log(`\nQuote - Market ${displayApiId} (on-chain ${onChainMarketId}): ${question}`);
   console.log(hr);
   console.log(`  Outcome      : ${label}`);
   console.log(`  Shares       : ${sharesNum}`);
@@ -144,12 +157,14 @@ export async function main(deps = {}) {
   console.log("--- Paste ALL lines above verbatim before asking to confirm ---\n");
 
   return {
-    label,
+    label: label,
     shares: sharesNum,
-    buyCost,
-    sellRet,
+    buyCost: buyCost,
+    sellRet: sellRet,
     suggestedMax: buyCost * 1.01,
     suggestedMin: sellRet * 0.99,
+    onChainMarketId: onChainMarketId,
+    precogApiMarketId: displayApiId,
   };
 }
 

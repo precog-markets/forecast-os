@@ -43,17 +43,32 @@ function buildMultireadResult() {
   ];
 }
 
+const mockMarketContext = {
+  precog_api_market_id: "136",
+  on_chain_market_id: "23",
+  chain_id: 8453,
+  network: "mainnet",
+  question: "Spotify top artist 2026",
+  outcome_list: ["Taylor Swift", "Bruno Mars", "Bad Bunny"],
+};
+
 test("quote returns suggested max/min from mocked contract reads", async () => {
   let multireadCalls = 0;
+  let firstMultireadMarketId = null;
   const result = await quoteMain({
     parseArgs: () => ({
-      market: "1",
+      market: "136",
       outcome: "1",
       cost: "10",
       buy: true,
+      "chain-id": "8453",
     }),
     requireArgs: () => {},
+    bootstrapFromArgs: async () => mockMarketContext,
     multiread: async (calls, options = {}) => {
+      if (multireadCalls === 0) {
+        firstMultireadMarketId = calls[0][1][0];
+      }
       multireadCalls += 1;
       if (multireadCalls === 1) return buildMultireadResult();
       return [1000000000000000000n, 900000000000000000n];
@@ -70,4 +85,7 @@ test("quote returns suggested max/min from mocked contract reads", async () => {
   assert.ok(result.shares > 0);
   assert.ok(result.suggestedMax > result.buyCost);
   assert.ok(result.suggestedMin < result.sellRet);
+  assert.equal(firstMultireadMarketId, 23n);
+  assert.equal(result.onChainMarketId, "23");
+  assert.equal(result.precogApiMarketId, "136");
 });

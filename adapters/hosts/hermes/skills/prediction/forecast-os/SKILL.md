@@ -36,8 +36,9 @@ future-event probability context that should be grounded in prediction markets.
 | Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs publish_approved_market --workflow-id <workflow_id> --wallet-output <wallet-output-json>` |
 | Hourly pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id> --auto-redraft` |
 | Version check | `node <forecastos-repo>/skill/forecast-os/scripts/check_version.mjs` |
-| Quote Precog trade | `node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market <id> --outcome-label <name> --shares <n> --buy --network mainnet` |
-| Prepare Precog buy | `node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs --market <id> --outcome-label <name> --shares <n> --max <from-quote> --wallet-address <0x...> --network mainnet` |
+| List Precog markets | `node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN` |
+| Quote Precog trade | `node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market <api-id> --outcome-label "<name>" --shares <n> --buy --chain-id 8453` |
+| Prepare Precog buy | `node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs --market <api-id> --outcome-label "<name>" --shares <n> --max <from-quote> --wallet-address <0x...> --chain-id 8453` |
 | Resolve Base MCP trade | `node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs --input <trade.json> --wallet-address <0x...>` |
 | Precog positions | `node ${HERMES_SKILL_DIR}/scripts/positions-precog.mjs --market <id> --wallet-address <0x...>` |
 
@@ -103,22 +104,22 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
 
 Use this for buy/sell on **deployed** markets. Never ask for `PRIVATE_KEY`.
 
-1. **Discover markets** with the Precog API using `open_api_key` from config:
-   `GET /api/v1/markets/?chain_id=<id>&status=OPEN`. This works for any chain
-   (for example `8453` Base or `84532` Base Sepolia) and does **not** require
-   a `supported_chains` entry for that chain.
+1. **Discover markets** with `list-precog-markets.mjs` or the Precog API.
+   Listings use `api_id`; on-chain calls use `master_market_id`. Scripts resolve
+   `--market <api-id>` automatically. Pass `--chain-id` (`8453` mainnet,
+   `84532` sepolia).
 2. **Base MCP onboarding** before prepare: call `get_wallets` and present the
    wallet disclaimer. Use the returned address for `--wallet-address`.
-3. **Quote** with `quote-precog.mjs`. Paste the full output verbatim and wait
-   for operator confirmation.
+3. **Quote** with `quote-precog.mjs` before every prepare. Paste the full
+   output verbatim and wait for operator confirmation. Use suggested `--max`.
 4. **Prepare** with `prepare-precog-buy.mjs` or `prepare-precog-sell.mjs` using
-   exact `--shares` and `--max`/`--min` from the quote. Use `--outcome-label`
-   or 1-based `--outcome`. Base mainnet trades require `--network mainnet`.
+   exact `--shares` and `--max`/`--min` from the quote. Use `--outcome-label "<name>"`
+   or 1-based `--outcome`. Never use `--outcome-index` or bare `--outcome <name>`.
 5. **Resolve** with `resolve-base-mcp-trade.mjs`, then run Base MCP `send_calls`
    with the returned payload. Re-run with `--tx-hashes` after confirmation.
-6. **Do not** grep `adapters/actions/precog` under `~/.hermes/skills/`. Set
-   `FORECASTOS_REPO_ROOT` to the ForecastOS checkout (for example
-   `feat/add-trading`) and use the Hermes shims above.
+6. **Do not** grep `adapters/actions/precog` under `~/.hermes/skills/`, patch
+   `quote.mjs` locally, or hand-roll Python calldata. Set `FORECASTOS_REPO_ROOT`
+   to the ForecastOS checkout and use the Hermes shims above.
 
 See `references/hermes-precog-trading.md` for a full Base MCP example.
 

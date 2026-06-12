@@ -26,6 +26,9 @@ test("prepareBuyTrade builds approve+buy transactions without private key", asyn
 
   assert.equal(intent.intent_type, "forecastos.precog_trade");
   assert.equal(intent.action, "buy");
+  assert.equal(intent.market_id, "4");
+  assert.equal(intent.on_chain_market_id, "4");
+  assert.equal(intent.precog_api_market_id, "4");
   assert.equal(intent.wallet_address, walletAddress);
   assert.equal(intent.transactions.length, 2);
   assert.equal(intent.transactions[0].step, "approve");
@@ -53,4 +56,30 @@ test("prepareBuyTrade skips approve when allowance is sufficient", async () => {
 
   assert.equal(intent.transactions.length, 1);
   assert.equal(intent.transactions[0].step, "buy");
+});
+
+test("prepareBuyTrade includes precog_api_market_id when marketContext is provided", async () => {
+  const intent = await prepareBuyTrade({
+    market: "23",
+    outcome: "2",
+    shares: "2",
+    max: "1",
+    walletAddress,
+    marketContext: {
+      precog_api_market_id: "136",
+      on_chain_market_id: "23",
+    },
+    deps: {
+      multiread: async () => [
+        [colToken, 0n, "USDC", 6],
+        [0n, 0n, 0n, 0n, "Taylor Swift,Bruno Mars", 0n, 0n, 0n, 0n, futureEnd],
+      ],
+      readAllowance: async () => 10_000_000n,
+      getChainId: () => 8453,
+    },
+  });
+
+  assert.equal(intent.precog_api_market_id, "136");
+  assert.equal(intent.on_chain_market_id, "23");
+  assert.equal(intent.market_id, "23");
 });

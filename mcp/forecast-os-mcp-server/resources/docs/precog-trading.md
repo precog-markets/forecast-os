@@ -25,6 +25,20 @@ GET /api/v1/markets/?chain_id=84532&status=OPEN
 Use `open_api_key` from `.forecastos/config.json`. A chain does not need a
 `supported_chains` entry to be queryable through the API.
 
+### API id vs on-chain id
+
+Listings return `id` (API market id). Contract calls use `master_market_id`.
+They are often different. Trading scripts accept `--market <api-id>` and resolve
+to `master_market_id` automatically. Pass `--chain-id` when listing or quoting so
+network is inferred (`8453` → mainnet, `84532` → sepolia).
+
+```txt
+node adapters/actions/precog/list_markets.mjs --chain-id 8453 --status OPEN
+```
+
+Columns: `api_id`, `master_market_id`, `name`, `outcomes`. Trade with
+`--market <api_id>` — not `master_market_id` unless using `--master-market-id`.
+
 ## Prerequisites
 
 ```txt
@@ -38,12 +52,16 @@ Default network is Base Sepolia for quotes; wallet adapters require
 ## Agent flow
 
 1. Discover the market with read-only ForecastOS tools (`forecastos_search_markets`,
-   Precog API reads, or MCP market tools).
-2. Run `quote.mjs` and paste the **full output verbatim** to the operator.
+   `list_markets.mjs`, Precog API reads, or MCP market tools). Note both
+   `api_id` and `master_market_id` from listings.
+2. Run `quote.mjs` with `--market <api_id>` and `--chain-id` when known. Paste
+   the **full output verbatim** to the operator.
 3. Wait for explicit confirmation.
-4. Run `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address` from the
-   operator's Bankr/Privy/Base wallet (not a private key).
-5. Submit with the matching wallet adapter `resolve_trade.mjs`.
+4. Run `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address` and
+   `--max`/`--min` from the quote (do not guess). Use `--outcome-label`, not
+   bare `--outcome <name>` or `--outcome-index`.
+5. Submit with the matching wallet adapter `resolve_trade.mjs`. Never hand-roll
+   Python calldata or patch `quote.mjs` / `prepare_trade.mjs` in the checkout.
 6. Optionally run `positions.mjs --wallet-address <0x...>` to verify holdings.
 
 ## Outcome selection
@@ -63,8 +81,8 @@ If both are provided, they must agree.
 ## Commands (repo root)
 
 ```txt
-node adapters/actions/precog/quote.mjs --market <id> --outcome-label Claude --shares 2 --buy --network mainnet
-node adapters/actions/precog/prepare_buy.mjs --market <id> --outcome-label Claude --shares 2 --max <usdc> --wallet-address <0x...> --network mainnet
+node adapters/actions/precog/quote.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --buy --chain-id 8453
+node adapters/actions/precog/prepare_buy.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --max <from-quote> --wallet-address <0x...> --chain-id 8453
 node adapters/wallets/base-mcp/resolve_trade.mjs --input <trade.json> --wallet-address <0x...>
 node adapters/wallets/bankr/resolve_trade.mjs --input <trade.json> --api-key <bk_...>
 node adapters/actions/precog/positions.mjs --market <id> --wallet-address <0x...>
@@ -75,7 +93,8 @@ node adapters/actions/precog/positions.mjs --market <id> --wallet-address <0x...
 When using the Hermes skill export with `FORECASTOS_REPO_ROOT` set:
 
 ```txt
-node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs ...
+node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN
+node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --buy --chain-id 8453
 node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs ...
 node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs ...
 ```

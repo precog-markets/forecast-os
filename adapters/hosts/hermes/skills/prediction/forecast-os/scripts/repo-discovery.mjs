@@ -10,6 +10,7 @@ export const PRECOG_QUOTE_REL = join(PRECOG_ACTIONS_REL, "quote.mjs");
 export const PRECOG_PREPARE_BUY_REL = join(PRECOG_ACTIONS_REL, "prepare_buy.mjs");
 export const PRECOG_PREPARE_SELL_REL = join(PRECOG_ACTIONS_REL, "prepare_sell.mjs");
 export const PRECOG_POSITIONS_REL = join(PRECOG_ACTIONS_REL, "positions.mjs");
+export const PRECOG_LIST_MARKETS_REL = join(PRECOG_ACTIONS_REL, "list_markets.mjs");
 export const BASE_MCP_TRADE_REL = join("adapters", "wallets", "base-mcp", "resolve_trade.mjs");
 
 export function buildPrivyAdapterPath(repoRoot) {

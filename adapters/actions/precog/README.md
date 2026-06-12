@@ -30,18 +30,39 @@ Mainnet master contract address aligns with
 Wallet adapters (Bankr, Privy, Base MCP) currently submit on **Base mainnet (8453)** only.
 Use `--network mainnet` before prepare + resolve_trade.
 
-## Flow
+## API id vs on-chain id
 
-1. **Quote** (read-only): `quote.mjs`
-2. **Prepare** unsigned calldata: `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address`
-3. **Submit** via wallet adapter: `adapters/wallets/<provider>/resolve_trade.mjs`
+Precog API listings use `id` (API market id). On-chain contract calls use
+`master_market_id`. They are often different (for example API `136` → on-chain `23`).
 
-Always run `quote` before prepare. Show full quote output and wait for
-explicit operator confirmation.
+| Flag | Meaning |
+|------|---------|
+| `--market <id>` | Precog API market id from listings (default for agents) |
+| `--master-market-id <id>` | Skip API lookup; use on-chain id directly |
+| `--chain-id <id>` | Disambiguates API lookup (`8453` → mainnet, `84532` → sepolia) |
+
+Scripts resolve `--market` to `master_market_id` automatically. Network is
+inferred from API `chain_id` when `--network` is omitted.
+
+List markets with both ids:
 
 ```txt
-node adapters/actions/precog/quote.mjs --market 4 --outcome 1 --cost 50 --buy
-node adapters/actions/precog/prepare_buy.mjs --market 4 --outcome 1 --shares 312 --max 99.44 --wallet-address 0x... --network mainnet > trade.json
+node adapters/actions/precog/list_markets.mjs --chain-id 8453 --status OPEN
+```
+
+## Flow
+
+1. **List** (optional): `list_markets.mjs` — shows `api_id` and `master_market_id`
+2. **Quote** (read-only): `quote.mjs`
+3. **Prepare** unsigned calldata: `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address`
+4. **Submit** via wallet adapter: `adapters/wallets/<provider>/resolve_trade.mjs`
+
+Always run `quote` before prepare. Show full quote output and wait for
+explicit operator confirmation. Never patch these scripts locally.
+
+```txt
+node adapters/actions/precog/quote.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --buy --chain-id 8453
+node adapters/actions/precog/prepare_buy.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --max <from-quote> --wallet-address 0x... --chain-id 8453 > trade.json
 node adapters/wallets/bankr/resolve_trade.mjs --input trade.json --api-key bk_...
 ```
 

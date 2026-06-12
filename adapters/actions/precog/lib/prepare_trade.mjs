@@ -19,6 +19,7 @@ export async function prepareBuyTrade({
   max,
   walletAddress,
   slippage = 1,
+  marketContext,
   deps = {},
 }) {
   const {
@@ -81,6 +82,7 @@ export async function prepareBuyTrade({
     action: "buy",
     chainId,
     market,
+    marketContext,
     outcome: outcomeIndex,
     shares: String(shares),
     max: String(max),
@@ -99,6 +101,7 @@ export async function prepareSellTrade({
   min,
   walletAddress,
   slippage = 1,
+  marketContext,
   deps = {},
 }) {
   const {
@@ -144,6 +147,7 @@ export async function prepareSellTrade({
     action: "sell",
     chainId,
     market,
+    marketContext,
     outcome: outcomeIndex,
     shares: String(shares),
     min: String(min),
@@ -156,11 +160,15 @@ export async function prepareSellTrade({
 }
 
 function buildTradeIntent(fields) {
+  const onChainMarketId = String(fields.market);
+  const precogApiMarketId = fields.marketContext?.precog_api_market_id;
   return {
     intent_type: "forecastos.precog_trade",
     action: fields.action,
     chain_id: fields.chainId,
-    market_id: String(fields.market),
+    precog_api_market_id: precogApiMarketId ?? onChainMarketId,
+    on_chain_market_id: onChainMarketId,
+    market_id: onChainMarketId,
     outcome: fields.outcome,
     shares: fields.shares,
     max: fields.max,

@@ -707,8 +707,11 @@ async function assertHermesHostAdapter(monorepoRoot) {
   await assertFile(join(hermesSkillRoot, "scripts", "resolve-privy-create.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "patch-privy-chain-policy.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "quote-precog.mjs"));
+  await assertFile(join(hermesSkillRoot, "scripts", "list-precog-markets.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "prepare-precog-buy.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "resolve-base-mcp-trade.mjs"));
+  await assertFile(join(monorepoRoot, "adapters", "actions", "precog", "list_markets.mjs"));
+  await assertFile(join(monorepoRoot, "adapters", "actions", "precog", "lib", "market_resolve.mjs"));
   await assertFile(join(hermesSkillRoot, "scripts", "spawn-repo-script.mjs"));
   await assertFile(join(hermesSkillRoot, "references", "hermes-precog-trading.md"));
   await assertFile(join(hermesPluginRoot, "plugin.yaml"));
@@ -745,8 +748,11 @@ async function assertHermesHostAdapter(monorepoRoot) {
     hermesSkill.includes("prepare-create-intent.mjs") &&
       hermesSkill.includes("resolve-privy-create.mjs") &&
       hermesSkill.includes("quote-precog.mjs") &&
+      hermesSkill.includes("list-precog-markets.mjs") &&
       hermesSkill.includes("prepare-precog-buy.mjs") &&
       hermesSkill.includes("resolve-base-mcp-trade.mjs") &&
+      hermesSkill.includes("master_market_id") &&
+      hermesSkill.includes("--outcome-label") &&
       hermesSkill.includes("patch-privy-chain-policy.mjs") &&
       hermesSkill.includes("Trading Procedure") &&
       hermesSkill.includes("run_skill_step") &&

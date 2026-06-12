@@ -15,18 +15,26 @@ node ${HERMES_SKILL_DIR}/scripts/check-hermes-setup.mjs
 
 ## Market discovery (any chain)
 
-List open markets with the Precog API and `open_api_key` from config:
+List open markets with the Hermes shim (shows both API id and on-chain id):
 
 ```txt
-curl -s 'https://service.precog.markets/api/v1/markets/?chain_id=8453&status=OPEN' \
-  -H 'Accept: application/json' \
-  -H "X-API-Key: $(node -p "JSON.parse(require('fs').readFileSync('${FORECASTOS_REPO_ROOT}/skill/forecast-os/.forecastos/config.json','utf8')).precog.open_api_key")"
+node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN
 ```
+
+Columns: `api_id`, `master_market_id`, `name`, `outcomes`. **Trade with
+`--market <api_id>`** — scripts resolve `master_market_id` for on-chain calls.
 
 Use `chain_id=84532` for Base Sepolia listings. `supported_chains` in config is
 for create/fund defaults, not for whether the API accepts a chain.
 
-## Example: buy 2 Claude shares on Base market 138
+## API id vs on-chain id
+
+Precog API `id` (for example `136`) is not the same as on-chain
+`master_market_id` (for example `23`). Never pass API id directly to hand-rolled
+calldata. Always use `quote-precog.mjs` → `prepare-precog-buy.mjs` →
+`resolve-base-mcp-trade.mjs`. Do not patch repo scripts locally.
+
+## Example: buy 2 Bruno Mars shares on Base market 136
 
 ### 1. Base MCP wallet (before prepare)
 
@@ -37,29 +45,32 @@ Call Base MCP `get_wallets` and `present_wallet_status_and_disclaimer`. Record
 
 ```txt
 node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs \
-  --market 138 \
-  --outcome-label Claude \
+  --market 136 \
+  --outcome-label "Bruno Mars" \
   --shares 2 \
   --buy \
-  --network mainnet
+  --chain-id 8453
 ```
 
-Paste the full quote output to the operator and wait for confirmation.
+Network is inferred from `chain_id` (`8453` → mainnet). Paste the full quote
+output to the operator and wait for confirmation. Use the suggested `--max`
+from the quote — do not guess.
 
 ### 3. Prepare unsigned trade
 
 ```txt
 node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs \
-  --market 138 \
-  --outcome-label Claude \
+  --market 136 \
+  --outcome-label "Bruno Mars" \
   --shares 2 \
   --max <suggested-max-from-quote> \
   --wallet-address 0xabc... \
-  --network mainnet > /tmp/trade.json
+  --chain-id 8453 > /tmp/trade.json
 ```
 
-`--outcome 1` is equivalent to `--outcome-label Claude` when Claude is the
-first listed outcome.
+Use `--outcome-label "Bruno Mars"` (quoted). Do not use `--outcome Bruno Mars`
+or `--outcome-index`. `--outcome 2` is equivalent when Bruno Mars is the second
+listed outcome.
 
 ### 4. Resolve Base MCP send_calls
 
@@ -89,14 +100,16 @@ node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs \
 
 | Operator says | CLI |
 |---------------|-----|
-| Claude (label) | `--outcome-label Claude` |
+| Bruno Mars (label) | `--outcome-label "Bruno Mars"` |
 | first outcome | `--outcome 1` |
 | second outcome | `--outcome 2` |
+
+Invalid: `--outcome Bruno Mars`, `--outcome-index 1`, skipping quote, guessing `--max`.
 
 ## Boundaries
 
 - Never ask for `PRIVATE_KEY`.
-- Wallet adapters submit on Base mainnet (`8453`) only; use `--network mainnet`.
+- Wallet adapters submit on Base mainnet (`8453`) only; use `--chain-id 8453` or `--network mainnet`.
 - Sepolia (`84532`) is fine for API listing and on-chain quotes with
   `--network sepolia`, but Base MCP submit requires mainnet.
 - One trade per operator confirmation.

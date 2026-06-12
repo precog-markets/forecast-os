@@ -73,14 +73,28 @@ export async function resolveOutcomeFromMarket({
   outcome,
   outcomeLabel,
   multiread,
+  outcomeList: providedOutcomeList,
+  marketContext,
 }) {
-  const marketId = BigInt(market);
-  const [marketRes] = await multiread([["markets", [marketId]]], { allowFailure: true });
-  if (marketRes.status === "failure") {
-    throw new Error("Failed to load market outcomes.");
+  let outcomeList = Array.isArray(providedOutcomeList) && providedOutcomeList.length
+    ? providedOutcomeList
+    : marketContext?.outcome_list;
+  if (!outcomeList?.length) {
+    const marketId = BigInt(market);
+    const [marketRes] = await multiread([["markets", [marketId]]], { allowFailure: true });
+    if (marketRes.status === "failure") {
+      const apiId = marketContext?.precog_api_market_id;
+      const onChainId = marketContext?.on_chain_market_id ?? market;
+      if (apiId && String(apiId) !== String(onChainId)) {
+        throw new Error(
+          `Failed to load market outcomes for on-chain id ${onChainId}. API id ${apiId} maps to master_market_id ${onChainId}; use --network ${marketContext?.network ?? "mainnet"}.`,
+        );
+      }
+      throw new Error("Failed to load market outcomes.");
+    }
+    const [, , , , outcomesRaw] = marketRes.result;
+    outcomeList = parseOutcomeList(outcomesRaw);
   }
-  const [, , , , outcomesRaw] = marketRes.result;
-  const outcomeList = parseOutcomeList(outcomesRaw);
   const outcomeIndex = resolveOutcomeIndex({ outcome, outcomeLabel, outcomeList });
   return { outcomeIndex, outcomeList };
 }

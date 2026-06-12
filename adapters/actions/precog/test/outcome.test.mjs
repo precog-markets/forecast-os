@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   formatOutcomeChoices,
   parseOutcomeList,
+  resolveOutcomeFromMarket,
   resolveOutcomeIndex,
 } from "../lib/outcome.mjs";
 
@@ -37,4 +38,23 @@ test("resolveOutcomeIndex lists valid outcomes on unknown label", () => {
 test("parseOutcomeList splits pipe and comma forms", () => {
   assert.deepEqual(parseOutcomeList("Yes|No"), ["Yes", "No"]);
   assert.deepEqual(parseOutcomeList("Claude,Gemini,Grok"), ["Claude", "Gemini", "Grok"]);
+});
+
+test("resolveOutcomeFromMarket uses API outcome list without chain read", async () => {
+  let multireadCalled = false;
+  const { outcomeIndex } = await resolveOutcomeFromMarket({
+    market: "23",
+    outcomeLabel: "Bruno Mars",
+    multiread: async () => {
+      multireadCalled = true;
+      return [{ status: "failure" }];
+    },
+    marketContext: {
+      precog_api_market_id: "136",
+      on_chain_market_id: "23",
+      outcome_list: ["Taylor Swift", "Bruno Mars", "Bad Bunny"],
+    },
+  });
+  assert.equal(outcomeIndex, 2);
+  assert.equal(multireadCalled, false);
 });
