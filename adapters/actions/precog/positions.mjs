@@ -12,21 +12,20 @@ export async function main(deps = {}) {
 
   const {
     multiread,
-    getWallet,
     outcomes,
     fromRaw,
     pct,
   } = { ...client, ...deps };
 
-  _requireArgs(a, ["market"]);
+  _requireArgs(a, ["market", "wallet-address"]);
 
   const marketId = BigInt(a.market);
-  const { account } = await getWallet();
+  const walletAddress = a["wallet-address"];
 
   const [marketRes, colRes, accountRes, pricesRes] = await multiread([
     ["markets", [marketId]],
     ["marketCollateralInfo", [marketId]],
-    ["marketAccountInfo", [marketId, account.address]],
+    ["marketAccountInfo", [marketId, walletAddress]],
     ["marketPrices", [marketId]],
   ], { allowFailure: true });
 
@@ -45,7 +44,7 @@ export async function main(deps = {}) {
 
   console.log(`\nMarket ${a.market}`);
   console.log(`${question}\n`);
-  console.log(`Wallet: ${account.address}`);
+  console.log(`Wallet: ${walletAddress}`);
   console.log(`Net cost ${fromRaw(netCost < 0n ? 0n : netCost, dec)} ${colSymbol} · ${totalBuys} buys · ${totalSells} sells\n`);
 
   const held = [];

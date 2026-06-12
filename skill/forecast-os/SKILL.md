@@ -42,7 +42,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Use `.forecastos/` as structured workflow memory. `FORECASTOS_STATE_DIR` may override the default state directory.
 - Do not require MCP for normal drafting or creation. Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
-- For buy/sell on deployed Precog markets, use external scripts in `adapters/actions/precog/` after operator confirmation. Read `references/precog-trading.md`.
+- For buy/sell on deployed Precog markets, quote/prepare with `adapters/actions/precog/` and submit via wallet adapters (`resolve_trade.mjs`) after operator confirmation. Never ask for `PRIVATE_KEY`. Read `references/precog-trading.md`.
 
 ## Live Precog Actions
 

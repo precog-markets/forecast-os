@@ -1,10 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, createWalletClient, fallback, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { createPublicClient, fallback, http } from "viem";
 import { getNetworkConfig, loadMainnetMasterFromForecastOSConfig } from "./config.mjs";
-import { resolvePrivateKey } from "./credentials.mjs";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const ABI_PATH = join(moduleDir, "../abi/PrecogMasterV8.json");
@@ -17,16 +15,14 @@ export let MASTER_ADDRESS = networkConfig.address;
 export let pub = createPublicClient({ chain, transport });
 export const ABI = JSON.parse(readFileSync(ABI_PATH, "utf8"));
 
-let credentialOptions = {};
-
 await loadMainnetMasterFromForecastOSConfig();
 if (networkKey === "mainnet") {
   const refreshed = getNetworkConfig("mainnet");
   MASTER_ADDRESS = refreshed.address;
 }
 
-export function configureCredentials(options = {}) {
-  credentialOptions = { ...credentialOptions, ...options };
+export function getChainId() {
+  return chain.id;
 }
 
 function resolveNetworkKey(value) {
@@ -52,13 +48,6 @@ export function setNetwork(network) {
   pub = createPublicClient({ chain, transport });
 }
 
-export async function getWallet() {
-  const privateKey = await resolvePrivateKey(credentialOptions);
-  const account = privateKeyToAccount(privateKey);
-  const wallet = createWalletClient({ account, chain, transport });
-  return { account, wallet };
-}
-
 export function read(fn, args = []) {
   return pub.readContract({ address: MASTER_ADDRESS, abi: ABI, functionName: fn, args });
 }
@@ -75,21 +64,7 @@ export function multiread(calls, { allowFailure = false } = {}) {
   });
 }
 
-export async function write(wallet, account, fn, fnArgs) {
-  const hash = await wallet.writeContract({
-    address: MASTER_ADDRESS,
-    abi: ABI,
-    functionName: fn,
-    args: fnArgs,
-    account,
-  });
-  process.stdout.write(`Tx sent: ${hash}\nWaiting for confirmation...`);
-  const receipt = await pub.waitForTransactionReceipt({ hash });
-  console.log(` confirmed (block ${receipt.blockNumber})`);
-  return receipt;
-}
-
-const ERC20_ABI = [
+export const ERC20_ABI = [
   {
     name: "balanceOf",
     type: "function",
@@ -122,24 +97,13 @@ export async function tokenBalance(token, addr) {
   });
 }
 
-export async function ensureApproval(wallet, account, token, spender, amount) {
-  const allowance = await pub.readContract({
+export async function readAllowance(token, owner, spender) {
+  return pub.readContract({
     address: token,
     abi: ERC20_ABI,
     functionName: "allowance",
-    args: [account.address, spender],
+    args: [owner, spender],
   });
-  if (allowance >= amount) return;
-  console.log(`Approving ${token}...`);
-  const hash = await wallet.writeContract({
-    address: token,
-    abi: ERC20_ABI,
-    functionName: "approve",
-    args: [spender, amount],
-    account,
-  });
-  await pub.waitForTransactionReceipt({ hash });
-  console.log("Approved.");
 }
 
 export const TWO_POW_64 = 2n ** 64n;
@@ -172,16 +136,4 @@ export function pct(price1e18) {
 
 export function outcomes(raw) {
   return raw.split("|").map((value) => value.trim()).filter(Boolean);
-}
-
-export function status(endTs) {
-  return Date.now() / 1000 < Number(endTs) ? "active" : "ended";
-}
-
-export function date(ts) {
-  return new Date(Number(ts) * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }

@@ -24,7 +24,6 @@ export async function main(deps = {}) {
     fromFP64,
     fromRaw,
     tokenBalance,
-    getWallet,
   } = { ...client, ...deps };
 
   _requireArgs(a, ["market", "outcome"]);
@@ -67,8 +66,11 @@ export async function main(deps = {}) {
 
   let sharesNum;
   if ("all" in a) {
-    const { account } = await getWallet();
-    const balRaw = await tokenBalance(colToken, account.address);
+    const walletAddress = a["wallet-address"];
+    if (!walletAddress) {
+      throw new Error("--all requires --wallet-address <0x...> (no local private key needed).");
+    }
+    const balRaw = await tokenBalance(colToken, walletAddress);
     const balance = Number(balRaw) / 1e18;
     console.log(`  Wallet balance : ${balance.toFixed(4)} ${colSymbol}`);
     sharesNum = Math.floor(marketSharesFromCost(sharesArr, alpha, outcome, balance));

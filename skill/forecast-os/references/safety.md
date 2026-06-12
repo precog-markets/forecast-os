@@ -15,7 +15,7 @@ ForecastOS is allowed to help agents reason about prediction-market workflows an
 - Treat Wallet/action tool transaction creation as external to ForecastOS unless a trusted adapter is configured. ForecastOS should generate funding intent only; wallet/action tools resolve token decimals, token approval if needed, transaction execution, nonce lookup, wallet policy permissions, and EIP-712 signatures.
 - Never invent market prices or probabilities when Precog returns no deployed market data.
 - Never ask for seed phrases, private keys, raw signing secrets, or custody credentials.
-- Precog share trading on deployed markets is external to ForecastOS core. Use `adapters/actions/precog/` only after operator approval; always quote before buy or sell. Do not add MCP tools that place trades.
+- Precog share trading on deployed markets is external to ForecastOS core. Use `adapters/actions/precog/` to quote/prepare and wallet adapters to submit — never local private keys. Always quote before prepare/submit. Do not add MCP tools that place trades.
 
 ## Human-Facing Behavior
 

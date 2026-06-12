@@ -2,15 +2,16 @@
 
 ForecastOS does not execute onchain trades. When an operator wants to buy or
 sell outcome shares on a **deployed** Precog market, use the host-agnostic
-action scripts under `adapters/actions/precog/`.
+action scripts under `adapters/actions/precog/` plus a wallet adapter for signing.
 
 ## Boundary
 
 - ForecastOS MCP and skill: read-only market discovery, prices, workflow memory
-- `adapters/actions/precog/`: quote, buy, sell, positions with a local EOA key
-- Wallet adapters under `adapters/wallets/`: create/fund EIP-712 handoffs only
+- `adapters/actions/precog/`: quote, prepare unsigned trades, positions (no keys)
+- `adapters/wallets/{bankr,privy,base-mcp}/`: sign and submit prepared trades
 
-Do not add trading tools to MCP or `forecastos_action.mjs`.
+Do not add trading tools to MCP or `forecastos_action.mjs`. Do not ask for
+`PRIVATE_KEY` — use the operator's configured wallet provider.
 
 ## Prerequisites
 
@@ -19,8 +20,8 @@ cd adapters/actions/precog
 npm install
 ```
 
-Set `PRIVATE_KEY` or pass `--env-file <path>`. Default network is Base Sepolia;
-mainnet requires explicit `--network mainnet` or `PRECOG_NETWORK=mainnet`.
+Default network is Base Sepolia for quotes; wallet adapters require
+`--network mainnet` (Base 8453) for submit.
 
 ## Agent flow
 
@@ -28,8 +29,10 @@ mainnet requires explicit `--network mainnet` or `PRECOG_NETWORK=mainnet`.
    `forecastos_get_market_prices`, or Precog API reads).
 2. Run `quote.mjs` and paste the **full output verbatim** to the operator.
 3. Wait for explicit confirmation.
-4. Run `buy.mjs` or `sell.mjs` with the exact shares and `--max`/`--min` from the quote.
-5. Optionally run `positions.mjs` to verify holdings.
+4. Run `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address` from the
+   operator's Bankr/Privy/Base wallet (not a private key).
+5. Submit with the matching wallet adapter `resolve_trade.mjs`.
+6. Optionally run `positions.mjs --wallet-address <0x...>` to verify holdings.
 
 ## Quote flags
 
@@ -38,23 +41,22 @@ mainnet requires explicit `--network mainnet` or `PRECOG_NETWORK=mainnet`.
 | buy N shares | `--shares N` |
 | spend $X | `--cost X` |
 | reach X% | `--price 0.X` |
-| all in | `--all` |
+| all in | `--all --wallet-address <0x...>` |
 
 ## Commands
 
 ```txt
 node adapters/actions/precog/quote.mjs --market <id> --outcome <n> --cost 50 --buy
-node adapters/actions/precog/buy.mjs --market <id> --outcome <n> --shares <n> --max <usdc>
-node adapters/actions/precog/sell.mjs --market <id> --outcome <n> --shares <n> --min <usdc>
-node adapters/actions/precog/positions.mjs --market <id>
+node adapters/actions/precog/prepare_buy.mjs --market <id> --outcome <n> --shares <n> --max <usdc> --wallet-address <0x...> --network mainnet
+node adapters/wallets/bankr/resolve_trade.mjs --input <trade.json> --api-key <bk_...>
+node adapters/actions/precog/positions.mjs --market <id> --wallet-address <0x...>
 ```
 
 ## Safety
 
-- Always quote before buy or sell
-- Run scripts sequentially (shared nonce)
-- Do not chain trades without per-step operator confirmation
-- Never modify trade parameters after a failure
+- Always quote before prepare/submit
+- One trade per operator confirmation
+- Do not modify trade parameters after a failure
 - Never ask for seed phrases or paste private keys in chat
 
 See `adapters/actions/precog/README.md` for install and network details.

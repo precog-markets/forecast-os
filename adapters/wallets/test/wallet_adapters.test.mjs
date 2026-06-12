@@ -26,6 +26,12 @@ import { buildBankrTypedData } from "../bankr/common.mjs";
 import {
   resolveFunding as resolveBankrFunding,
 } from "../bankr/resolve_funding.mjs";
+import {
+  resolveTrade as resolveBankrTrade,
+} from "../bankr/resolve_trade.mjs";
+import {
+  resolveTrade as resolveBaseMcpTrade,
+} from "../base-mcp/resolve_trade.mjs";
 
 const walletAdaptersRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(walletAdaptersRoot));
@@ -972,6 +978,83 @@ test("Bankr funding resolver rejects missing calldata and wrong chains", async (
     }),
     /Unsupported Bankr chain id 1/,
   );
+});
+
+test("Bankr trade resolver submits prepared buy transactions without typed data", async () => {
+  const requests = [];
+  const tradeIntent = {
+    intent_type: "forecastos.precog_trade",
+    action: "buy",
+    chain_id: 8453,
+    market_id: "4",
+    outcome: 1,
+    shares: "10",
+    transactions: [
+      {
+        step: "approve",
+        to: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        value: "0",
+        data: "0x095ea7b3",
+        chainId: 8453,
+      },
+      {
+        step: "buy",
+        to: "0x00000000000c109080dfa976923384b97165a57a",
+        value: "0",
+        data: "0xdeadbeef",
+        chainId: 8453,
+      },
+    ],
+  };
+
+  const resolved = await resolveBankrTrade({
+    tradeIntent,
+    apiKey: "bk_test",
+    apiRoot: "https://api.bankr.test",
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (String(url).endsWith("/wallet/me")) {
+        return jsonResponse({ wallet: { id: "bankr_wallet", address: "0x2222222222222222222222222222222222222222" } });
+      }
+      if (String(url).endsWith("/wallet/submit")) {
+        const submitCount = requests.filter((request) => String(request.url).endsWith("/wallet/submit")).length;
+        return jsonResponse({
+          transactionHash: submitCount === 1 ? "0xaaa1" : "0xbbb2",
+          signer: "0x2222222222222222222222222222222222222222",
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+
+  assert.equal(resolved.status, "submitted");
+  assert.equal(resolved.next_action, "trade_complete");
+  assert.equal(resolved.transaction_hash, "0xbbb2");
+  assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/submit")).length, 2);
+  assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/sign")).length, 0);
+});
+
+test("Base MCP trade resolver returns send_calls without local signing", () => {
+  const result = resolveBaseMcpTrade({
+    tradeIntent: {
+      intent_type: "forecastos.precog_trade",
+      action: "sell",
+      chain_id: 8453,
+      market_id: "4",
+      transactions: [{
+        step: "sell",
+        to: "0x00000000000c109080dfa976923384b97165a57a",
+        value: "0",
+        data: "0xfeedface",
+        chainId: 8453,
+      }],
+    },
+    walletAddress: "0x1111111111111111111111111111111111111111",
+  });
+
+  assert.equal(result.status, "base_mcp_send_calls_required");
+  assert.equal(result.next_action, "base_mcp_send_calls");
+  assert.equal(result.base_mcp.send_calls.calls.length, 1);
 });
 
 function buildCreateIntentFixture() {
