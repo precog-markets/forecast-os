@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: Draft, create, check, fund, and consume human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, pending Precog approval, market funding, or future-event probabilities that should be grounded in market context.
+description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, listing or discovering open Precog markets on Base or Arbitrum, pending Precog approval, market funding, buying or selling Precog shares, or future-event probabilities that should be grounded in market context.
 version: 0.1.0
 author: ForecastOS
 license: UNLICENSED
@@ -21,7 +21,8 @@ users who explicitly want a plugin-provided tool.
 ## When to Use
 
 Use this skill when the user wants to draft, create, check, fund, or consume a
-ForecastOS/Precog market, asks whether a prediction market exists, or asks for
+ForecastOS/Precog market, asks to **list open prediction markets** (for example
+"markets on Base"), asks whether a prediction market exists, or asks for
 future-event probability context that should be grounded in prediction markets.
 
 ## Quick Reference
@@ -36,6 +37,11 @@ future-event probability context that should be grounded in prediction markets.
 | Submit wallet-resolved create | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs publish_approved_market --workflow-id <workflow_id> --wallet-output <wallet-output-json>` |
 | Hourly pending check | `node <forecastos-repo>/skill/forecast-os/scripts/check_pending_market.mjs --workflow-id <workflow-id> --auto-redraft` |
 | Version check | `node <forecastos-repo>/skill/forecast-os/scripts/check_version.mjs` |
+| List Precog markets | `node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN` |
+| Quote Precog trade | `node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market <api-id> --outcome-label "<name>" --shares <n> --buy --chain-id 8453` |
+| Prepare Precog buy | `node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs --market <api-id> --outcome-label "<name>" --shares <n> --max <from-quote> --wallet-address <0x...> --chain-id 8453` |
+| Resolve Base MCP trade | `node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs --input <trade.json> --wallet-address <0x...>` |
+| Precog positions | `node ${HERMES_SKILL_DIR}/scripts/positions-precog.mjs --market <id> --wallet-address <0x...>` |
 
 Set `FORECASTOS_REPO_ROOT` when this Hermes skill is copied away from the
 ForecastOS repo. Set `FORECASTOS_NODE_BIN` only when Hermes cannot run `node`
@@ -94,6 +100,52 @@ or keep `FORECASTOS_REPO_ROOT` pointed at the current repo root.
    auto-submit it.
 10. Fund only after Precog status is `VALIDATED` and a separate explicit funding
     approval exists.
+
+## Market Discovery Procedure
+
+Use this when the user asks to list, browse, or discover open Precog markets.
+Triggers include: "list markets", "prediction markets on Base", "what markets
+are open", or "is there a market about X".
+
+1. **Do not** use `web_search`, Base MCP `web_request`, or hand-rolled `curl` for
+   Precog listings. Do not claim MCP lacks a markets endpoint.
+2. Read config only from `${HERMES_SKILL_DIR}/.forecastos/config.json`. Never
+   guess nested paths like `forecast-os/forecast-os/.forecastos/...`.
+3. Run the list shim (no `FORECASTOS_REPO_ROOT` required):
+
+```txt
+node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id <id> --status OPEN
+```
+
+Chain map: Base mainnet `8453`, Base Sepolia `84532`, Arbitrum `42161`.
+
+4. Present the tab-separated output (`api_id`, `master_market_id`, `name`,
+   `outcomes`) to the user. Use `api_id` for later quote/trade commands.
+5. If config is missing, run `check-hermes-setup.mjs` and follow its copy
+   guidance. Do not tell the user to use the UI instead.
+
+## Trading Procedure (deployed Precog markets)
+
+Use this for buy/sell on **deployed** markets. Never ask for `PRIVATE_KEY`.
+
+1. **Discover markets** with `list-precog-markets.mjs` or the Precog API.
+   Listings use `api_id`; on-chain calls use `master_market_id`. Scripts resolve
+   `--market <api-id>` automatically. Pass `--chain-id` (`8453` mainnet,
+   `84532` sepolia).
+2. **Base MCP onboarding** before prepare: call `get_wallets` and present the
+   wallet disclaimer. Use the returned address for `--wallet-address`.
+3. **Quote** with `quote-precog.mjs` before every prepare. Paste the full
+   output verbatim and wait for operator confirmation. Use suggested `--max`.
+4. **Prepare** with `prepare-precog-buy.mjs` or `prepare-precog-sell.mjs` using
+   exact `--shares` and `--max`/`--min` from the quote. Use `--outcome-label "<name>"`
+   or 1-based `--outcome`. Never use `--outcome-index` or bare `--outcome <name>`.
+5. **Resolve** with `resolve-base-mcp-trade.mjs`, then run Base MCP `send_calls`
+   with the returned payload. Re-run with `--tx-hashes` after confirmation.
+6. **Do not** grep `adapters/actions/precog` under `~/.hermes/skills/`, patch
+   `quote.mjs` locally, or hand-roll Python calldata. Set `FORECASTOS_REPO_ROOT`
+   to the ForecastOS checkout and use the Hermes shims above.
+
+See `references/hermes-precog-trading.md` for a full Base MCP example.
 
 ## Post-Approval Create
 
@@ -158,6 +210,8 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
   Do not bypass the bridge by writing draft files manually.
 - Do not ask users to paste private keys, seed phrases, raw signatures, or raw
   custody credentials in chat.
+- Do not use `web_search` or Base MCP `web_request` to list Precog markets. Use
+  `list-precog-markets.mjs` with `--chain-id` instead.
 - Do not use Hermes skills or MCP to sign, custody wallets, fetch nonces,
   approve tokens, send transactions, or bypass ForecastOS approval rules.
 - Do not create Polymarket or Kalshi markets through ForecastOS; those providers
@@ -172,9 +226,12 @@ operator/CI reference and encodes a fixed Arbitrum Warcraft fixture.
   `supports_base: true` or patch with `patch-privy-chain-policy.mjs --confirm`.
 - A copied Hermes skill is not the full ForecastOS repo. Privy signing resolves
   through `scripts/resolve-privy-create.mjs` and the repo-root adapter at
-  `adapters/wallets/privy/resolve_create.mjs`. Set `FORECASTOS_REPO_ROOT` when
-  the skill is installed outside the monorepo. Do not grep for adapters under
-  the skill install path.
+  `adapters/wallets/privy/resolve_create.mjs`. Precog trading resolves through
+  `quote-precog.mjs`, `prepare-precog-buy.mjs`, and `resolve-base-mcp-trade.mjs`
+  at the repo root under `adapters/actions/precog` and
+  `adapters/wallets/base-mcp`. Set `FORECASTOS_REPO_ROOT` when the skill is
+  installed outside the monorepo. Do not grep for adapters under the skill
+  install path.
 - File inputs are preferred. The action wrapper also supports `--input -` for
   heredocs when the terminal session needs stdin.
 

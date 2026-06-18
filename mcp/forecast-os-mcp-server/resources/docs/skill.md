@@ -42,6 +42,7 @@ When users ask how creators earn, how LPs earn, how funding works, or whether cr
 - Use `.forecastos/` as structured workflow memory. `FORECASTOS_STATE_DIR` may override the default state directory.
 - Do not require MCP for normal drafting or creation. Use `scripts/forecastos_action.mjs` for workflow execution; do not add mutating MCP tools.
 - Do not custody wallets, fetch nonces, approve tokens, sign messages, swap assets, or create funding transactions.
+- For buy/sell on deployed Precog markets, quote/prepare with `adapters/actions/precog/` and submit via wallet adapters (`resolve_trade.mjs`) after operator confirmation. Never ask for `PRIVATE_KEY`. Read `references/precog-trading.md`.
 
 ## Live Precog Actions
 
@@ -66,6 +67,7 @@ When Precog creation succeeds, return the created market title and launchpad sha
 - Read `references/wallet-adapters.md` only after the operator chooses a concrete wallet/action provider.
 - Read `references/external-markets.md` before using external prediction-market read tools.
 - Read `references/precog-liquidity.md` when a user asks how creator earnings, LP returns, profit pools, funding risk, or virtual liquidity work.
+- Read `references/precog-trading.md` when a user wants to quote, buy, sell, or check positions on deployed Precog markets.
 - Read `references/mcp.md` only when configuring or inspecting optional read-only MCP context.
 - Read `references/tool-schemas.md` or `assets/schemas/actions.json` for action input shapes.
 - Use `assets/templates/multi-outcome-market.md` when drafting a market structure.

@@ -115,7 +115,7 @@ class ForecastOSLocalRuntime {
       intent_type: "forecastos.create_market",
       wallet_tool_hint: "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. Adapter-returned hex signatures are trusted wallet/action outputs.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
-      wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
+      wallet_runtime_candidates: ["bankr", "codex", "claude_code"],
       wallet_policy_required: ["eip712_typed_data_signing"],
       chain_id: config.chain_id,
       collateral_symbol: createInput.collateral_symbol,
@@ -548,7 +548,7 @@ class ForecastOSLocalRuntime {
       wallet_provider: provider,
       wallet_tool_hint: "If chain/collateral is missing, ask: With collateral from which chain? Default options: USDC on Base or USDC on Arbitrum. Then use Bankr, Privy, Base MCP (Base), another configured wallet/action tool, or the Precog creation area instead of asking the user for raw signatures. For Base MCP funding, send the prepared calls first, then sign FUND_UPCOMING_MARKET with the post-transaction pending nonce before submitting to Precog.",
       launchpad_fallback_url: "https://core.precog.markets/launchpad/",
-      wallet_runtime_candidates: ["bankr", "codex", "claude_code", "openclaw"],
+      wallet_runtime_candidates: ["bankr", "codex", "claude_code"],
       wallet_policy_required: [
         "eip712_typed_data_signing",
         "transaction_signing",

@@ -12,6 +12,7 @@ provides:
 - `skill/forecast-os/scripts/forecastos_action.mjs`
 - `skill/forecast-os/.forecastos/config.json`
 - any selected wallet/action adapter under `adapters/wallets/`
+- Precog trading scripts under `adapters/actions/precog/` (quote, prepare, positions)
 
 When this skill is used from inside the ForecastOS repo, the setup check can
 resolve the runtime path automatically. When copied elsewhere, set
@@ -63,6 +64,13 @@ Host-style aliases are also accepted for copied skill runtimes:
 Use this normal Hermes skill for default ForecastOS workflows. The older
 `adapters/hosts/hermes/forecast-os` package is a plugin/tool wrapper for
 advanced setups that explicitly want a Hermes tool named `forecastos_action`.
+
+## Trading Flow
+
+For deployed-market buy/sell, see `references/hermes-precog-trading.md`. Use
+Hermes shims (`quote-precog.mjs`, `prepare-precog-buy.mjs`,
+`resolve-base-mcp-trade.mjs`) with `FORECASTOS_REPO_ROOT` set. Call Base MCP
+`get_wallets` before `prepare-precog-buy.mjs`.
 
 ## Boundaries
 

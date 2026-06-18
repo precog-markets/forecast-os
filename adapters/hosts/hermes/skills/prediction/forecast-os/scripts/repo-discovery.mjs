@@ -5,9 +5,20 @@ import { dirname, join, resolve } from "node:path";
 
 export const PRIVY_ADAPTER_REL = join("adapters", "wallets", "privy", "resolve_create.mjs");
 export const ACTION_SCRIPT_REL = join("skill", "forecast-os", "scripts", "forecastos_action.mjs");
+export const PRECOG_ACTIONS_REL = join("adapters", "actions", "precog");
+export const PRECOG_QUOTE_REL = join(PRECOG_ACTIONS_REL, "quote.mjs");
+export const PRECOG_PREPARE_BUY_REL = join(PRECOG_ACTIONS_REL, "prepare_buy.mjs");
+export const PRECOG_PREPARE_SELL_REL = join(PRECOG_ACTIONS_REL, "prepare_sell.mjs");
+export const PRECOG_POSITIONS_REL = join(PRECOG_ACTIONS_REL, "positions.mjs");
+export const PRECOG_LIST_MARKETS_REL = join(PRECOG_ACTIONS_REL, "list_markets.mjs");
+export const BASE_MCP_TRADE_REL = join("adapters", "wallets", "base-mcp", "resolve_trade.mjs");
 
 export function buildPrivyAdapterPath(repoRoot) {
   return join(repoRoot, PRIVY_ADAPTER_REL);
+}
+
+export function buildRepoScriptPath(repoRoot, relPath) {
+  return join(repoRoot, relPath);
 }
 
 export function buildRepoRootCandidates(env = process.env, skillRoot = process.cwd()) {
@@ -70,6 +81,43 @@ export async function resolveForecastOSRepoRoot(env = process.env, skillRoot = p
   };
 }
 
+export async function resolveRepoScript(relPath, env = process.env, skillRoot = process.cwd()) {
+  const resolved = await resolveForecastOSRepoRoot(env, skillRoot);
+  const scriptPath = resolved.repoRoot ? buildRepoScriptPath(resolved.repoRoot, relPath) : null;
+  const checkedPaths = resolved.checkedPaths.map((entry) => buildRepoScriptPath(entry.repo_root, relPath));
+  if (!resolved.ok || !scriptPath) {
+    return {
+      ok: false,
+      repoRoot: resolved.repoRoot,
+      scriptPath: null,
+      checkedPaths,
+      guidance: buildPrecogRepoGuidance(relPath, checkedPaths),
+    };
+  }
+  try {
+    await access(scriptPath, constants.R_OK);
+    return {
+      ok: true,
+      repoRoot: resolved.repoRoot,
+      scriptPath,
+      checkedPaths,
+      guidance: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      repoRoot: resolved.repoRoot,
+      scriptPath,
+      checkedPaths,
+      guidance: buildPrecogRepoGuidance(relPath, checkedPaths, error),
+    };
+  }
+}
+
+export async function resolvePrecogQuoteScript(env = process.env, skillRoot = process.cwd()) {
+  return resolveRepoScript(PRECOG_QUOTE_REL, env, skillRoot);
+}
+
 export async function resolvePrivyAdapterScript(env = process.env, skillRoot = process.cwd()) {
   const resolved = await resolveForecastOSRepoRoot(env, skillRoot);
   const checkedPaths = resolved.checkedPaths.map((entry) => entry.privy_adapter);
@@ -115,13 +163,36 @@ export function buildRepoRootGuidance(checkedPaths = [], cause) {
   return lines.join("\n");
 }
 
-export function buildRepoRootRequiredError(resolution, skillRoot) {
+export function buildPrecogRepoGuidance(relPath, checkedPaths = [], cause) {
+  const lines = [
+    `ForecastOS Precog trading requires the repo-root script at ${relPath}.`,
+    "Do not grep or expect adapters/actions/precog under a copied Hermes skill install directory.",
+    "Set FORECASTOS_REPO_ROOT to the ForecastOS repo root (for example feat/add-trading checkout), then rerun the Hermes shim.",
+    "Checked script paths:",
+    ...checkedPaths.map((path) => `- ${path}`),
+  ];
+  if (cause?.message) lines.push(`Last error: ${cause.message}`);
+  return lines.join("\n");
+}
+
+export function buildRepoRootRequiredError(resolution, skillRoot, label = "Privy wallet adapter") {
   const error = new Error(
-    "ForecastOS repo root is required to resolve the Privy wallet adapter for copied skill installs.",
+    `ForecastOS repo root is required to resolve the ${label} for copied skill installs.`,
   );
   error.code = "FORECASTOS_REPO_ROOT_REQUIRED";
   error.skill_root = skillRoot;
   error.checked_paths = resolution.checkedPaths ?? [];
   error.guidance = resolution.guidance ?? buildRepoRootGuidance(error.checked_paths);
+  return error;
+}
+
+export function buildPrecogRepoRequiredError(resolution, skillRoot, relPath) {
+  const error = new Error(
+    `ForecastOS repo root is required to resolve ${relPath} for copied skill installs.`,
+  );
+  error.code = "FORECASTOS_REPO_ROOT_REQUIRED";
+  error.skill_root = skillRoot;
+  error.checked_paths = resolution.checkedPaths ?? [];
+  error.guidance = resolution.guidance ?? buildPrecogRepoGuidance(relPath, error.checked_paths);
   return error;
 }

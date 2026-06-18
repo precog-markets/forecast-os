@@ -15,6 +15,21 @@ MCP is read-only. Do not add MCP tools for:
 - swaps
 - live Precog mutation
 - live wallet/action tool calls
+- placing Precog share trades
+
+## Trading Policy
+
+An agent may run `adapters/actions/precog/` quote, prepare, or positions scripts plus wallet-adapter `resolve_trade.mjs` only when:
+
+- the operator explicitly asks to trade on a deployed Precog market
+- the market and outcome are identified from read-only ForecastOS or Precog context first
+- `quote.mjs` ran successfully and the full quote output was shown to the operator
+- the operator explicitly confirmed the quoted shares and `--max`/`--min` bounds
+- `prepare_buy.mjs` / `prepare_sell.mjs` use `--wallet-address` from the operator's Bankr, Privy, or Base wallet — never a local `PRIVATE_KEY`
+- submission uses `adapters/wallets/{bankr,privy,base-mcp}/resolve_trade.mjs` with operator-approved credentials
+- trades run sequentially, one prepared batch at a time
+
+Do not chain trades without per-step confirmation. Do not modify trade parameters after a failure. ForecastOS must not embed trading execution in MCP or `forecastos_action.mjs`.
 
 ## Creation Policy
 
