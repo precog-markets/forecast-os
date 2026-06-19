@@ -199,3 +199,45 @@ Bad post-approval recovery:
 ```txt
 prepare_create_intent failed. I'll patch .forecastos/drafts/*.json and retry.
 ```
+
+## Post-Resolution Claims
+
+Before claiming, confirm the market has resolved with read-only Precog context.
+
+**Investment claim** (collateral return or creator revenue):
+
+```txt
+This market has resolved. Are you claiming as the LP who funded it, or as the market creator?
+LP: I'll prepare an investment claim for your funded position.
+Creator: I'll prepare an investment claim for your creator revenue share (only if the market had revenue).
+```
+
+Success:
+
+```txt
+Claim submitted.
+
+Returned: <amount> collateral
+Transaction: <claim_tx link or hash>
+
+Need anything else on this market?
+```
+
+**Incentive claim** (LP bonus token on incentivized markets):
+
+```txt
+This market had an incentive program. I'll prepare an LP incentive claim for the bonus token you earned from funding.
+```
+
+Success:
+
+```txt
+Incentive claim submitted.
+
+Returned: <amount> incentive tokens
+Transaction: <claim_tx>
+
+Creators do not use incentive claims; creator revenue uses the investment claim flow.
+```
+
+If Precog rejects the claim (`Invalid market or parameters`), explain that nothing was claimable yet or the wrong wallet/role was used. Do not paste raw signatures.

@@ -84,6 +84,33 @@ ForecastOS first checks the upcoming market. It may fetch the deployed market on
 
 Never invent prices or probabilities. Store only the values returned by Precog.
 
+## Claim Investment Policy
+
+An agent may attempt `claim_investment` only when:
+
+- the market has **resolved** (verify with read-only Precog context first)
+- the operator explicitly approves the claim
+- the operator role matches eligibility: **LP investor always**; **creator only when the market had revenue**
+- `investor_address` and `investor_signature` have been resolved by trusted wallet/action tooling
+- the wallet policy allows EIP-712 typed-data signing for `CLAIM_UPCOMING_MARKET_INVESTMENT`
+- `.forecastos/config.json` includes `precog.open_api_key` and `precog.signature_actions.claim_investment`
+
+Use the LP funder wallet for LP claims and the creator wallet for creator revenue claims. Precog validates balances; `claimed_collateral` must be greater than zero.
+
+## Claim Incentive Policy
+
+An agent may attempt `claim_incentive` only when:
+
+- the market has **resolved**
+- the market had an **incentive program** (LP bonus token from funding)
+- the operator is an **LP investor** (creators do not claim incentives here)
+- the operator explicitly approves the claim
+- `investor_address` and `investor_signature` have been resolved by trusted wallet/action tooling
+- the wallet policy allows EIP-712 typed-data signing for `CLAIM_UPCOMING_MARKET_INCENTIVE`
+- `.forecastos/config.json` includes `precog.open_api_key` and `precog.signature_actions.claim_incentive`
+
+Incentive claims are separate from creator revenue share and from main collateral investment returns.
+
 ## Wallet Policy
 
 Do not request or store:

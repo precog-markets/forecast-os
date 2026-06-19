@@ -135,6 +135,11 @@ assert(
   ".forecastos/config.json needs precog.signature_actions.create_market and fund_market",
 );
 assert(
+  precogConfig.precog?.signature_actions?.claim_investment === "CLAIM_UPCOMING_MARKET_INVESTMENT" &&
+    precogConfig.precog?.signature_actions?.claim_incentive === "CLAIM_UPCOMING_MARKET_INCENTIVE",
+  ".forecastos/config.json must declare claim_investment and claim_incentive signature_actions",
+);
+assert(
   precogConfig.precog.signature_actions.create_market === "CREATE_UPCOMING_MARKET",
   ".forecastos/config.json precog.signature_actions.create_market must match backend CREATE_UPCOMING_MARKET",
 );
@@ -315,6 +320,18 @@ assert(
     actionsDoc.includes("requested_collateral_address") &&
     actionsDoc.includes("draft_market` routes through"),
   "SKILL.md and references/actions.md must document collateral override aliases and workflow-backed draft_market",
+);
+assert(
+  skill.includes("claim_investment") &&
+    skill.includes("claim_incentive") &&
+    actionsDoc.includes("claim-upcoming-market-investment") &&
+    actionsDoc.includes("claim-upcoming-market-incentive"),
+  "SKILL.md and references/actions.md must document post-resolution claim routes",
+);
+assert(
+  actionsDoc.includes("LP investors always") &&
+    actionsDoc.includes("incentive program"),
+  "references/actions.md must document LP/creator investment claims and LP-only incentive claims",
 );
 assert(
   skill.includes("pending_check") &&

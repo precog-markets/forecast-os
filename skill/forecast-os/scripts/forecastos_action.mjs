@@ -14,6 +14,10 @@ const ACTIONS = new Set([
   "await_precog_approval",
   "prepare_funding_intent",
   "fund_market",
+  "prepare_claim_investment_intent",
+  "claim_investment",
+  "prepare_claim_incentive_intent",
+  "claim_incentive",
   "consume_prediction",
 ]);
 
@@ -25,6 +29,10 @@ const ACTIONS_REQUIRING_INPUT = new Set([
   "await_precog_approval",
   "prepare_funding_intent",
   "fund_market",
+  "prepare_claim_investment_intent",
+  "claim_investment",
+  "prepare_claim_incentive_intent",
+  "claim_incentive",
   "consume_prediction",
 ]);
 
@@ -140,6 +148,12 @@ function enforceApproval(actionName, input) {
   }
   if (actionName === "fund_market" && input.approved !== true) {
     fail("fund_market requires explicit operator approval with approved: true.");
+  }
+  if (actionName === "claim_investment" && input.approved !== true) {
+    fail("claim_investment requires explicit operator approval with approved: true.");
+  }
+  if (actionName === "claim_incentive" && input.approved !== true) {
+    fail("claim_incentive requires explicit operator approval with approved: true.");
   }
 }
 
@@ -482,6 +496,32 @@ async function dispatch(forecastos, actionName, input) {
       },
     });
   }
+  if (actionName === "prepare_claim_investment_intent") {
+    return forecastos.prepareClaimInvestmentIntent(input.state ?? {}, {
+      ...(input.event ?? {}),
+      ...mergeClaimRequestFields(input),
+    });
+  }
+  if (actionName === "claim_investment") {
+    return forecastos.claimInvestment(input.state ?? {}, {
+      ...(input.event ?? {}),
+      approved: input.approved,
+      claim_request: mergeClaimRequestFields(input),
+    });
+  }
+  if (actionName === "prepare_claim_incentive_intent") {
+    return forecastos.prepareClaimIncentiveIntent(input.state ?? {}, {
+      ...(input.event ?? {}),
+      ...mergeClaimRequestFields(input),
+    });
+  }
+  if (actionName === "claim_incentive") {
+    return forecastos.claimIncentive(input.state ?? {}, {
+      ...(input.event ?? {}),
+      approved: input.approved,
+      claim_request: mergeClaimRequestFields(input),
+    });
+  }
   if (actionName === "consume_prediction") {
     return forecastos.consumePrediction(input.state, input.event ?? {});
   }
@@ -561,4 +601,46 @@ function serializeError(error) {
 
 function withoutUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+
+function mergeClaimRequestFields(input = {}) {
+  return {
+    ...(input.event?.claim_request ?? {}),
+    ...(input.claim_request ?? {}),
+    provider:
+      input.provider ??
+      input.wallet_provider ??
+      input.claim_request?.provider ??
+      input.event?.claim_request?.provider,
+    wallet_provider:
+      input.wallet_provider ??
+      input.claim_request?.wallet_provider ??
+      input.event?.claim_request?.wallet_provider,
+    wallet_tool:
+      input.wallet_tool ??
+      input.claim_request?.wallet_tool ??
+      input.event?.claim_request?.wallet_tool,
+    market: input.market ?? input.claim_request?.market ?? input.event?.claim_request?.market,
+    upcoming_market:
+      input.upcoming_market ??
+      input.claim_request?.upcoming_market ??
+      input.event?.claim_request?.upcoming_market,
+    chain_id:
+      input.chain_id ??
+      input.claim_request?.chain_id ??
+      input.event?.chain_id ??
+      input.event?.claim_request?.chain_id,
+    claimant_role:
+      input.claimant_role ??
+      input.claim_request?.claimant_role ??
+      input.event?.claimant_role,
+    investor_address:
+      input.investor_address ??
+      input.claim_request?.investor_address ??
+      input.event?.claim_request?.investor_address,
+    investor_signature:
+      input.investor_signature ??
+      input.claim_request?.investor_signature ??
+      input.event?.claim_request?.investor_signature,
+  };
 }

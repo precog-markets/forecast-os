@@ -57,6 +57,15 @@ Use `prepare_funding_intent` before funding. Funding is allowed only after Preco
 
 When Precog creation succeeds, return the created market title and launchpad share/check link, then schedule hourly pending checks from `pending_check` when the host supports automations. Use `scripts/check_pending_market.mjs --workflow-id <workflow_id> --auto-redraft` for one-shot checks. Treat `REJECTED`, `FAILED`, and `DENIED` as terminal rejected states; if validator feedback exists, create a linked replacement draft for user approval.
 
+## Post-Resolution Claims
+
+After a market **resolves**, standalone claim actions (not workflow steps) let operators withdraw earned balances through Precog:
+
+- **`claim_investment`** — LP investors always; market creators when the market had revenue. Reclaims LP collateral or creator revenue share from the profit pool.
+- **`claim_incentive`** — LP investors only, on markets with an **incentive program** (bonus token earned as a percentage when funding).
+
+Flow: verify resolution with read-only Precog context → `prepare_claim_*_intent` → wallet signs `CLAIM_UPCOMING_MARKET_INVESTMENT` or `CLAIM_UPCOMING_MARKET_INCENTIVE` → operator-approved `claim_*` submit. Do not ask for raw signatures in normal chat.
+
 ## Read Next
 
 - Read `references/chat-ux.md` before responding to users with drafts, approvals, wallet handoffs, or failures.

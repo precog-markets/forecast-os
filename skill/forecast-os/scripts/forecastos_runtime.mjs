@@ -625,6 +625,160 @@ class ForecastOSLocalRuntime {
     });
   }
 
+  async prepareClaimInvestmentIntent(state = {}, event = {}) {
+    const request = event.claim_request ?? event;
+    const market = resolveClaimMarketId(state, event, request);
+    const config = await readPrecogConfig(this.store, {
+      requireDeployedMasterAddress: true,
+      chainHints: chainHintsFrom({ state, ...request }),
+    });
+    const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? request.wallet_tool);
+    const claimantRole = request.claimant_role ?? event.claimant_role ?? null;
+    return withoutUndefined({
+      intent_type: "forecastos.claim_investment",
+      claimant_role: claimantRole,
+      wallet_provider: provider,
+      wallet_tool_hint:
+        "Use Bankr, Privy, Base MCP, or another configured wallet/action tool to sign CLAIM_UPCOMING_MARKET_INVESTMENT. LP investors can always claim after resolution. Creators can claim when the market had revenue. Do not ask for raw signatures in normal chat.",
+      launchpad_fallback_url: "https://core.precog.markets/launchpad/",
+      wallet_policy_required: ["eip712_typed_data_signing"],
+      market,
+      upcoming_market: market,
+      network: config.chain_id,
+      chain_id: config.chain_id,
+      signature_method: "eip712_typed_data",
+      eip712_typed_data_template: buildPrecogAuthorizationTypedDataTemplate({
+        config,
+        action: config.signature_actions.claim_investment,
+        account: "<investor_address>",
+        nonce: "<next_pending_nonce>",
+      }),
+      wallet_resolution_required: ["investor_address", "investor_signature"],
+      resolved_action: "claim_investment",
+      precog_payload_template: {
+        network: config.chain_id,
+        market,
+        investor_address: "<investor_address>",
+        investor_signature: "<investor_signature>",
+      },
+      notes: [
+        "Claim investment returns collateral or creator revenue share after market resolution.",
+        "LP investors can always claim their funded position after resolution.",
+        "Market creators can claim when the market had revenue; use the creator wallet as investor_address.",
+        "Verify the market is resolved with read-only Precog context before preparing this intent.",
+        "ForecastOS does not sign EIP-712 typed data, fetch nonces, or custody wallets.",
+        "Submit with claim_investment only after explicit operator approval.",
+      ],
+    });
+  }
+
+  async claimInvestment(state = {}, event = {}) {
+    if (event.approved !== true) {
+      fail("claim_investment requires explicit operator approval with approved: true.");
+    }
+    const request = event.claim_request ?? event;
+    requireFields(request, ["investor_address", "investor_signature"], "claim_investment");
+    const market = resolveClaimMarketId(state, event, request);
+    const config = await readPrecogConfig(this.store, {
+      chainHints: chainHintsFrom({ state, ...request }),
+    });
+    const network = config.chain_id;
+    const payload = buildClaimPayload({
+      network,
+      market,
+      investorAddress: request.investor_address,
+      investorSignature: request.investor_signature,
+    });
+    const response = await this.#postPrecog(
+      "/api/v1/claim-upcoming-market-investment/",
+      payload,
+      {
+        signatureDiagnostic: buildSignatureDiagnostic(
+          payload,
+          { ...request, deployed_master_address: config.deployed_master_address },
+          config.signature_actions.claim_investment,
+        ),
+      },
+    );
+    return normalizeClaimInvestmentResponse(response, request, { network, market });
+  }
+
+  async prepareClaimIncentiveIntent(state = {}, event = {}) {
+    const request = event.claim_request ?? event;
+    const market = resolveClaimMarketId(state, event, request);
+    const config = await readPrecogConfig(this.store, {
+      requireDeployedMasterAddress: true,
+      chainHints: chainHintsFrom({ state, ...request }),
+    });
+    const provider = normalizeWalletProvider(request.provider ?? request.wallet_provider ?? request.wallet_tool);
+    return withoutUndefined({
+      intent_type: "forecastos.claim_incentive",
+      wallet_provider: provider,
+      wallet_tool_hint:
+        "Use Bankr, Privy, Base MCP, or another configured wallet/action tool to sign CLAIM_UPCOMING_MARKET_INCENTIVE. LP investors only, on markets with an incentive program. Do not ask for raw signatures in normal chat.",
+      launchpad_fallback_url: "https://core.precog.markets/launchpad/",
+      wallet_policy_required: ["eip712_typed_data_signing"],
+      market,
+      upcoming_market: market,
+      network: config.chain_id,
+      chain_id: config.chain_id,
+      signature_method: "eip712_typed_data",
+      eip712_typed_data_template: buildPrecogAuthorizationTypedDataTemplate({
+        config,
+        action: config.signature_actions.claim_incentive,
+        account: "<investor_address>",
+        nonce: "<next_pending_nonce>",
+      }),
+      wallet_resolution_required: ["investor_address", "investor_signature"],
+      resolved_action: "claim_incentive",
+      precog_payload_template: {
+        network: config.chain_id,
+        market,
+        investor_address: "<investor_address>",
+        investor_signature: "<investor_signature>",
+      },
+      notes: [
+        "Claim incentive returns LP bonus tokens earned from funding incentivized markets.",
+        "Only LP investors use this endpoint; creators do not claim incentives here.",
+        "Some markets run incentive programs that pay a percentage in a separate token when funded.",
+        "Verify the market is resolved and had an incentive program before preparing this intent.",
+        "ForecastOS does not sign EIP-712 typed data, fetch nonces, or custody wallets.",
+        "Submit with claim_incentive only after explicit operator approval.",
+      ],
+    });
+  }
+
+  async claimIncentive(state = {}, event = {}) {
+    if (event.approved !== true) {
+      fail("claim_incentive requires explicit operator approval with approved: true.");
+    }
+    const request = event.claim_request ?? event;
+    requireFields(request, ["investor_address", "investor_signature"], "claim_incentive");
+    const market = resolveClaimMarketId(state, event, request);
+    const config = await readPrecogConfig(this.store, {
+      chainHints: chainHintsFrom({ state, ...request }),
+    });
+    const network = config.chain_id;
+    const payload = buildClaimPayload({
+      network,
+      market,
+      investorAddress: request.investor_address,
+      investorSignature: request.investor_signature,
+    });
+    const response = await this.#postPrecog(
+      "/api/v1/claim-upcoming-market-incentive/",
+      payload,
+      {
+        signatureDiagnostic: buildSignatureDiagnostic(
+          payload,
+          { ...request, deployed_master_address: config.deployed_master_address },
+          config.signature_actions.claim_incentive,
+        ),
+      },
+    );
+    return normalizeClaimIncentiveResponse(response, request, { network, market });
+  }
+
   async consumePrediction(state, event = {}) {
     const config = await readPrecogConfig(this.store, { chainHints: chainHintsFrom({ state, event }) });
     const request = getPredictionRequest(event);
@@ -1480,6 +1634,53 @@ function normalizeFundResponse(response, request) {
     tx_hash: response.tx_hash ?? request.tx_hash,
     amount: request.amount,
     funder_address: request.funder_address,
+    precog_response: response,
+  };
+}
+
+function resolveClaimMarketId(state = {}, event = {}, request = {}) {
+  const market =
+    request.market ??
+    request.upcoming_market ??
+    event.market ??
+    event.upcoming_market ??
+    state.market_id ??
+    state.upcoming_market;
+  if (market === undefined || market === null || market === "") {
+    fail("Claim requires market, upcoming_market, or state.market_id.");
+  }
+  return Number(market);
+}
+
+function buildClaimPayload({ network, market, investorAddress, investorSignature }) {
+  return {
+    network,
+    market,
+    investor_address: investorAddress,
+    investor_signature: investorSignature,
+  };
+}
+
+function normalizeClaimInvestmentResponse(response, request, meta = {}) {
+  return {
+    claim_type: "investment",
+    network: meta.network,
+    market: meta.market,
+    investor: response.investor ?? request.investor_address,
+    claimed_collateral: response.claimed_collateral,
+    claim_tx: response.claim_tx,
+    precog_response: response,
+  };
+}
+
+function normalizeClaimIncentiveResponse(response, request, meta = {}) {
+  return {
+    claim_type: "incentive",
+    network: meta.network,
+    market: meta.market,
+    investor: response.investor ?? request.investor_address,
+    claimed_incentive: response.claimed_incentive,
+    claim_tx: response.claim_tx,
     precog_response: response,
   };
 }
