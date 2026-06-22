@@ -39,7 +39,9 @@
         },
         "signature_actions": {
             "create_market": "CREATE_UPCOMING_MARKET",
-            "fund_market": "FUND_UPCOMING_MARKET"
+            "fund_market": "FUND_UPCOMING_MARKET",
+            "claim_investment": "CLAIM_UPCOMING_MARKET_INVESTMENT",
+            "claim_incentive": "CLAIM_UPCOMING_MARKET_INCENTIVE"
         }
     }
 }

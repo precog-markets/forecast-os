@@ -169,6 +169,65 @@ Funding requires explicit operator approval. A configured wallet/action tool can
 
 `funder_signature` signs EIP-712 typed data using `message.action = config.precog.signature_actions.fund_market`, `message.account = funder_address`, config chain ID, config verifying contract, and the wallet-resolved pending nonce; `funder_address` and `message.account` must both use the same EIP-55 checksum casing. The wallet policy must allow EIP-712 signing and transaction signing/sending before funding. Base MCP creation and funding may return Base Account smart-wallet/WebAuthn hex signatures verified through EIP-1271/ERC-6492; do not reject those adapter outputs just because they are longer than a 65-byte EOA signature.
 
+## prepare_claim_investment_intent
+
+After market resolution. LP investors always; creators when the market had revenue.
+
+```json
+{
+  "state": {
+    "market_id": 428,
+    "chain_id": 42161
+  },
+  "claimant_role": "lp"
+}
+```
+
+Returns a wallet-agnostic intent with `CLAIM_UPCOMING_MARKET_INVESTMENT` typed-data template. Wallet resolves `investor_address` and `investor_signature`.
+
+## claim_investment
+
+```json
+{
+  "approved": true,
+  "state": { "market_id": 428, "chain_id": 42161 },
+  "market": 428,
+  "investor_address": "<resolved_by_wallet_tool>",
+  "investor_signature": "<resolved_by_wallet_tool>"
+}
+```
+
+Uses `POST /api/v1/claim-upcoming-market-investment/` with body fields `network`, `market`, `investor_address`, `investor_signature`.
+
+## prepare_claim_incentive_intent
+
+After market resolution. **LP investors only**, on markets with an incentive program (bonus token from funding).
+
+```json
+{
+  "state": {
+    "market_id": 428,
+    "chain_id": 42161
+  }
+}
+```
+
+Returns intent with `CLAIM_UPCOMING_MARKET_INCENTIVE` typed-data template.
+
+## claim_incentive
+
+```json
+{
+  "approved": true,
+  "state": { "market_id": 428, "chain_id": 42161 },
+  "market": 428,
+  "investor_address": "<resolved_by_wallet_tool>",
+  "investor_signature": "<resolved_by_wallet_tool>"
+}
+```
+
+Uses `POST /api/v1/claim-upcoming-market-incentive/`. Success returns `claimed_incentive` and `claim_tx`.
+
 ## consume_prediction
 
 ```json

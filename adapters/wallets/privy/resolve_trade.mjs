@@ -87,8 +87,8 @@ function validateTradeIntent(intent) {
     fail("Privy trade resolver requires intent_type forecastos.precog_trade.");
   }
   if (!intent.market_id && intent.market_id !== 0) fail("Trade intent missing market_id.");
-  if (!intent.action || !["buy", "sell"].includes(intent.action)) {
-    fail('Trade intent action must be "buy" or "sell".');
+  if (!intent.action || !["buy", "sell", "redeem"].includes(intent.action)) {
+    fail('Trade intent action must be "buy", "sell", or "redeem".');
   }
 }
 

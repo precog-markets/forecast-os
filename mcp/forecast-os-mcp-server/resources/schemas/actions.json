@@ -517,6 +517,63 @@
         }
       },
       "additionalProperties": true
+    },
+    "prepare_claim_investment_intent": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "object" },
+        "market": { "type": ["integer", "string"] },
+        "upcoming_market": { "type": ["integer", "string"] },
+        "claimant_role": { "type": "string", "enum": ["lp", "creator"] },
+        "provider": { "type": "string" },
+        "wallet_provider": { "type": "string" },
+        "event": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "claim_investment": {
+      "type": "object",
+      "required": ["approved", "investor_address", "investor_signature"],
+      "properties": {
+        "approved": { "type": "boolean", "const": true },
+        "state": { "type": "object" },
+        "market": { "type": ["integer", "string"] },
+        "upcoming_market": { "type": ["integer", "string"] },
+        "investor_address": { "type": "string", "minLength": 1 },
+        "investor_signature": { "type": "string", "minLength": 1 },
+        "claim_request": { "type": "object" },
+        "event": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "prepare_claim_incentive_intent": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "object" },
+        "market": { "type": ["integer", "string"] },
+        "upcoming_market": { "type": ["integer", "string"] },
+        "provider": { "type": "string" },
+        "wallet_provider": { "type": "string" },
+        "event": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "claim_incentive": {
+      "type": "object",
+      "required": ["approved", "investor_address", "investor_signature"],
+      "properties": {
+        "approved": { "type": "boolean", "const": true },
+        "state": { "type": "object" },
+        "market": { "type": ["integer", "string"] },
+        "upcoming_market": { "type": ["integer", "string"] },
+        "investor_address": { "type": "string", "minLength": 1 },
+        "investor_signature": { "type": "string", "minLength": 1 },
+        "claim_request": { "type": "object" },
+        "event": { "type": "object" }
+      },
+      "additionalProperties": true
     }
   }
 }

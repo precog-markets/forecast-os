@@ -208,16 +208,28 @@ export function requireConfigChainId(precog) {
 
 export function requireConfigSignatureActions(precog) {
   const actions = precog.signature_actions ?? {};
-  if (!actions.create_market || !actions.fund_market) {
-    throw new PrecogApiError("Missing .forecastos/config.json precog.signature_actions create_market/fund_market.", {
-      code: "PRECOG_CONFIG_ERROR",
-      endpoint: null,
-      body: { error: "Missing precog.signature_actions.create_market or precog.signature_actions.fund_market" },
-    });
+  const required = [
+    "create_market",
+    "fund_market",
+    "claim_investment",
+    "claim_incentive",
+  ];
+  const missing = required.filter((key) => !actions[key]);
+  if (missing.length) {
+    throw new PrecogApiError(
+      `Missing .forecastos/config.json precog.signature_actions ${missing.join("/")}.`,
+      {
+        code: "PRECOG_CONFIG_ERROR",
+        endpoint: null,
+        body: { error: `Missing precog.signature_actions.${missing.join(", ")}` },
+      },
+    );
   }
   return {
     create_market: actions.create_market,
     fund_market: actions.fund_market,
+    claim_investment: actions.claim_investment,
+    claim_incentive: actions.claim_incentive,
   };
 }
 

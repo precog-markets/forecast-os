@@ -53,11 +53,11 @@ node adapters/actions/precog/list_markets.mjs --chain-id 8453 --status OPEN
 ## Flow
 
 1. **List** (optional): `list_markets.mjs` — shows `api_id` and `master_market_id`
-2. **Quote** (read-only): `quote.mjs`
+2. **Quote** (read-only): `quote.mjs` — buy/sell only
 3. **Prepare** unsigned calldata: `prepare_buy.mjs` or `prepare_sell.mjs` with `--wallet-address`
 4. **Submit** via wallet adapter: `adapters/wallets/<provider>/resolve_trade.mjs`
 
-Always run `quote` before prepare. Show full quote output and wait for
+Always run `quote` before prepare for buy/sell. Show full quote output and wait for
 explicit operator confirmation. Never patch these scripts locally.
 
 ```txt
@@ -78,6 +78,24 @@ Positions (read-only, needs wallet address):
 ```txt
 node adapters/actions/precog/positions.mjs --market 4 --wallet-address 0x...
 ```
+
+## Redeem (resolved markets)
+
+After a market resolves, holders of **winning outcome shares** redeem 1:1 for
+market collateral via on-chain `marketRedeemShares`. No quote step.
+
+1. **Status** (read-only): `redeem_status.mjs` — check `can_redeem`
+2. **Prepare**: `prepare_redeem.mjs` with `--wallet-address`
+3. **Submit** via wallet adapter `resolve_trade.mjs`
+
+```txt
+node adapters/actions/precog/redeem_status.mjs --market 136 --wallet-address 0x... --chain-id 8453
+node adapters/actions/precog/prepare_redeem.mjs --market 136 --wallet-address 0x... --chain-id 8453 --network mainnet > redeem.json
+node adapters/wallets/bankr/resolve_trade.mjs --input redeem.json --api-key bk_...
+```
+
+Redeem status values: `READY_TO_REDEEM`, `ALREADY_REDEEMED`, `NOTHING_TO_REDEEM`.
+Use `--json` on `redeem_status.mjs` for machine-readable output.
 
 ## Quote flags
 
@@ -103,6 +121,7 @@ node adapters/actions/precog/positions.mjs --market 4 --wallet-address 0x...
 ## Safety
 
 - Quote → prepare → wallet submit; one trade per operator confirmation
+- Redeem: status → prepare → wallet submit; one redeem per operator confirmation
 - Do not modify trade parameters after a failure; show the error and stop
 - Token approval is included in prepared buy transactions when needed
 - Never ask for seed phrases or local private keys in chat

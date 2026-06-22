@@ -82,7 +82,9 @@ Live Precog calls read config from the active state directory's `config.json`, w
     },
     "signature_actions": {
       "create_market": "CREATE_UPCOMING_MARKET",
-      "fund_market": "FUND_UPCOMING_MARKET"
+      "fund_market": "FUND_UPCOMING_MARKET",
+      "claim_investment": "CLAIM_UPCOMING_MARKET_INVESTMENT",
+      "claim_incentive": "CLAIM_UPCOMING_MARKET_INCENTIVE"
     }
   }
 }
@@ -102,6 +104,10 @@ The shipped `config.json` contains public defaults so users can run the skill wi
 - `await_precog_approval`
 - `prepare_funding_intent`
 - `fund_market`
+- `prepare_claim_investment_intent`
+- `claim_investment`
+- `prepare_claim_incentive_intent`
+- `claim_incentive`
 - `consume_prediction`
 
 See `references/tool-schemas.md` for the JSON input shapes to pass through `--input`.
@@ -250,6 +256,46 @@ chain_id=<config.precog.chain_id>&master_address=<config.precog.supported_chains
 ```
 
 The stored `prediction_result` includes the full market object plus a compact `signal` with parsed `outcomes` and `outcomes_prices`. ForecastOS never invents missing probabilities.
+
+## Post-Resolution Claims
+
+Claims are **standalone actions** after market resolution. They are not workflow steps.
+
+### Claim investment
+
+`prepare_claim_investment_intent` then `claim_investment` with operator approval.
+
+| Role | Eligibility |
+|------|-------------|
+| LP investor | LP investors always after resolution — reclaim funded LP collateral / investment return |
+| Market creator | After resolution when the market had revenue — creator share of profit pool |
+
+Both roles use `POST /api/v1/claim-upcoming-market-investment/` with EIP-712 action `CLAIM_UPCOMING_MARKET_INVESTMENT`. The signing wallet must match the address with a claimable balance (LP funder wallet or creator wallet).
+
+```json
+{
+  "network": 42161,
+  "market": 428,
+  "investor_address": "<resolved_by_wallet_tool>",
+  "investor_signature": "<resolved_by_wallet_tool>"
+}
+```
+
+Success: `{ investor, claimed_collateral, claim_tx }`.
+
+### Claim incentive
+
+`prepare_claim_incentive_intent` then `claim_incentive` with operator approval.
+
+| Role | Eligibility |
+|------|-------------|
+| LP investor | After resolution on markets with an **incentive program** — bonus token earned as a percentage when funding |
+
+Creators do **not** use `claim_incentive`. This is separate from creator revenue share (that uses `claim_investment`).
+
+`POST /api/v1/claim-upcoming-market-incentive/` with EIP-712 action `CLAIM_UPCOMING_MARKET_INCENTIVE`. Same body shape as investment claim.
+
+Success: `{ investor, claimed_incentive, claim_tx }`.
 
 ## Replace Points
 

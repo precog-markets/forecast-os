@@ -162,7 +162,12 @@ function guidanceFor(step, workflow) {
       needs_human_input: false,
       required_fields: [],
       suggested_command: null,
-      notes: ["Workflow is complete."],
+      notes: [
+        "Workflow is complete.",
+        "Post-resolution claims are standalone actions, not workflow steps.",
+        "LP investment return and creator revenue share (when the market had revenue): prepare_claim_investment_intent then claim_investment.",
+        "LP incentive bonus tokens on incentivized markets: prepare_claim_incentive_intent then claim_incentive.",
+      ],
     };
   }
 

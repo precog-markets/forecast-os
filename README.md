@@ -1,6 +1,6 @@
 # ForecastOS
 
-ForecastOS is an agent kit for multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
+ForecastOS is an agent kit for multi-outcome prediction-market workflows. It gives AI agents a compact skill for drafting and advancing market workflows, **trading outcome shares on deployed Precog markets**, and redeeming winning shares after resolution, plus an optional read-only MCP server for shared context, templates, schemas, examples, and Precog capability metadata.
 
 The skill is the agent behavior contract. MCP is context infrastructure. Live execution stays in the ForecastOS action bridge and trusted wallet/action tooling.
 
@@ -53,6 +53,42 @@ After installing or updating the skill, reload or restart whichever agent host
 will discover the skill so it refreshes skill metadata.
 
 The skill also works without MCP. Agents can use `SKILL.md`, `references/`, `scripts/`, `assets/`, and `.forecastos/config.json` directly from the skill folder.
+
+## Trade On Deployed Markets
+
+With the ForecastOS skill installed, agents can help operators **buy, sell, and redeem** outcome shares on **already deployed** Precog markets on Base (and quote on Sepolia). Trading is operator-approved and wallet-mediated — the skill does not custody keys or sign transactions itself.
+
+**What the skill covers**
+
+- Discover open or resolved markets (read-only Precog API / MCP context)
+- Quote buy/sell prices before any onchain step
+- Prepare unsigned transactions for operator confirmation
+- Hand off to a wallet adapter (Bankr, Privy, or Base MCP) for signing and submit
+- Check positions and redeem winning shares 1:1 for market collateral after resolution
+
+**Where the code lives**
+
+| Layer | Path | Role |
+|-------|------|------|
+| Skill guide | `skill/forecast-os/references/precog-trading.md` | Agent flow and safety rules |
+| Quote / prepare | `adapters/actions/precog/` | Read-only quotes; unsigned buy/sell/redeem calldata |
+| Wallet submit | `adapters/wallets/{bankr,privy,base-mcp}/resolve_trade.mjs` | Sign and broadcast after approval |
+
+**Typical buy flow**
+
+```txt
+cd adapters/actions/precog && npm install
+
+node adapters/actions/precog/list_markets.mjs --chain-id 8453 --status OPEN
+node adapters/actions/precog/quote.mjs --market <api-id> --outcome-label "..." --shares 2 --buy --chain-id 8453
+# operator confirms
+node adapters/actions/precog/prepare_buy.mjs --market <api-id> ... --wallet-address <0x...> --network mainnet > trade.json
+node adapters/wallets/bankr/resolve_trade.mjs --input trade.json --api-key <bk_...>
+```
+
+**Redeem after resolution** (no quote step): `redeem_status.mjs` → `prepare_redeem.mjs` → `resolve_trade.mjs`. See `adapters/actions/precog/README.md` for sell, positions, and redeem commands.
+
+MCP stays read-only for trading — use the skill plus `adapters/actions/precog/` and wallet adapters for live trades. One trade or redeem per explicit operator confirmation.
 
 ## Chain Support
 
@@ -149,5 +185,7 @@ The MCP package should be able to run from its own copied `resources/` directory
 intake -> draft -> needs_info / await_approval -> create_market
   -> await_precog_approval -> fund -> consume_prediction -> done
 ```
+
+On deployed markets (separate from the create/fund workflow above), operators can quote, buy, sell, check positions, and redeem winning shares via the skill and `adapters/actions/precog/` — see **Trade On Deployed Markets**.
 
 Agents should present short, friendly review summaries to users, ask for explicit approval before live actions, and avoid exposing raw workflow JSON unless the user asks for operator/debug detail.

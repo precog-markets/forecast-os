@@ -26,6 +26,16 @@ Multi-outcome markets can improve profit potential by spreading trader bets acro
 
 Funding remains a live financial action. ForecastOS may explain LP mechanics, but `fund_market` still requires explicit operator approval, Precog status `VALIDATED`, trusted wallet/action tooling, wallet policy readiness, EIP-712 signing, transaction signing/sending, and token approval if allowance is insufficient.
 
+## Post-Resolution Claims
+
+After resolution, standalone claim actions withdraw earned balances:
+
+- **LP investment return** — LPs always claim funded collateral / investment through `claim_investment`.
+- **Creator revenue share** — Creators claim when the market had revenue through `claim_investment` (same endpoint, creator wallet).
+- **LP incentive bonus** — On incentivized markets, LPs claim bonus tokens earned from funding through `claim_incentive`. This is a separate token from main collateral; not available to creators.
+
+Read `references/actions.md` and `references/action-policy.md` before preparing or submitting claims.
+
 ## Virtual Liquidity
 
 Some Precog markets use virtual liquidity. In those markets, LPs deposit their Max Loss rather than the full curve depth. The same absolute max loss and payout mechanics apply, but less idle capital is locked, improving capital efficiency.

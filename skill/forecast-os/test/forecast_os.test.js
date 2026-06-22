@@ -2432,6 +2432,192 @@ test("prepare_funding_intent creates generic wallet-tool handoff intents", async
   }
 });
 
+test("prepare_claim_investment_intent builds CLAIM_UPCOMING_MARKET_INVESTMENT template", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "prepare-claim-investment-intent");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createTestForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => {
+      throw new Error("prepare_claim_investment_intent must not call the network");
+    },
+  });
+  const intent = await forecastos.prepareClaimInvestmentIntent(
+    { market_id: 428, chain_id: 42161 },
+    { claimant_role: "lp" },
+  );
+
+  assert.equal(intent.intent_type, "forecastos.claim_investment");
+  assert.equal(intent.resolved_action, "claim_investment");
+  assert.equal(intent.market, 428);
+  assert.equal(
+    intent.eip712_typed_data_template.message.action,
+    configSignatureActions.claim_investment,
+  );
+  assert.deepEqual(intent.wallet_resolution_required, ["investor_address", "investor_signature"]);
+  assert.ok(intent.notes.some((note) => note.includes("LP investors can always claim")));
+  assert.ok(intent.notes.some((note) => note.includes("Market creators can claim when the market had revenue")));
+});
+
+test("prepare_claim_incentive_intent builds CLAIM_UPCOMING_MARKET_INCENTIVE template", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "prepare-claim-incentive-intent");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+
+  const forecastos = createTestForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async () => {
+      throw new Error("prepare_claim_incentive_intent must not call the network");
+    },
+  });
+  const intent = await forecastos.prepareClaimIncentiveIntent({ market_id: 428, chain_id: 42161 }, {});
+
+  assert.equal(intent.intent_type, "forecastos.claim_incentive");
+  assert.equal(intent.resolved_action, "claim_incentive");
+  assert.equal(
+    intent.eip712_typed_data_template.message.action,
+    configSignatureActions.claim_incentive,
+  );
+  assert.ok(intent.notes.some((note) => note.includes("Only LP investors use this endpoint")));
+  assert.ok(intent.notes.some((note) => note.includes("incentive programs")));
+});
+
+test("claim_investment posts network/market payload and parses claimed_collateral", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "claim-investment-submit");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+  const requests = [];
+  const forecastos = createTestForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            investor: "0xInvestor",
+            claimed_collateral: 12.5,
+            claim_tx: "0xClaimInvestmentTx",
+          });
+        },
+      };
+    },
+  });
+
+  const result = await forecastos.claimInvestment(
+    { market_id: 428, chain_id: 42161 },
+    {
+      approved: true,
+      investor_address: "0xInvestor",
+      investor_signature: "0xInvestorSignature",
+    },
+  );
+
+  assert.equal(result.claim_type, "investment");
+  assert.equal(result.claimed_collateral, 12.5);
+  assert.equal(result.claim_tx, "0xClaimInvestmentTx");
+  assert.equal(requests.length, 1);
+  assert.ok(requests[0].url.endsWith("/api/v1/claim-upcoming-market-investment/"));
+  assert.equal(requests[0].body.network, configChainId);
+  assert.equal(requests[0].body.market, 428);
+  assert.equal(requests[0].body.investor_address, "0xInvestor");
+});
+
+test("claim_incentive posts network/market payload and parses claimed_incentive", async () => {
+  const rootDir = join(skillRoot, "api-test-output", "claim-incentive-submit");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+  const requests = [];
+  const forecastos = createTestForecastOS({
+    store: new DirectoryDraftStateStore(stateDir),
+    fetch: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            investor: "0xInvestor",
+            claimed_incentive: 3.25,
+            claim_tx: "0xClaimIncentiveTx",
+          });
+        },
+      };
+    },
+  });
+
+  const result = await forecastos.claimIncentive(
+    { market_id: 428, chain_id: 42161 },
+    {
+      approved: true,
+      investor_address: "0xInvestor",
+      investor_signature: "0xInvestorSignature",
+    },
+  );
+
+  assert.equal(result.claim_type, "incentive");
+  assert.equal(result.claimed_incentive, 3.25);
+  assert.ok(requests[0].url.endsWith("/api/v1/claim-upcoming-market-incentive/"));
+});
+
+test("claim_investment and claim_incentive require approved true", async () => {
+  const forecastos = createTestForecastOS({
+    fetch: async () => {
+      throw new Error("claim must not call the network without approval");
+    },
+  });
+  await assert.rejects(
+    () =>
+      forecastos.claimInvestment(
+        { market_id: 428 },
+        { investor_address: "0xInvestor", investor_signature: "0xSig" },
+      ),
+    /requires explicit operator approval/,
+  );
+  await assert.rejects(
+    () =>
+      forecastos.claimIncentive(
+        { market_id: 428 },
+        { investor_address: "0xInvestor", investor_signature: "0xSig" },
+      ),
+    /requires explicit operator approval/,
+  );
+});
+
+test("forecastos_action prepare_claim_investment_intent round trip", async () => {
+  const rootDir = join(skillRoot, "test-output", "claim-investment-action");
+  const stateDir = join(rootDir, ".forecastos");
+  await rm(rootDir, { recursive: true, force: true });
+  await mkdir(stateDir, { recursive: true });
+  await writeTestConfig(stateDir);
+  const intentPath = join(rootDir, "intent.json");
+  await writeFile(
+    intentPath,
+    JSON.stringify({
+      state: { market_id: 428, chain_id: 42161 },
+      claimant_role: "lp",
+    }),
+  );
+
+  const prepared = await runActionBridge("prepare_claim_investment_intent", intentPath, stateDir);
+  assert.equal(prepared.status, "ok");
+  assert.equal(prepared.result.resolved_action, "claim_investment");
+  assert.equal(
+    prepared.result.eip712_typed_data_template.message.action,
+    configSignatureActions.claim_investment,
+  );
+});
+
 test("legacy Privy skill shim delegates to top-level wallet adapter", async () => {
   const shim = await import("../scripts/wallets/privy_resolve_create.mjs");
   const template = buildCreateIntentFixture().eip712_typed_data_template;

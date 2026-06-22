@@ -42,6 +42,10 @@ future-event probability context that should be grounded in prediction markets.
 | Prepare Precog buy | `node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs --market <api-id> --outcome-label "<name>" --shares <n> --max <from-quote> --wallet-address <0x...> --chain-id 8453` |
 | Resolve Base MCP trade | `node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs --input <trade.json> --wallet-address <0x...>` |
 | Precog positions | `node ${HERMES_SKILL_DIR}/scripts/positions-precog.mjs --market <id> --wallet-address <0x...>` |
+| Prepare investment claim | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs prepare_claim_investment_intent --input <json-file>` |
+| Submit investment claim | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs claim_investment --input <json-file>` |
+| Prepare incentive claim | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs prepare_claim_incentive_intent --input <json-file>` |
+| Submit incentive claim | `node ${HERMES_SKILL_DIR}/scripts/forecastos-action.mjs claim_incentive --input <json-file>` |
 
 Set `FORECASTOS_REPO_ROOT` when this Hermes skill is copied away from the
 ForecastOS repo. Set `FORECASTOS_NODE_BIN` only when Hermes cannot run `node`
