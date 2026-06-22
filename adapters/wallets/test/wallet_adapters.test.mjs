@@ -30,6 +30,9 @@ import {
   resolveTrade as resolveBankrTrade,
 } from "../bankr/resolve_trade.mjs";
 import {
+  resolveTrade as resolvePrivyTrade,
+} from "../privy/resolve_trade.mjs";
+import {
   resolveTrade as resolveBaseMcpTrade,
 } from "../base-mcp/resolve_trade.mjs";
 
@@ -1032,6 +1035,89 @@ test("Bankr trade resolver submits prepared buy transactions without typed data"
   assert.equal(resolved.transaction_hash, "0xbbb2");
   assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/submit")).length, 2);
   assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/sign")).length, 0);
+});
+
+test("Bankr trade resolver submits prepared redeem transaction", async () => {
+  const requests = [];
+  const tradeIntent = {
+    intent_type: "forecastos.precog_trade",
+    action: "redeem",
+    chain_id: 8453,
+    market_id: "23",
+    outcome: 2,
+    transactions: [{
+      step: "redeem",
+      to: "0x00000000000c109080dfa976923384b97165a57a",
+      value: "0",
+      data: "0xdeadbeef",
+      chainId: 8453,
+    }],
+  };
+
+  const resolved = await resolveBankrTrade({
+    tradeIntent,
+    apiKey: "bk_test",
+    apiRoot: "https://api.bankr.test",
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (String(url).endsWith("/wallet/me")) {
+        return jsonResponse({ wallet: { id: "bankr_wallet", address: "0x2222222222222222222222222222222222222222" } });
+      }
+      if (String(url).endsWith("/wallet/submit")) {
+        return jsonResponse({
+          transactionHash: "0xabc123def456",
+          signer: "0x2222222222222222222222222222222222222222",
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+
+  assert.equal(resolved.status, "submitted");
+  assert.equal(resolved.action, "redeem");
+  assert.equal(resolved.transaction_hash, "0xabc123def456");
+  assert.equal(requests.filter((request) => String(request.url).endsWith("/wallet/submit")).length, 1);
+});
+
+test("Privy trade resolver submits prepared redeem transaction", async () => {
+  const tradeIntent = {
+    intent_type: "forecastos.precog_trade",
+    action: "redeem",
+    chain_id: 8453,
+    market_id: "23",
+    outcome: 2,
+    transactions: [{
+      step: "redeem",
+      to: "0x00000000000c109080dfa976923384b97165a57a",
+      value: "0",
+      data: "0xdeadbeef",
+      chainId: 8453,
+    }],
+  };
+
+  const resolved = await resolvePrivyTrade({
+    tradeIntent,
+    walletAddress: "0x2222222222222222222222222222222222222222",
+    env: { PRIVY_APP_ID: "app", PRIVY_APP_SECRET: "secret" },
+    fetch: async (url, options = {}) => {
+      if (String(url).includes("/wallets?")) {
+        return jsonResponse({
+          data: [{ id: "wallet_1", address: "0x2222222222222222222222222222222222222222", policy_ids: ["pol_1"] }],
+        });
+      }
+      if (String(url).includes("/policies/pol_1")) {
+        return jsonResponse({ rules: [{ action: "ALLOW", method: "eth_sendTransaction" }] });
+      }
+      if (String(url).includes("/wallets/wallet_1/rpc")) {
+        return jsonResponse({ data: { hash: "0xdef789abc012" } });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+
+  assert.equal(resolved.status, "submitted");
+  assert.equal(resolved.action, "redeem");
+  assert.equal(resolved.transaction_hash, "0xdef789abc012");
 });
 
 test("Base MCP trade resolver returns get_wallets guidance when wallet address is missing", () => {

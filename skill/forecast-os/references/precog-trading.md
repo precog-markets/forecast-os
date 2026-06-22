@@ -64,6 +64,27 @@ Default network is Base Sepolia for quotes; wallet adapters require
    Python calldata or patch `quote.mjs` / `prepare_trade.mjs` in the checkout.
 6. Optionally run `positions.mjs --wallet-address <0x...>` to verify holdings.
 
+## Redeem (post-resolution)
+
+When a market is resolved and the operator holds winning shares:
+
+1. Run `redeem_status.mjs` with `--market <api_id>` and `--wallet-address`.
+   Paste the **full output verbatim** and confirm `can_redeem: true` (or
+   `redeem_status: READY_TO_REDEEM`).
+2. Wait for explicit confirmation.
+3. Run `prepare_redeem.mjs` with `--wallet-address` and `--network mainnet`.
+4. Submit with the matching wallet adapter `resolve_trade.mjs`.
+5. Optionally run `positions.mjs` to verify `ALREADY_REDEEMED`.
+
+No quote step — winning shares redeem 1:1 for market collateral via
+`marketRedeemShares`.
+
+```txt
+node adapters/actions/precog/redeem_status.mjs --market 136 --wallet-address <0x...> --chain-id 8453
+node adapters/actions/precog/prepare_redeem.mjs --market 136 --wallet-address <0x...> --chain-id 8453 --network mainnet > redeem.json
+node adapters/wallets/base-mcp/resolve_trade.mjs --input redeem.json --wallet-address <0x...>
+```
+
 ## Outcome selection
 
 Use 1-based `--outcome <n>` or `--outcome-label <name>` (case-insensitive).
@@ -96,6 +117,7 @@ When using the Hermes skill export with `FORECASTOS_REPO_ROOT` set:
 node ${HERMES_SKILL_DIR}/scripts/list-precog-markets.mjs --chain-id 8453 --status OPEN
 node ${HERMES_SKILL_DIR}/scripts/quote-precog.mjs --market 136 --outcome-label "Bruno Mars" --shares 2 --buy --chain-id 8453
 node ${HERMES_SKILL_DIR}/scripts/prepare-precog-buy.mjs ...
+node ${HERMES_SKILL_DIR}/scripts/prepare-precog-redeem.mjs ...
 node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs ...
 ```
 

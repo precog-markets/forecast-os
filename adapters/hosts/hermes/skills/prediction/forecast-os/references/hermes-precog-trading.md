@@ -127,3 +127,39 @@ Invalid: `--outcome Bruno Mars`, `--outcome-index 1`, skipping quote, guessing `
 - Sepolia (`84532`) is fine for API listing and on-chain quotes with
   `--network sepolia`, but Base MCP submit requires mainnet.
 - One trade per operator confirmation.
+
+## Redeem (resolved markets)
+
+When a market is resolved and the operator holds winning shares:
+
+### 1. Redeem status
+
+```txt
+node ${HERMES_SKILL_DIR}/scripts/redeem-status-precog.mjs \
+  --market 136 \
+  --wallet-address 0xabc... \
+  --chain-id 8453
+```
+
+Paste full output. Confirm `redeem_status: READY_TO_REDEEM` before prepare.
+Use `--json` for machine-readable output. No quote step.
+
+### 2. Prepare redeem
+
+```txt
+node ${HERMES_SKILL_DIR}/scripts/prepare-precog-redeem.mjs \
+  --market 136 \
+  --wallet-address 0xabc... \
+  --chain-id 8453 \
+  --network mainnet > /tmp/redeem.json
+```
+
+### 3. Submit
+
+```txt
+node ${HERMES_SKILL_DIR}/scripts/resolve-base-mcp-trade.mjs \
+  --input /tmp/redeem.json \
+  --wallet-address 0xabc...
+```
+
+Winning shares redeem 1:1 for market collateral via `marketRedeemShares`.

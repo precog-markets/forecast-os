@@ -24,7 +24,7 @@ Use `--wallet-address <address>` instead of `--wallet-id` when the operator pref
 For now, ForecastOS expects the selected [Privy](https://www.privy.io/ai) wallet to be usable for create and later funding. Attach constrained `ALLOW` rules for:
 
 - `eth_signTypedData_v4` for Precog authorization signatures.
-- `eth_sendTransaction` for future funding, token approval, and submit transactions.
+- `eth_sendTransaction` for future funding, token approval, trade submit, and share redeem (`marketRedeemShares`) transactions.
 
 Keep transaction-send rules constrained to the active ForecastOS chain, currently Base (`8453`) or Arbitrum (`42161`), and prefer contract/amount constraints for USDC and Precog funding paths when those addresses are known. Avoid broad `method: "*"` policies unless the wallet is otherwise tightly governed.
 

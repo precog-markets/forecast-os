@@ -5,6 +5,7 @@ import { bootstrapFromArgs } from "./lib/bootstrap.mjs";
 import * as client from "./lib/client.mjs";
 import { buildChainReadFailureError } from "./lib/market_resolve.mjs";
 import { parseOutcomeList } from "./lib/outcome.mjs";
+import { readRedeemContext } from "./lib/redeem.mjs";
 
 export async function main(deps = {}) {
   const _parseArgs = deps.parseArgs ?? parseArgs;
@@ -78,7 +79,29 @@ export async function main(deps = {}) {
     console.log("");
   }
 
-  return { netCost, totalBuys, totalSells, held, onChainMarketId, precogApiMarketId: displayApiId };
+  const redeemContext = await readRedeemContext({
+    marketId: onChainMarketId,
+    walletAddress,
+    marketContext,
+    deps: { multiread, ...deps },
+  });
+
+  if (redeemContext.isResolved) {
+    console.log("Redeem");
+    console.log(`  Status: ${redeemContext.redeemStatus}`);
+    if (redeemContext.winningOutcome) {
+      console.log(`  Winning outcome: [${redeemContext.winningOutcome}] ${redeemContext.winningOutcomeLabel}`);
+    }
+    if (redeemContext.canRedeem) {
+      console.log(`  Winning shares: ${redeemContext.winningShares}`);
+      console.log(`  Estimated payout: ${redeemContext.estimatedPayout} ${redeemContext.collateralSymbol} (1:1)`);
+    } else if (redeemContext.alreadyRedeemed) {
+      console.log(`  Redeemed: ${fromRaw(redeemContext.accountRedeemed, dec)} ${colSymbol}`);
+    }
+    console.log("");
+  }
+
+  return { netCost, totalBuys, totalSells, held, onChainMarketId, precogApiMarketId: displayApiId, redeem: redeemContext };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
