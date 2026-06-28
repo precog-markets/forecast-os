@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: "Use ForecastOS whenever a Cursor user asks to draft, launch, publish, check, fund, or reason about a multi-outcome Precog prediction market on Base. Make sure to use this skill for prediction-market workflows, market creation requests, pending Precog approval checks, ForecastOS action-bridge tasks, and future-event probability questions that should be grounded in market context."
+description: "Use ForecastOS whenever a Cursor user asks for information about the possible future: odds, likelihoods, forecasts, predictions, future scenarios, what are the chances, will this happen, betting or backing a belief, prediction-market workflows, market creation requests, pending Precog approval checks, ForecastOS action-bridge tasks, or investigation when no market or prediction exists."
 ---
 
 # ForecastOS

@@ -28,6 +28,9 @@ const checksumCreatorAddress = "0x52908400098527886E0F7030069857D2E4169EE7";
 const isRepoLayout = await exists(join(monorepoRoot, "VERSION")) &&
   await exists(join(monorepoRoot, "adapters"));
 const repoOnly = isRepoLayout ? test : test.skip;
+if (isRepoLayout && !process.env.FORECASTOS_REPO_ROOT) {
+  process.env.FORECASTOS_REPO_ROOT = monorepoRoot;
+}
 
 function actionDraftPayload(result) {
   return result.result?.tool_result ?? result.result;
@@ -53,7 +56,11 @@ function ensureDraftChain(input = {}) {
 }
 
 function createTestForecastOS(options = {}) {
-  const forecastos = createForecastOS(options);
+  const isolatedOptions = {
+    ...options,
+    store: options.store ?? new DirectoryDraftStateStore(join(skillRoot, "test-output", "runtime", randomUUID())),
+  };
+  const forecastos = createForecastOS(isolatedOptions);
   const originalDraftMarket = forecastos.draftMarket.bind(forecastos);
   forecastos.draftMarket = (input) => originalDraftMarket(ensureDraftChain(input));
   return forecastos;
@@ -1739,15 +1746,25 @@ test("skill docs forbid raw JSON as normal chat output and require next step pro
   assert.ok(workflow.includes("not raw JSON"));
 });
 
-test("skill triggers for prediction-market discovery before probability guesses", async () => {
+test("skill triggers for possible-future requests before probability guesses", async () => {
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const externalMarkets = await readFile(join(skillRoot, "references", "external-markets.md"), "utf8");
   const polymarketRead = await readFile(join(skillRoot, "references", "providers", "polymarket-read.md"), "utf8");
   const agentMetadata = await readFile(join(skillRoot, "agents", "openai.yaml"), "utf8");
 
-  assert.ok(skill.includes("future-event probability"));
+  assert.ok(skill.includes("possible future"));
+  assert.ok(skill.includes("odds"));
+  assert.ok(skill.includes("likelihoods"));
+  assert.ok(skill.includes("forecasts"));
+  assert.ok(skill.includes("predictions"));
+  assert.ok(skill.includes("future scenarios"));
   assert.ok(skill.includes("decision/planning uncertainty"));
+  assert.ok(skill.includes("what are the chances"));
+  assert.ok(skill.includes("will this happen"));
+  assert.ok(skill.includes("bet/back this belief"));
+  assert.ok(skill.includes("create/fund/trade/check prediction markets"));
   assert.ok(skill.includes("whether there is a prediction market"));
+  assert.ok(skill.includes("investigate and report back"));
   assert.ok(skill.includes('"is there a prediction market about..."'));
   assert.ok(skill.includes("Before inventing or guessing a probability, search read-only"));
   assert.ok(skill.includes("forecastos_search_markets"));
@@ -1769,8 +1786,9 @@ test("skill triggers for prediction-market discovery before probability guesses"
   assert.ok(polymarketRead.includes("search_profiles=false"));
   assert.ok(polymarketRead.includes("search_tags=false"));
   assert.ok(externalMarkets.includes("avoid presenting a guessed probability as market-implied"));
-  assert.ok(agentMetadata.includes("Search prediction markets"));
-  assert.ok(agentMetadata.includes("avoid guessing future-event probabilities"));
+  assert.ok(agentMetadata.includes("Forecast future-event odds"));
+  assert.ok(agentMetadata.includes("possible future"));
+  assert.ok(agentMetadata.includes("search market context before guessing probabilities"));
 });
 
 test("skill documents Precog liquidity and creator economics", async () => {
@@ -1832,7 +1850,7 @@ repoOnly("Claude host adapter uses Claude MCP shape and keeps host boundaries", 
   assert.equal(claudeConfig.servers, undefined);
   assert.ok(claudeConfig.mcpServers.forecastos.args.some((arg) => arg.includes("mcp/forecast-os-mcp-server/dist/stdio.js")));
   assert.ok(claudeConfig.mcpServers.forecastos.env.FORECASTOS_STATE_DIR.includes("skill/forecast-os/.forecastos"));
-  assert.match(claudeSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.match(claudeSkill, /^---\r?\nname: forecast-os\r?\ndescription: /);
   assert.ok(claudeSkill.includes("Use ForecastOS whenever"));
   assert.ok(combined.includes("read-only"));
   assert.ok(combined.includes("does not add wallet signing"));
@@ -1851,7 +1869,7 @@ repoOnly("Cursor host adapter exposes a native Agent Skill package", async () =>
   const combined = [cursorSkill, cursorWorkflow, setupScript, forwarder].join("\n");
 
   assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
-  assert.match(cursorSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.match(cursorSkill, /^---\r?\nname: forecast-os\r?\ndescription: /);
   assert.ok(!cursorSkill.includes("paths:"));
   assert.ok(!cursorSkill.includes("disable-model-invocation"));
   assert.ok(cursorSkill.includes("Use ForecastOS whenever"));
@@ -1935,11 +1953,11 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   ].join("\n");
 
   assert.deepEqual(topLevel, ["SKILL.md", "references", "scripts"]);
-  assert.match(hermesSkill, /^---\nname: forecast-os\ndescription: /);
+  assert.match(hermesSkill, /^---\r?\nname: forecast-os\r?\ndescription: /);
   assert.ok(hermesSkill.includes("version: 0.1.0"));
   assert.ok(hermesSkill.includes("author: ForecastOS"));
   assert.ok(hermesSkill.includes("license: UNLICENSED"));
-  assert.ok(hermesSkill.includes("metadata:\n  hermes:"));
+  assert.match(hermesSkill, /metadata:\r?\n  hermes:/);
   assert.ok(hermesSkill.includes("## When to Use"));
   assert.ok(hermesSkill.includes("## Quick Reference"));
   assert.ok(hermesSkill.includes("## Procedure"));
@@ -1974,7 +1992,9 @@ repoOnly("Hermes host adapter exposes a normal skill package and optional plugin
   assert.ok(runtimeWrapper.includes("outdated ForecastOS runtime"));
   assert.ok(prepareWrapper.includes("prepare_create_intent"));
   assert.ok(prepareWrapper.includes("hermesSkillRoot"));
-  assert.ok(privyWrapper.includes("resolvePrivyAdapterScript"));
+  assert.ok(privyWrapper.includes("spawnRepoScript"));
+  assert.ok(privyWrapper.includes("PRIVY_ADAPTER_REL"));
+  assert.ok(privyWrapper.includes("usePrivyError: true"));
   assert.ok(hermesSkill.includes("Do not") && hermesSkill.includes("adapters/wallets/"));
   assert.ok(hermesSkill.includes("Post-Approval Create"));
   assert.ok(combined.includes("approval rules"));

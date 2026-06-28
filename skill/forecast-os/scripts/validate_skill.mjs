@@ -53,12 +53,12 @@ const mcpResourceCopies = [
   ["references/examples/full-workflow.md", "examples/full-workflow.md"],
   [".forecastos/config.json", "precog/config-defaults.json"],
 ];
-const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
+const frontmatter = skill.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 
-assert(/^---\nname: forecast-os\n/m.test(skill), "SKILL.md needs hyphen-case forecast-os name frontmatter");
+assert(/^---\r?\nname: forecast-os\r?\n/m.test(skill), "SKILL.md needs hyphen-case forecast-os name frontmatter");
 assert(
-  /^description: ".+ForecastOS.+future-event probability.+decision\/planning uncertainty.+whether there is a prediction market.+market discovery.+Polymarket\/Kalshi\/Precog.+before guessing probabilities.+\.forecastos.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
-  "SKILL.md description needs ForecastOS discovery, probability, boundaries, and action context",
+  /^description: ".+ForecastOS.+possible future.+odds.+likelihoods.+forecasts.+predictions.+future scenarios.+decision\/planning uncertainty.+what are the chances.+will this happen.+bet\/back this belief.+create\/fund\/trade\/check prediction markets.+whether there is a prediction market.+market discovery.+Polymarket\/Kalshi\/Precog.+investigate and report back.+before guessing probabilities.+\.forecastos.+action bridge.+Precog.+fund.+no wallet custody.+no signing.*"$/m.test(skill),
+  "SKILL.md description needs broad possible-future triggers, discovery, boundaries, and action context",
 );
 assert(
   /^description: ".+Base\/Arbitrum.+USDC.+collateral.*"$/m.test(skill),
@@ -78,12 +78,17 @@ assert(
 );
 assert(agentMetadata.includes('display_name: "ForecastOS"'), "agents/openai.yaml needs ForecastOS display name");
 assert(
-  agentMetadata.includes("Search prediction markets and run human-approved ForecastOS workflows"),
-  "agents/openai.yaml must mention prediction-market search/discovery",
+  agentMetadata.includes("Forecast future-event odds and run human-approved ForecastOS workflows"),
+  "agents/openai.yaml must mention future-event odds and workflows",
 );
 assert(
-  agentMetadata.includes("search prediction-market context") && agentMetadata.includes("avoid guessing future-event probabilities"),
-  "agents/openai.yaml default prompt must mention market context before probability guesses",
+  agentMetadata.includes("possible future") &&
+    agentMetadata.includes("odds") &&
+    agentMetadata.includes("forecasts") &&
+    agentMetadata.includes("bets") &&
+    agentMetadata.includes("prediction markets") &&
+    agentMetadata.includes("search market context before guessing probabilities"),
+  "agents/openai.yaml default prompt must mention broad possible-future triggers and market context before guesses",
 );
 assert(
   agentMetadata.includes("allow_implicit_invocation: true"),
@@ -605,7 +610,7 @@ async function assertClaudeHostAdapter(monorepoRoot) {
   );
   const claudeSkill = await readFile(join(claudeSkillRoot, "SKILL.md"), "utf8");
   assert(
-    /^---\nname: forecast-os\ndescription: /m.test(claudeSkill),
+    /^---\r?\nname: forecast-os\r?\ndescription: /m.test(claudeSkill),
     "Claude SKILL.md must have valid skill frontmatter",
   );
   assert(
@@ -656,12 +661,12 @@ async function assertCursorHostAdapter(monorepoRoot) {
   );
 
   const cursorSkill = await readFile(join(cursorSkillRoot, "SKILL.md"), "utf8");
-  const frontmatterMatch = cursorSkill.match(/^---\n([\s\S]*?)\n---/);
+  const frontmatterMatch = cursorSkill.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   assert(frontmatterMatch, "Cursor SKILL.md must have YAML frontmatter");
   const cursorFrontmatter = frontmatterMatch[1];
   assert(
     /^name: forecast-os$/m.test(cursorFrontmatter) &&
-      /^description: ".+ForecastOS.+Cursor.+prediction-market.+pending Precog approval.+future-event probability.+market context.*"$/m.test(cursorFrontmatter),
+      /^description: ".+ForecastOS.+Cursor.+possible future.+odds.+forecasts.+predictions.+future scenarios.+betting.+prediction-market.+pending Precog approval.+investigation when no market or prediction exists.*"$/m.test(cursorFrontmatter),
     "Cursor SKILL.md must have forecast-os name and a strong Cursor ForecastOS description",
   );
   assert(
@@ -742,7 +747,7 @@ async function assertHermesHostAdapter(monorepoRoot) {
 
   const hermesSkill = await readFile(join(hermesSkillRoot, "SKILL.md"), "utf8");
   assert(
-    /^---\nname: forecast-os\ndescription: [\s\S]+?\nversion: 0\.1\.0\nauthor: ForecastOS\nlicense: UNLICENSED\nmetadata:\n  hermes:/m.test(hermesSkill),
+    /^---\r?\nname: forecast-os\r?\ndescription: [\s\S]+?\r?\nversion: 0\.1\.0\r?\nauthor: ForecastOS\r?\nlicense: UNLICENSED\r?\nmetadata:\r?\n  hermes:/m.test(hermesSkill),
     "Hermes SKILL.md must have Hermes-style frontmatter with version, author, license, and metadata.hermes",
   );
   assert(
@@ -887,7 +892,7 @@ async function assertBankrCompatibility(monorepoRoot) {
   );
   const bankrSkill = await readFile(join(bankrSkillRoot, "SKILL.md"), "utf8");
   assert(
-    /^---\nname: forecast-os\ndescription: /m.test(bankrSkill),
+    /^---\r?\nname: forecast-os\r?\ndescription: /m.test(bankrSkill),
     "Bankr SKILL.md must have valid skill frontmatter",
   );
   assert(

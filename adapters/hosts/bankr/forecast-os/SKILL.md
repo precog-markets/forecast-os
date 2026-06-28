@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: "Use ForecastOS with Bankr when a user wants to draft, create, check, fund, or consume a multi-outcome Precog prediction market on Base using Bankr Wallet API signing/submission. Use for prediction-market workflows, Precog launchpad markets, pending approval checks, and Bankr-backed wallet handoffs."
+description: "Use ForecastOS with Bankr when a user wants information about the possible future, odds, forecasts, predictions, betting or backing a belief, prediction-market workflows, Precog launchpad markets, pending approval checks, Bankr-backed wallet handoffs, or to draft, create, check, fund, or consume a multi-outcome Precog prediction market on Base using Bankr Wallet API signing/submission."
 ---
 
 # ForecastOS

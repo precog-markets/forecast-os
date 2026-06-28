@@ -1,6 +1,6 @@
 ---
 name: forecast-os
-description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about ForecastOS, prediction-market creation, listing or discovering open Precog markets on Base or Arbitrum, pending Precog approval, market funding, buying or selling Precog shares, or future-event probabilities that should be grounded in market context.
+description: Draft, create, check, fund, consume, and trade on human-approved multi-outcome Precog prediction markets on Base or Arbitrum through the ForecastOS action bridge. Use this skill whenever a Hermes user asks about the possible future, odds, likelihoods, forecasts, predictions, future scenarios, betting or backing a belief, ForecastOS, prediction-market creation, listing or discovering open Precog markets on Base or Arbitrum, pending Precog approval, market funding, buying or selling Precog shares, or investigation when no market or prediction exists.
 version: 0.1.0
 author: ForecastOS
 license: UNLICENSED
@@ -20,10 +20,12 @@ users who explicitly want a plugin-provided tool.
 
 ## When to Use
 
-Use this skill when the user wants to draft, create, check, fund, or consume a
-ForecastOS/Precog market, asks to **list open prediction markets** (for example
-"markets on Base"), asks whether a prediction market exists, or asks for
-future-event probability context that should be grounded in prediction markets.
+Use this skill when the user wants information about the possible future, asks
+for odds, likelihoods, forecasts, predictions, future scenarios, betting or
+backing a belief, wants to draft/create/check/fund/consume a ForecastOS/Precog
+market, asks to **list open prediction markets** (for example "markets on Base"),
+asks whether a prediction market exists, or asks for investigation when no
+market or prediction exists.
 
 ## Quick Reference
 
