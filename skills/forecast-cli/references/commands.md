@@ -1,0 +1,85 @@
+# Forecast CLI command map
+
+All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`.
+
+Invoke as `forecast` on `PATH` after `pip install forecast-cli`.
+
+## Root
+
+| Command | Purpose | Notable options |
+| --- | --- | --- |
+| `status` | Platform readiness | `--platform all\|kalshi\|polymarket\|precog` |
+| `setup` | Prepare platform config | `--platform …`, `--check-only` / `--no-check-only` |
+| `upgrade` | Stub — not usable yet | `--version`, `--confirm` |
+| `config` | Show / validate config | `--show` / `--no-show`, `--validate` / `--no-validate` |
+| `predict` | Quote or buy one outcome | see below |
+
+## `market`
+
+| Command | Purpose | Notable options |
+| --- | --- | --- |
+| `market list` | List markets | `--platform` (default `all`), `--tag`, `--status OPEN\|ENDED\|RESOLVED` (default `OPEN`), `--limit` (default `10`) |
+| `market search <query>` | Search markets | `--platform`, `--status`, `--limit` (default `20`) |
+| `market get <market_ref>` | Market detail or outcomes | `--only-outcomes`, `--status open\|closed\|all` (default `all`), `--yes`, `--no`, `--all` |
+
+Notes:
+
+- Multi-platform list/search splits `--limit` evenly across platforms and drops remainder (e.g. `10` → 3 each).
+- `market get` does **not** take `--platform`; platform is encoded in the ref.
+- `--yes` / `--no` / `--all` require `--only-outcomes`.
+
+## `predict <outcome_ref>`
+
+Quote by default. `--confirm` submits.
+
+Use **one** option pair:
+
+| Pair | Flags |
+| --- | --- |
+| Shares + budget | `--buy-shares <int≥1>` + `--spend-limit <decimal>` |
+| Size + optional price | `--buy-size <decimal>` [+ `--price-limit <decimal>`] |
+
+Also: `--request-id <uuid>` (requires `--confirm`).
+
+`--spend-limit` is a total budget. If it implies more than one dollar per share, the CLI caps the per-share limit and still buys at most `--buy-shares`. `--price-limit` must not be greater than `1`.
+
+## `prediction`
+
+| Command | Purpose | Notable options |
+| --- | --- | --- |
+| `prediction list` | Local history only | `--market <ref>`, `--platform` |
+| `prediction get <prediction_ref>` | One position | — |
+| `prediction sell <prediction_ref>` | Sell (immediate) | `--shares`, `--min-return` |
+| `prediction claim <prediction_ref>` | Claim resolved (not Kalshi) | — |
+| `prediction sync` | Refresh history from providers | `--confirm` required when replacing existing history |
+
+## `create` (Precog)
+
+| Command | Purpose | Notable options |
+| --- | --- | --- |
+| `create market` | Preview or create | `--spec <yaml\|json>` (required), `--chain base\|arbitrum`, `--confirm` |
+| `create status <creation_ref>` | Creation request state | — |
+
+### Spec fields
+
+Required: `question`, `resolution_criteria`, `image_url`, `category`, `outcomes`, `end_timestamp`, `collateral_address`.
+
+Optional: `start_timestamp`.
+
+```yaml
+question: Which team wins the final?
+resolution_criteria: Use the official organizer result.
+image_url: ipfs://bafybeigdyrzt
+category: Sports
+outcomes:
+  - North
+  - South
+end_timestamp: 1800000000
+collateral_address: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+```
+
+## Market states (list/search)
+
+- `OPEN` — trading available
+- `ENDED` — trading unavailable
+- `RESOLVED` — claim may be available
