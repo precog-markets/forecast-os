@@ -1,10 +1,10 @@
-# Forecast Agent Skills
+# ForecastOS
 
 [![skills.sh](https://skills.sh/b/precog-markets/forecast-os)](https://skills.sh/precog-markets/forecast-os)
 
-Skills for the Forecast CLI (`forecast`), covering Polymarket, Precog, and Kalshi prediction markets.
+Ask your agent what is likely to happen. Without ForecastOS it guesses. With it, the agent checks Polymarket, Kalshi, and Precog before answering — and can discover, trade, or create prediction markets.
 
-These skills teach AI agents how to operate the CLI after it is installed separately:
+Install the `forecast` CLI separately:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
@@ -14,7 +14,7 @@ curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/inst
 
 | Skill | Description |
 | --- | --- |
-| [`forecast-cli`](./skills/forecast-cli/SKILL.md) | Operator skill that routes agents to command references and multi-step workflows for market discovery, quoting/buying, position management, Precog market creation, setup, and status. |
+| [`forecast-cli`](./skills/forecast-cli/SKILL.md) | Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets. |
 
 ## Installation
 

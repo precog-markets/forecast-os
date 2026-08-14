@@ -1,17 +1,20 @@
 ---
 name: forecast-cli
 description: >-
-  Forecast CLI for Polymarket, Precog, and Kalshi.
-  Use when installing forecast, discovering or quoting markets, buying an
-  outcome, managing positions, creating a Precog market, or checking setup,
-  status, or config.
+  Forecast the future on Polymarket, Kalshi, and Precog — check live markets
+  before answering what is likely to happen.
+  Use when the user asks about odds, event outcomes, or prediction markets;
+  wants to discover, quote, buy, or sell; create a Precog market; or install
+  and configure forecast.
 metadata:
   cli: forecast
 ---
 
-# Forecast CLI
+# ForecastOS
 
-Router for the `forecast` binary. Match intent, load the linked file, then construct commands from that file.
+Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover markets, trade outcomes, or create Precog markets with the `forecast` CLI.
+
+Match intent, load the linked file, then construct commands from that file.
 
 ## Agent defaults
 
