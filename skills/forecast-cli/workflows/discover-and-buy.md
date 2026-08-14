@@ -4,7 +4,7 @@ Discover markets, load outcomes, quote a buy, and submit only after explicit use
 
 **Done when:** a quote was shown without `--confirm`, and a buy was submitted only after the user approved (or the user stopped at the quote).
 
-Read [pitfalls.md](../references/pitfalls.md) if short refs or predict option pairs fail.
+If short refs or predict pairs fail, load [pitfalls.md](../references/pitfalls.md) and [commands.md](../references/commands.md). If status fails, follow [config-and-auth.md](../references/config-and-auth.md).
 
 ## Steps
 
@@ -15,7 +15,7 @@ forecast --version
 forecast status --platform polymarket --output json --no-input
 ```
 
-2. Search or list markets. Short refs rewrite on each call — use results immediately:
+2. Search or list markets. Use results immediately (short refs rewrite):
 
 ```bash
 forecast market search "QUERY" --platform polymarket --limit 5 --output json --no-input
@@ -29,12 +29,7 @@ forecast market list --platform kalshi --limit 10 --output json --no-input
 forecast market get POL:1 --only-outcomes --all --output json --no-input
 ```
 
-`market get` has no `--platform`; the platform is in the ref.
-
-4. Quote with exactly one option pair — never mix pairs:
-
-- `--buy-shares` + `--spend-limit`
-- `--buy-size` [+ optional `--price-limit` ≤ 1]
+4. Quote with exactly one option pair from [commands.md](../references/commands.md). Precog cannot use `--buy-size` alone (add `--price-limit`, or use `--buy-shares` + `--spend-limit`):
 
 ```bash
 forecast predict OUT:1 --buy-shares 10 --spend-limit 0.45 --output json --no-input
@@ -54,4 +49,4 @@ Optional safe retry: add `--request-id <uuid>` together with `--confirm`.
 
 - Quote response has `ok: true` and `data.submitted` is false/absent before confirm.
 - After confirm, `data.submitted` is true (or equivalent success fields / `next_actions` from the CLI).
-- No `--confirm` was used without user approval.
+- `--confirm` was used only after user approval.

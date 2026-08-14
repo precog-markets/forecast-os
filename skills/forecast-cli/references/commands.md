@@ -1,16 +1,14 @@
 # Forecast CLI command map
 
-All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`.
-
-Invoke as `forecast` on `PATH` after `curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh`.
+All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`. Binary: `forecast` on `PATH`.
 
 ## Root
 
 | Command | Purpose | Notable options |
 | --- | --- | --- |
 | `status` | Platform readiness | `--platform all\|kalshi\|polymarket\|precog` |
-| `setup` | Prepare platform config | `--platform …`, `--check-only` / `--no-check-only` |
-| `upgrade` | Stub — not usable yet | `--version`, `--confirm` |
+| `setup` | Prepare platform config | `--platform …`, `--check-only` |
+| `upgrade` | Unimplemented stub | `--version`, `--confirm` |
 | `config` | Show / validate config | `--show` / `--no-show`, `--validate` / `--no-validate` |
 | `predict` | Quote or buy one outcome | see below |
 
@@ -25,7 +23,7 @@ Invoke as `forecast` on `PATH` after `curl -sSL https://raw.githubusercontent.co
 Notes:
 
 - Multi-platform list/search splits `--limit` evenly across platforms and drops remainder (e.g. `10` → 3 each).
-- `market get` does **not** take `--platform`; platform is encoded in the ref.
+- `market get` does not take `--platform`; platform is encoded in the ref.
 - `--yes` / `--no` / `--all` require `--only-outcomes`.
 
 ## `predict <outcome_ref>`
@@ -41,7 +39,9 @@ Use **one** option pair:
 
 Also: `--request-id <uuid>` (requires `--confirm`).
 
-`--spend-limit` is a total budget. If it implies more than one dollar per share, the CLI caps the per-share limit and still buys at most `--buy-shares`. `--price-limit` must not be greater than `1`.
+`--spend-limit` is a total budget. If it implies more than one dollar per share, the CLI caps the per-share limit and still buys at most `--buy-shares`. `--price-limit` must not be greater than `1`. Mixing pairs, `--price-limit` alone, or an incomplete share/budget pair exits 2.
+
+Precog: `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limit` still works (it derives a cap).
 
 ## `prediction`
 
@@ -60,23 +60,7 @@ Also: `--request-id <uuid>` (requires `--confirm`).
 | `create market` | Preview or create | `--spec <yaml\|json>` (required), `--chain base\|arbitrum`, `--confirm` |
 | `create status <creation_ref>` | Creation request state | — |
 
-### Spec fields
-
-Required: `question`, `resolution_criteria`, `image_url`, `category`, `outcomes`, `end_timestamp`, `collateral_address`.
-
-Optional: `start_timestamp`.
-
-```yaml
-question: Which team wins the final?
-resolution_criteria: Use the official organizer result.
-image_url: ipfs://bafybeigdyrzt
-category: Sports
-outcomes:
-  - North
-  - South
-end_timestamp: 1800000000
-collateral_address: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-```
+Required spec fields: `question`, `resolution_criteria`, `image_url`, `category`, `outcomes`, `end_timestamp`, `collateral_address`. Optional: `start_timestamp`. Validation rules and example spec live in [create-precog-market.md](../workflows/create-precog-market.md).
 
 ## Market states (list/search)
 

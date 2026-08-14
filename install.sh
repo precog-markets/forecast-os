@@ -12,8 +12,8 @@ get_asset_name() {
   case "$os" in
     Darwin)
       case "$arch" in
-        x86_64) echo "forecast-darwin-x86_64" ;;
-        arm64)  echo "forecast-darwin-arm64" ;;
+        x86_64) echo "forecast-macos-x86_64" ;;
+        arm64)  echo "forecast-macos-arm64" ;;
         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
       esac
       ;;

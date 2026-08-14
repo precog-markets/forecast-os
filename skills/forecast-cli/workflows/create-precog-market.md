@@ -4,11 +4,20 @@ Preview a market creation from a YAML/JSON spec, submit only after explicit user
 
 **Done when:** a preview ran without `--confirm`, and submit ran only after approval (or status was checked for an existing creation ref).
 
+If Precog status fails, follow [config-and-auth.md](../references/config-and-auth.md). Flag map: [commands.md](../references/commands.md).
+
 ## Spec requirements
 
 Required fields: `question`, `resolution_criteria`, `image_url`, `category`, `outcomes`, `end_timestamp`, `collateral_address`.
 
-Optional: `start_timestamp`. Optional CLI flag: `--chain base|arbitrum`.
+Optional: `start_timestamp` (defaults to now). Optional CLI flag: `--chain base|arbitrum`.
+
+Launchpad rules:
+
+- `question` must end with `?`, max 65 characters
+- ≥2 outcomes; no commas in labels; max 32 characters each
+- `image_url` is `http(s)` or `ipfs://`
+- `start_timestamp` < `end_timestamp`
 
 Example:
 
