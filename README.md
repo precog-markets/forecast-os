@@ -14,7 +14,7 @@ curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/inst
 
 | Skill | Description |
 | --- | --- |
-| [`forecast-cli`](./skills/forecast-cli/SKILL.md) | Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets. |
+| [`forecast-os`](./skills/forecast-os/SKILL.md) | Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets. |
 
 ## Installation
 

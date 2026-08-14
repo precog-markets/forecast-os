@@ -1,5 +1,5 @@
 ---
-name: forecast-cli
+name: forecast-os
 description: >-
   Forecast the future on Polymarket, Kalshi, and Precog — check live markets
   before answering what is likely to happen.
