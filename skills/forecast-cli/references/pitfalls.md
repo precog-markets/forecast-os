@@ -1,5 +1,7 @@
 # Pitfalls and exit codes
 
+**Done when:** the relevant gotcha is applied (short ref refreshed, quote not submitted as a buy, exit code explained).
+
 Gotchas `--help` does not confess. Flag maps and option pairs live in [commands.md](commands.md).
 
 ## Short refs rewrite
@@ -38,8 +40,6 @@ With `--output json` or `--no-input`, the CLI stops after the preview — it doe
 List/search `--status` uses `OPEN|ENDED|RESOLVED`. Outcome filter on `market get` uses `open|closed|all`.
 
 `status` `creation` is `unsupported` on Polymarket and Kalshi; trading can still be healthy. Treat `creation: unsupported` as expected there, not a setup failure.
-
-`config` and `upgrade` print plain text (no JSON envelope).
 
 ## Exit codes
 

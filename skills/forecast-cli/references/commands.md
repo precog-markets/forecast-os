@@ -1,5 +1,7 @@
 # Forecast CLI command map
 
+**Done when:** flags and option pairs match this map, the command was run, or a CLI error is explained.
+
 All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`. Binary: `forecast` on `PATH`.
 
 ## Root
@@ -9,7 +11,7 @@ All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-inpu
 | `status` | Platform readiness | `--platform all\|kalshi\|polymarket\|precog` |
 | `setup` | Prepare platform config | `--platform …`, `--check-only` |
 | `upgrade` | Unimplemented stub | `--version`, `--confirm` |
-| `config` | Show / validate config | `--show` / `--no-show`, `--validate` / `--no-validate` |
+| `config` | Show / validate config | `--show`, `--validate` |
 | `predict` | Quote or buy one outcome | see below |
 
 ## `market`
@@ -60,7 +62,7 @@ Precog: `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limit` 
 | `create market` | Preview or create | `--spec <yaml\|json>` (required), `--chain base\|arbitrum`, `--confirm` |
 | `create status <creation_ref>` | Creation request state | — |
 
-Required spec fields: `question`, `resolution_criteria`, `image_url`, `category`, `outcomes`, `end_timestamp`, `collateral_address`. Optional: `start_timestamp`. Validation rules and example spec live in [create-precog-market.md](../workflows/create-precog-market.md).
+Required spec fields and Launchpad validation live in [create-precog-market.md](../workflows/create-precog-market.md).
 
 ## Market states (list/search)
 

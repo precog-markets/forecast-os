@@ -20,7 +20,7 @@ Pin a release with `FORECAST_VERSION=<tag>` before the pipe. The binary installs
 
 TOML sections: `[global]`, `[kalshi]`, `[polymarket]`, `[precog]`. Unknown keys/sections are rejected.
 
-Keep tracked config secret-free. Pass keys via env vars or gitignored `*_file` paths.
+Keep tracked config secret-free. Pass keys via env vars or gitignored `*_file` paths. `config --show` redacts secrets; still avoid pasting raw keys into chat.
 
 ## Agent setup pattern
 
@@ -63,8 +63,3 @@ Create and buy also need `[precog]` RPCs: `base_rpc` and `arbitrum_rpc` (plus `a
 | `prediction-requests.json` | Idempotent `--request-id` buys |
 
 Default history path: `[global].history_file` or `history.json` next to the config. These files are typically gitignored.
-
-## Secrets hygiene
-
-- `config --show` redacts secrets; still avoid pasting raw keys into chat.
-- Prefer env vars in the agent shell over writing secrets into tracked files.
