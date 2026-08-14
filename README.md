@@ -7,7 +7,7 @@ Skills for the Forecast CLI (`forecast`), covering Polymarket, Precog, and Kalsh
 These skills teach AI agents how to operate the CLI after it is installed separately:
 
 ```bash
-pip install forecast-cli
+curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
 ```
 
 ## Skills
@@ -27,6 +27,6 @@ npx skills add precog-markets/forecast-os
 Requires the Forecast CLI on `PATH`:
 
 ```bash
-pip install forecast-cli
+curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
 forecast --help
 ```

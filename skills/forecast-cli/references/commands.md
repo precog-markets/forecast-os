@@ -2,7 +2,7 @@
 
 All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`.
 
-Invoke as `forecast` on `PATH` after `pip install forecast-cli`.
+Invoke as `forecast` on `PATH` after `curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh`.
 
 ## Root
 

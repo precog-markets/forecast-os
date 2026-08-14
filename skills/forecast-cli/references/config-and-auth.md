@@ -3,7 +3,7 @@
 ## Prerequisite
 
 ```bash
-pip install forecast-cli
+curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
 forecast --version
 ```
 

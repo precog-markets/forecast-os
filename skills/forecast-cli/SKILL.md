@@ -13,13 +13,13 @@ metadata:
 
 # Forecast CLI
 
-Operator skill for the Forecast CLI (`forecast`) after `pip install forecast-cli`. Platforms: Polymarket, Precog, Kalshi.
+Operator skill for the Forecast CLI (`forecast`) after installing the binary from GitHub releases. Platforms: Polymarket, Precog, Kalshi.
 
 Use the routing table to pick a reference or workflow, then read that file before constructing commands. CLI behavior lives in `references/`. Repeatable multi-step patterns live in `workflows/`.
 
 ## Agent defaults
 
-- Invoke `forecast` on `PATH` (installed via `pip install forecast-cli`).
+- Invoke `forecast` on `PATH` (installed via `curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh`).
 - Prefer `--output json --no-input` on every command.
 - Never put secrets on the command line; use env vars or ignored key files.
 - Quote / preview first. Add `--confirm` only when the user explicitly asks to submit.
