@@ -22,11 +22,11 @@ Match intent, load the linked file, then construct commands from that file.
 Apply on every invocation:
 
 - Call `forecast` with `--output json --no-input`. If it is missing, load [config-and-auth.md](references/config-and-auth.md) and find or install the binary.
-- Browse (odds, search, list, headlines) does not need `status`, keys, or a config file. `status` exit 3 with `CONFIG_INVALID` is not a browse failure.
+- Browse (odds, search, list, headlines) does not need `status` or keys. `status` exit 3 with `CONFIG_INVALID` is not a browse failure. Search still loads a TOML file. If the CLI says `Configuration file not found`, pass `--config` at an existing `forecast_config.toml`. Do not invent keys.
 - Quote first on `predict` and `create market`. Add `--confirm` only after the user asks to submit.
 - `prediction sell` / `claim` have no preview. Warn, then run only after approval.
 - Pass secrets via env vars or ignored key files, not CLI argv.
-- Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`) when trading.
+- Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`). Search needs the file. It does not need secrets.
 - Prefer absolute refs (`POLYMARKET:EVENT:{id}`, `KALSHI:EVENT:{id}`). Short refs rewrite. Details in [pitfalls.md](references/pitfalls.md).
 
 JSON envelope (`ok`, `command`, `data`, `warnings`, `error`, `next_actions`) on most commands. `config` and `upgrade` print plain text. Progress goes to stderr with `-v`.

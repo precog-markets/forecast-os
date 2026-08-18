@@ -10,7 +10,7 @@ Try in order. Stop at the first that prints a version.
 2. A local `forecast.exe` / `forecast-windows-x86_64.exe` in the current directory
 3. Install below
 
-Do not borrow a random `forecast-cli` venv. Do not write a dummy `forecast_config.toml` to make discovery work.
+Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work. If search says `Configuration file not found`, pass `--config` at an existing `forecast_config.toml`.
 
 ## Install
 
