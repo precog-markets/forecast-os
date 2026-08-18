@@ -1,6 +1,6 @@
 # Config and auth
 
-**Done when:** the platforms you need have `trading` `ready`, or the remaining failure is auth or funding explained from the CLI `message`. Browse routes from [SKILL.md](../SKILL.md). `creation: unsupported` on Polymarket/Kalshi is expected.
+**Done when:** the platforms you need have `trading` `ready`, or the remaining failure is auth or funding explained from the CLI `message`. `creation: unsupported` on Polymarket/Kalshi is expected.
 
 ## Find the CLI
 
@@ -8,27 +8,28 @@ Try in order. Stop at the first that prints a version.
 
 1. `forecast --version`
 2. A local `forecast.exe` / `forecast-windows-x86_64.exe` in the current directory
-3. Install below
+3. Install below into the current directory
 
-Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work. If search says `Configuration file not found`, pass `--config` at an existing `forecast_config.toml`.
+Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work.
 
 ## Install
 
-Run `install.sh`. On Windows PowerShell, use `bash -c`.
+Install into the current directory.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
-forecast --version
+INSTALL_DIR="$PWD" curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
+./forecast --version
 ```
 
 Windows PowerShell:
 
 ```powershell
-bash -c "curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh"
-forecast --version
+$env:INSTALL_DIR = (Get-Location).Path
+bash -c 'curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh'
+./forecast.exe --version
 ```
 
-Windows installs `forecast.exe` to `$HOME/bin` by default. Add that directory to `PATH` if `forecast` is still missing.
+If the environment blocks the download, request approval and retry. After install, call `./forecast` or `./forecast.exe` until that directory is on `PATH`.
 
 ## Config resolution order
 
@@ -107,13 +108,3 @@ Map:
 - RSA PEM via exactly one of `private_key`, `private_key_file`, or `KALSHI_PRIVATE_KEY`
 
 Prefer `private_key_file` pointing at the downloaded `.key`. Default `api_url` is production (`https://external-api.kalshi.com/trade-api/v2`). Do not switch to demo unless the user said they are on demo.
-
-## Local store files
-
-| File | Role |
-| --- | --- |
-| `references.json` | Short market/outcome maps (`POL:n`, `OUT:n`, …) |
-| `history.json` | Owned prediction snapshots for `prediction list` |
-| `prediction-requests.json` | Idempotent `--request-id` buys |
-
-Default history path: `[global].history_file` or `history.json` next to the config. These files are typically gitignored.

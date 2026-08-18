@@ -12,7 +12,7 @@ Gotchas `--help` does not confess. Flag maps and option pairs live in [commands.
 | Outcome | `OUT:1`, `OUT:1:N` (Yes / No) | `POLYMARKET:MARKET:…:OUTCOME:…`, `KALSHI:MARKET:…:OUTCOME:…` |
 | Prediction | `PRED:1` | `POLYMARKET:POSITION:…`, `KALSHI:MARKET:…:POSITION:1\|2` |
 
-`POL:n`, `PRE:n`, `KAL:n`, and `OUT:n` rewrite on each `market list`, `market search`, and `market get --only-outcomes`. Stale short refs fail or buy the wrong market. Re-list / re-get immediately before `predict`. Prefer `POLYMARKET:EVENT:{id}` and `KALSHI:EVENT:{id}` from the same JSON `id`. Do not search again until those short refs are finished. Browse headlines from search/list JSON. Do not `market get` every row.
+JSON `reference` is absolute. `local_reference` is the short form (`POL:n`, `OUT:n`, `PRED:n`). Short refs rewrite on each `market list`, `market search`, and `market get --only-outcomes`. Stale short refs fail or buy the wrong market. Prefer `reference` from the same JSON. Browse headlines from search/list JSON (`title`, `status`, `closes_at`, `reference`). Do not `market get` every row.
 
 ## Outcomes before predict
 
@@ -30,7 +30,8 @@ With `--output json` or `--no-input`, the CLI stops after the preview. It does n
 
 ## Positions
 
-- `prediction list` reads local `history.json` only. `prediction sync --confirm` is required when replacing existing history.
+- `prediction list` reads local `history.json` only (`[global].history_file` or `history.json` next to the config). `prediction sync --confirm` is required when replacing existing history.
+- Sell and claim with JSON `reference`, not `PRED:n`.
 - `prediction sell` / `prediction claim` execute immediately. Warn, then wait for approval.
 - Kalshi settlements are automatic; `prediction claim` always errors there.
 - On Kalshi, one net Yes/No position per market. Buying the opposite side nets or closes.
@@ -39,7 +40,7 @@ With `--output json` or `--no-input`, the CLI stops after the preview. It does n
 
 List/search `--status` uses `OPEN|ENDED|RESOLVED`. Outcome filter on `market get` uses `open|closed|all`.
 
-`status` `creation` is `unsupported` on Polymarket and Kalshi; trading can still be healthy. Treat `creation: unsupported` as expected there, not a setup failure. It is not a credentials pause. Funding messages (`INSUFFICIENT_BALANCE`, `INSUFFICIENT_ALLOWANCE`) are not a credentials pause. Missing keys, relayer, or read-only trading uses the setup loop in [config-and-auth.md](config-and-auth.md).
+`creation: unsupported` on Polymarket and Kalshi is expected. Funding codes are not a credentials pause. Missing keys → setup loop in [config-and-auth.md](config-and-auth.md).
 
 ## Exit codes
 

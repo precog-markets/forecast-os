@@ -2,7 +2,7 @@
 
 **Done when:** flags and option pairs match this map, the command was run, or a CLI error is explained.
 
-All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`. Binary: `forecast` on `PATH` after `install.sh`. Search and list do not need keys. They do load `forecast_config.toml`. If that file is missing, pass `--config`.
+All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`.
 
 ## Root
 

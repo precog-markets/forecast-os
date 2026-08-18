@@ -4,7 +4,7 @@ Preview a market creation from a YAML/JSON spec, submit only after explicit user
 
 **Done when:** a preview ran without `--confirm`, and submit ran only after approval (or status was checked for an existing creation ref).
 
-Preview without `--confirm` first. Do not run `status` to start. Before `--confirm` only, if Precog is not ready, follow the setup loop in [config-and-auth.md](../references/config-and-auth.md). Flag map: [commands.md](../references/commands.md).
+Preview without `--confirm` first. Do not run `status` to start. Flag map: [commands.md](../references/commands.md).
 
 ## Spec requirements
 
@@ -43,7 +43,7 @@ forecast create market --spec market.yaml --output json --no-input
 
 2. Show the preview to the user. Stop unless they explicitly ask to submit.
 
-3. Submit after approval:
+3. Before `--confirm`, follow the setup loop in [config-and-auth.md](../references/config-and-auth.md) if Precog is not ready. Submit after approval:
 
 ```bash
 forecast create market --spec market.yaml --confirm --output json --no-input

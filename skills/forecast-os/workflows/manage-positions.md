@@ -10,12 +10,12 @@ Sell and claim execute immediately. Warn, then wait for approval.
 
 ## Steps
 
-1. List or inspect positions (`prediction list` reads local history only):
+1. List or inspect positions. Use JSON `reference`, not `PRED:n`:
 
 ```bash
 forecast prediction list --output json --no-input
 forecast prediction list --platform precog --output json --no-input
-forecast prediction get PRED:1 --output json --no-input
+forecast prediction get POLYMARKET:POSITION:TOKEN --output json --no-input
 ```
 
 2. Sync only when history is missing or stale and the user wants live data:
@@ -31,13 +31,13 @@ forecast prediction sync --confirm --output json --no-input
 4. Sell (optional size / minimum return). Omit `--shares` to sell all (Precog floors to whole shares). `--min-return` above the quote exits 2:
 
 ```bash
-forecast prediction sell PRED:1 --shares 2 --min-return 1.20 --output json --no-input
+forecast prediction sell POLYMARKET:POSITION:TOKEN --shares 2 --min-return 1.20 --output json --no-input
 ```
 
 5. Claim a resolved position. Kalshi settlements are automatic. Skip claim there:
 
 ```bash
-forecast prediction claim PRED:1 --output json --no-input
+forecast prediction claim POLYMARKET:POSITION:TOKEN --output json --no-input
 ```
 
 ## Kalshi notes

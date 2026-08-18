@@ -6,7 +6,7 @@ description: >-
   odds, event outcomes, or prediction markets; wants to discover, quote,
   buy, or sell; create a Precog market; install and configure forecast; or
   needs first-time setup, a relayer, a Precog private key, a Kalshi API key,
-  an RSA PEM, a read-only CLI, or a missing Windows forecast binary.
+  an RSA PEM, or a missing forecast binary.
 metadata:
   cli: forecast
 ---
@@ -21,13 +21,13 @@ Match intent, load the linked file, then construct commands from that file.
 
 Apply on every invocation:
 
-- Call `forecast` with `--output json --no-input`. If it is missing, load [config-and-auth.md](references/config-and-auth.md) and find or install the binary.
-- Browse (odds, search, list, headlines) does not need `status` or keys. `status` exit 3 with `CONFIG_INVALID` is not a browse failure. Search still loads a TOML file. If the CLI says `Configuration file not found`, pass `--config` at an existing `forecast_config.toml`. Do not invent keys.
+- Call `forecast` with `--output json --no-input`. If it is missing, load [config-and-auth.md](references/config-and-auth.md) and find or install the binary. Do not call Polymarket or Kalshi HTTP as a substitute.
+- Browse (odds, search, list, headlines) does not need `status` or keys. `status` exit 3 with `CONFIG_INVALID` is not a browse failure.
+- Search still loads `forecast_config.toml`. If the CLI says `Configuration file not found`, pass `--config` at an existing file. Do not invent keys. Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`).
 - Quote first on `predict` and `create market`. Add `--confirm` only after the user asks to submit.
 - `prediction sell` / `claim` have no preview. Warn, then run only after approval.
 - Pass secrets via env vars or ignored key files, not CLI argv.
-- Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`). Search needs the file. It does not need secrets.
-- Prefer absolute refs (`POLYMARKET:EVENT:{id}`, `KALSHI:EVENT:{id}`). Short refs rewrite. Details in [pitfalls.md](references/pitfalls.md).
+- Prefer JSON `reference` (absolute). `local_reference` (`POL:n`, `OUT:n`, `PRED:n`) rewrites. Details in [pitfalls.md](references/pitfalls.md).
 
 JSON envelope (`ok`, `command`, `data`, `warnings`, `error`, `next_actions`) on most commands. `config` and `upgrade` print plain text. Progress goes to stderr with `-v`.
 
