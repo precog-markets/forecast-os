@@ -4,11 +4,11 @@ Discover markets, load outcomes, quote a buy, and submit only after explicit use
 
 **Done when:** a quote was shown without `--confirm`, and a buy was submitted only after the user approved (or the user stopped at the quote).
 
-If short refs or predict pairs fail, load [pitfalls.md](../references/pitfalls.md) and [commands.md](../references/commands.md). If status fails, follow [config-and-auth.md](../references/config-and-auth.md).
+If short refs or predict pairs fail, load [pitfalls.md](../references/pitfalls.md) and [commands.md](../references/commands.md). If status is not trading-ready, follow the setup loop in [config-and-auth.md](../references/config-and-auth.md). Discovery can continue when `api` is `ok`. Follow that loop before `--confirm` if the user wants to buy.
 
 ## Steps
 
-1. Confirm the CLI is available and the target platform is healthy:
+1. Confirm the CLI is available. Run status. Discovery can continue when `api` is `ok`:
 
 ```bash
 forecast --version

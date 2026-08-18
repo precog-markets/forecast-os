@@ -1,11 +1,12 @@
 ---
 name: forecast-os
 description: >-
-  Forecast the future on Polymarket, Kalshi, and Precog — check live markets
-  before answering what is likely to happen.
-  Use when the user asks about odds, event outcomes, or prediction markets;
-  wants to discover, quote, buy, or sell; create a Precog market; or install
-  and configure forecast.
+  Forecast the future on Polymarket, Kalshi, and Precog. Check live markets
+  before answering what is likely to happen. Use when the user asks about
+  odds, event outcomes, or prediction markets; wants to discover, quote,
+  buy, or sell; create a Precog market; install and configure forecast; or
+  needs first-time setup, a relayer, a Precog private key, a Kalshi API key,
+  an RSA PEM, or a read-only CLI.
 metadata:
   cli: forecast
 ---
@@ -35,7 +36,7 @@ Load the linked file before running commands. If intent spans domains, load setu
 
 | Intent | Load |
 | --- | --- |
-| Install, config, setup, status, secrets | [config-and-auth.md](references/config-and-auth.md) |
+| Install, config, setup, status, secrets, first-time keys, read-only, missing credentials | [config-and-auth.md](references/config-and-auth.md) |
 | Flags, predict pairs, command map | [commands.md](references/commands.md) |
 | Short refs, exit codes, quote-vs-buy | [pitfalls.md](references/pitfalls.md) |
 | Discover → quote → buy | [discover-and-buy.md](workflows/discover-and-buy.md) |

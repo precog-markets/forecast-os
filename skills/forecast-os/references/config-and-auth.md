@@ -1,6 +1,6 @@
 # Config and auth
 
-**Done when:** `forecast status --output json --no-input` reports trading ready for the platforms you need, or you have explained a config/auth failure (exit 3). `creation: unsupported` on Polymarket/Kalshi is expected.
+**Done when:** the platforms you need have `trading` `ready`, or the remaining failure is funding explained from the CLI `message`. Discovery-only work can finish without trading-ready. Trading writes cannot. `creation: unsupported` on Polymarket/Kalshi is expected.
 
 ## Install
 
@@ -20,39 +20,79 @@ Pin a release with `FORECAST_VERSION=<tag>` before the pipe. The binary installs
 
 TOML sections: `[global]`, `[kalshi]`, `[polymarket]`, `[precog]`. Unknown keys/sections are rejected.
 
-Keep tracked config secret-free. Pass keys via env vars or gitignored `*_file` paths. `config --show` redacts secrets; still avoid pasting raw keys into chat.
+## Setup loop
 
-## Agent setup pattern
+Do not run `forecast setup --no-input` until credentials exist.
+
+1. `forecast status --output json --no-input`. Add `--platform` when only one is needed.
+2. Discovery (list, search, get, quote) can continue when `api` is `ok` even if `trading` is `not ready`.
+3. Pause before writes (`predict --confirm`, `create market --confirm`, sell, live-account sync, claim except Kalshi) when `trading` is not `ready` or `auth` is `needs setup`. For Precog create, also when `creation` is not `ready`.
+4. **Credentials pause** when `error.code` is `CONFIG_INVALID` or `AUTH_FAILED`, or `auth` is `needs setup` with a credentials message (`Credentials are not set.`, `The private key is not set.`, relayer credentials not set). Use the matching platform section below. Do not invent keys.
+5. **Funding** when `error.code` is `INSUFFICIENT_BALANCE` or `INSUFFICIENT_ALLOWANCE`, or `auth` is `set` and `trading` is `not ready`. Show the CLI `message`. Do not replay the key hunt.
+6. `creation: unsupported` on Polymarket and Kalshi is expected.
+
+## Secrets
+
+Pass keys via env vars or gitignored `*_file` paths. Never CLI argv, never tracked TOML, never echoed back. Prefer a file the user writes. `config --show` redacts secrets. Interactive `setup` without `--no-input` may hold keys in-session only. Agents stay on `--no-input`.
+
+## Resume
+
+After the user returns artifacts:
 
 ```bash
 forecast setup --platform polymarket --no-input --output json
 forecast setup --platform precog --no-input --output json
 forecast setup --platform kalshi --no-input --output json
-forecast config --show --no-input
-forecast status --output json --no-input
+forecast status --platform <polymarket|precog|kalshi> --output json --no-input
 ```
 
-Interactive setup may hold prompted keys in-session only and not write them to TOML. For agents, always use env vars or `*_file` paths with `--no-input`.
+Run setup only for the platform whose keys just arrived.
 
 ## Polymarket
 
-Provide exactly one of: `private_key`, `private_key_file`, or `POLYMARKET_PRIVATE_KEY`.
+If credentials are missing, stop. Do not scrape polymarket.com or invent keys. Tell the user:
 
-Relayer (both required when used):
+Poly is read-only. You need to finalize setup.
 
-- `relayer_api_key` / `POLYMARKET_RELAYER_API_KEY`
-- `relayer_api_key_address` / `POLYMARKET_RELAYER_API_KEY_ADDRESS`
+1. Create a new account in a wallet of your choosing (MetaMask, WalletConnect, or any provider). Prefer a dedicated wallet, not a daily-driver seed.
+2. Log in at [polymarket.com](https://polymarket.com) with that wallet.
+3. Generate a Relayer API key under Settings → Relayer API keys ([Connect your account](https://docs.polymarket.com/trading/wallets-auth#connect-your-account)). Copy the **API Key** and **Signer Address**.
+4. Come back with the wallet **private key** (the signer that logged in) plus the relayer **API key** and **signer address**.
+
+Wait until they return those three values. Missing relayer with a private key still uses this pause, not funding.
+
+Map:
+
+- Exactly one of `private_key`, `private_key_file`, or `POLYMARKET_PRIVATE_KEY`
+- Both `relayer_api_key` / `POLYMARKET_RELAYER_API_KEY` and `relayer_api_key_address` / `POLYMARKET_RELAYER_API_KEY_ADDRESS`
 
 ## Precog
 
-Provide exactly one of: `private_key`, `private_key_file`, or `PRECOG_PRIVATE_KEY`.
+If the private key is missing, stop. Do not invent a key. Tell the user they need to put a private key. Recommend creating a new dedicated wallet, not a daily-driver seed. Wait until they return the key.
 
-Create and buy also need `[precog]` RPCs: `base_rpc` and `arbitrum_rpc` (plus `api_url` / `chain`).
+Map exactly one of `private_key`, `private_key_file`, or `PRECOG_PRIVATE_KEY`. Create and buy also need `[precog]` RPCs: `base_rpc` and `arbitrum_rpc` (plus `api_url` / `chain`).
 
 ## Kalshi
 
+If credentials are missing, stop. Do not invent keys. Do not teach RSA-PSS signing. The CLI signs. Tell the user:
+
+Kalshi is read-only. You need to finalize setup.
+
+1. Log in at [kalshi.com](https://kalshi.com) (or [demo.kalshi.co](https://demo.kalshi.co) if they are on demo).
+2. Account & security → API Keys → Create Key. Walkthrough: [Authenticated requests](https://docs.kalshi.com/getting_started/quick_start_authenticated_requests).
+3. Save both values now. The private key cannot be retrieved after that page closes.
+   - **API Key ID** (UUID on screen)
+   - **Private Key** (downloaded `.key` RSA PEM)
+4. Come back with those two. Prefer the downloaded file over pasting PEM into chat. Recommend a new API key for the CLI, not reusing an old one.
+
+Wait until they return both.
+
+Map:
+
 - `api_key_id` / `KALSHI_API_KEY_ID`
-- RSA PEM via `private_key`, `private_key_file`, or `KALSHI_PRIVATE_KEY`
+- RSA PEM via exactly one of `private_key`, `private_key_file`, or `KALSHI_PRIVATE_KEY`
+
+Prefer `private_key_file` pointing at the downloaded `.key`. Default `api_url` is production (`https://external-api.kalshi.com/trade-api/v2`). Do not switch to demo unless the user said they are on demo.
 
 ## Local store files
 

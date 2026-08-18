@@ -4,7 +4,7 @@ Preview a market creation from a YAML/JSON spec, submit only after explicit user
 
 **Done when:** a preview ran without `--confirm`, and submit ran only after approval (or status was checked for an existing creation ref).
 
-If Precog status fails, follow [config-and-auth.md](../references/config-and-auth.md). Flag map: [commands.md](../references/commands.md).
+If Precog is not ready, follow the setup loop in [config-and-auth.md](../references/config-and-auth.md) before `--confirm`. Flag map: [commands.md](../references/commands.md).
 
 ## Spec requirements
 

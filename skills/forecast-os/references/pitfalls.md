@@ -39,7 +39,7 @@ With `--output json` or `--no-input`, the CLI stops after the preview — it doe
 
 List/search `--status` uses `OPEN|ENDED|RESOLVED`. Outcome filter on `market get` uses `open|closed|all`.
 
-`status` `creation` is `unsupported` on Polymarket and Kalshi; trading can still be healthy. Treat `creation: unsupported` as expected there, not a setup failure.
+`status` `creation` is `unsupported` on Polymarket and Kalshi; trading can still be healthy. Treat `creation: unsupported` as expected there, not a setup failure. It is not a credentials pause. Funding messages (`INSUFFICIENT_BALANCE`, `INSUFFICIENT_ALLOWANCE`) are not a credentials pause. Missing keys, relayer, or read-only trading uses the setup loop in [config-and-auth.md](config-and-auth.md).
 
 ## Exit codes
 

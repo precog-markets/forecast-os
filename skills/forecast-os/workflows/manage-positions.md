@@ -6,6 +6,8 @@ Refresh local history, inspect owned predictions, then sell or claim with an exp
 
 Sell and claim execute immediately. Warn, then wait for approval.
 
+`prediction list` can run from local history without trading-ready. If setup/auth fails on live-account `prediction sync` or sell, follow the setup loop in [config-and-auth.md](../references/config-and-auth.md). Kalshi claim stays skipped.
+
 ## Steps
 
 1. Refresh local history when it is missing or stale:
