@@ -12,7 +12,7 @@ Gotchas `--help` does not confess. Flag maps and option pairs live in [commands.
 | Outcome | `OUT:1`, `OUT:1:N` (Yes / No) | `POLYMARKET:MARKET:…:OUTCOME:…`, `KALSHI:MARKET:…:OUTCOME:…` |
 | Prediction | `PRED:1` | `POLYMARKET:POSITION:…`, `KALSHI:MARKET:…:POSITION:1\|2` |
 
-`POL:n`, `PRE:n`, `KAL:n`, and `OUT:n` rewrite on each `market list`, `market search`, and `market get --only-outcomes`. Stale short refs fail or buy the wrong market. Re-list / re-get immediately before `predict`. Prefer absolute refs in scripts and retries.
+`POL:n`, `PRE:n`, `KAL:n`, and `OUT:n` rewrite on each `market list`, `market search`, and `market get --only-outcomes`. Stale short refs fail or buy the wrong market. Re-list / re-get immediately before `predict`. Prefer `POLYMARKET:EVENT:{id}` and `KALSHI:EVENT:{id}` from the same JSON `id`. Do not search again until those short refs are finished. Browse headlines from search/list JSON. Do not `market get` every row.
 
 ## Outcomes before predict
 
@@ -24,16 +24,16 @@ Gotchas `--help` does not confess. Flag maps and option pairs live in [commands.
 
 Without `--confirm`, `predict` and `create market` only quote/preview.
 
-With `--output json` or `--no-input`, the CLI stops after the preview — it does not prompt to continue. Submission is an explicit `--confirm` after user approval.
+With `--output json` or `--no-input`, the CLI stops after the preview. It does not prompt to continue. Submission is an explicit `--confirm` after user approval.
 
 `--request-id` without `--confirm` is rejected.
 
 ## Positions
 
-- `prediction list` reads local `history.json` only. Refresh with `prediction sync --confirm` when history already exists.
-- `prediction sell` / `prediction claim` execute immediately — warn, then wait for approval.
+- `prediction list` reads local `history.json` only. `prediction sync --confirm` is required when replacing existing history.
+- `prediction sell` / `prediction claim` execute immediately. Warn, then wait for approval.
 - Kalshi settlements are automatic; `prediction claim` always errors there.
-- Kalshi: one net Yes/No position per market; buying the opposite side nets/closes.
+- On Kalshi, one net Yes/No position per market. Buying the opposite side nets or closes.
 
 ## Status enums
 

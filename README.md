@@ -4,7 +4,7 @@
 
 Ask your agent what is likely to happen. Without ForecastOS it guesses. With it, the agent checks Polymarket, Kalshi, and Precog before answering — and can discover, trade, or create prediction markets.
 
-Install the `forecast` CLI separately:
+Install the `forecast` CLI separately. Darwin, Linux, and Windows (Git Bash):
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
@@ -29,4 +29,10 @@ Requires the Forecast CLI on `PATH`:
 ```bash
 curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
 forecast --help
+```
+
+Windows PowerShell with Git Bash:
+
+```powershell
+bash -c "curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh"
 ```

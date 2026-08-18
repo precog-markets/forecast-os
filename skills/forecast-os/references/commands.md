@@ -2,7 +2,7 @@
 
 **Done when:** flags and option pairs match this map, the command was run, or a CLI error is explained.
 
-All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`. Binary: `forecast` on `PATH`.
+All subcommands accept `--output auto|table|json`, `--config <path>`, `--no-input`, and `--verbose` / `-v`. Binary: `forecast` on `PATH` after `install.sh`.
 
 ## Root
 
@@ -43,16 +43,16 @@ Also: `--request-id <uuid>` (requires `--confirm`).
 
 `--spend-limit` is a total budget. If it implies more than one dollar per share, the CLI caps the per-share limit and still buys at most `--buy-shares`. `--price-limit` must not be greater than `1`. Mixing pairs, `--price-limit` alone, or an incomplete share/budget pair exits 2.
 
-Precog: `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limit` still works (it derives a cap).
+On Precog, `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limit` still works (it derives a cap).
 
 ## `prediction`
 
 | Command | Purpose | Notable options |
 | --- | --- | --- |
 | `prediction list` | Local history only | `--market <ref>`, `--platform` |
-| `prediction get <prediction_ref>` | One position | — |
+| `prediction get <prediction_ref>` | One position | |
 | `prediction sell <prediction_ref>` | Sell (immediate) | `--shares`, `--min-return` |
-| `prediction claim <prediction_ref>` | Claim resolved (not Kalshi) | — |
+| `prediction claim <prediction_ref>` | Claim resolved (not Kalshi) | |
 | `prediction sync` | Refresh history from providers | `--confirm` required when replacing existing history |
 
 ## `create` (Precog)
@@ -60,12 +60,12 @@ Precog: `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limit` 
 | Command | Purpose | Notable options |
 | --- | --- | --- |
 | `create market` | Preview or create | `--spec <yaml\|json>` (required), `--chain base\|arbitrum`, `--confirm` |
-| `create status <creation_ref>` | Creation request state | — |
+| `create status <creation_ref>` | Creation request state | |
 
 Required spec fields and Launchpad validation live in [create-precog-market.md](../workflows/create-precog-market.md).
 
 ## Market states (list/search)
 
-- `OPEN` — trading available
-- `ENDED` — trading unavailable
-- `RESOLVED` — claim may be available
+- `OPEN`. Trading available.
+- `ENDED`. Trading unavailable.
+- `RESOLVED`. Claim may be available.

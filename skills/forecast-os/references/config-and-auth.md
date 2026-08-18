@@ -1,15 +1,34 @@
 # Config and auth
 
-**Done when:** the platforms you need have `trading` `ready`, or the remaining failure is funding explained from the CLI `message`. Discovery-only work can finish without trading-ready. Trading writes cannot. `creation: unsupported` on Polymarket/Kalshi is expected.
+**Done when:** the platforms you need have `trading` `ready`, or the remaining failure is auth or funding explained from the CLI `message`. Browse routes from [SKILL.md](../SKILL.md). `creation: unsupported` on Polymarket/Kalshi is expected.
+
+## Find the CLI
+
+Try in order. Stop at the first that prints a version.
+
+1. `forecast --version`
+2. A local `forecast.exe` / `forecast-windows-x86_64.exe` in the current directory
+3. Install below
+
+Do not borrow a random `forecast-cli` venv. Do not write a dummy `forecast_config.toml` to make discovery work.
 
 ## Install
+
+Run `install.sh`. On Windows PowerShell, use `bash -c`.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
 forecast --version
 ```
 
-Pin a release with `FORECAST_VERSION=<tag>` before the pipe. The binary installs to `/usr/local/bin/forecast`.
+Windows PowerShell:
+
+```powershell
+bash -c "curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh"
+forecast --version
+```
+
+Windows installs `forecast.exe` to `$HOME/bin` by default. Add that directory to `PATH` if `forecast` is still missing.
 
 ## Config resolution order
 
@@ -22,14 +41,13 @@ TOML sections: `[global]`, `[kalshi]`, `[polymarket]`, `[precog]`. Unknown keys/
 
 ## Setup loop
 
-Do not run `forecast setup --no-input` until credentials exist.
+Use this loop only for writes, or when the user asked to set up trading. Do not run `forecast setup --no-input` until credentials exist.
 
 1. `forecast status --output json --no-input`. Add `--platform` when only one is needed.
-2. Discovery (list, search, get, quote) can continue when `api` is `ok` even if `trading` is `not ready`.
-3. Pause before writes (`predict --confirm`, `create market --confirm`, sell, live-account sync, claim except Kalshi) when `trading` is not `ready` or `auth` is `needs setup`. For Precog create, also when `creation` is not `ready`.
-4. **Credentials pause** when `error.code` is `CONFIG_INVALID` or `AUTH_FAILED`, or `auth` is `needs setup` with a credentials message (`Credentials are not set.`, `The private key is not set.`, relayer credentials not set). Use the matching platform section below. Do not invent keys.
-5. **Funding** when `error.code` is `INSUFFICIENT_BALANCE` or `INSUFFICIENT_ALLOWANCE`, or `auth` is `set` and `trading` is `not ready`. Show the CLI `message`. Do not replay the key hunt.
-6. `creation: unsupported` on Polymarket and Kalshi is expected.
+2. Quote is not a write. Pause before `predict --confirm`, `create market --confirm`, sell, live-account sync, and claim except Kalshi when `trading` is not `ready` or `auth` is `needs setup`. For Precog create, also when `creation` is not `ready`.
+3. **Credentials pause** when `error.code` is `CONFIG_INVALID` or `AUTH_FAILED`, or `auth` is `needs setup` with a credentials message (`Credentials are not set.`, `The private key is not set.`, relayer credentials not set). Use the matching platform section below. Do not invent keys.
+4. **Funding** when `error.code` is `INSUFFICIENT_BALANCE` or `INSUFFICIENT_ALLOWANCE`, or `auth` is `set` and `trading` is `not ready`. Show the CLI `message`. Do not replay the key hunt.
+5. `creation: unsupported` on Polymarket and Kalshi is expected.
 
 ## Secrets
 
@@ -37,16 +55,12 @@ Pass keys via env vars or gitignored `*_file` paths. Never CLI argv, never track
 
 ## Resume
 
-After the user returns artifacts:
+After the user returns artifacts, run only the platform whose keys arrived:
 
 ```bash
-forecast setup --platform polymarket --no-input --output json
-forecast setup --platform precog --no-input --output json
-forecast setup --platform kalshi --no-input --output json
-forecast status --platform <polymarket|precog|kalshi> --output json --no-input
+forecast setup --platform <platform> --no-input --output json
+forecast status --platform <platform> --output json --no-input
 ```
-
-Run setup only for the platform whose keys just arrived.
 
 ## Polymarket
 

@@ -6,7 +6,7 @@ description: >-
   odds, event outcomes, or prediction markets; wants to discover, quote,
   buy, or sell; create a Precog market; install and configure forecast; or
   needs first-time setup, a relayer, a Precog private key, a Kalshi API key,
-  an RSA PEM, or a read-only CLI.
+  an RSA PEM, a read-only CLI, or a missing Windows forecast binary.
 metadata:
   cli: forecast
 ---
@@ -21,26 +21,27 @@ Match intent, load the linked file, then construct commands from that file.
 
 Apply on every invocation:
 
-- Call `forecast` on `PATH` with `--output json --no-input`.
+- Call `forecast` with `--output json --no-input`. If it is missing, load [config-and-auth.md](references/config-and-auth.md) and find or install the binary.
+- Browse (odds, search, list, headlines) does not need `status`, keys, or a config file. `status` exit 3 with `CONFIG_INVALID` is not a browse failure.
 - Quote first on `predict` and `create market`. Add `--confirm` only after the user asks to submit.
-- `prediction sell` / `claim` have no preview — warn, then run only after approval.
+- `prediction sell` / `claim` have no preview. Warn, then run only after approval.
 - Pass secrets via env vars or ignored key files, not CLI argv.
-- Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`).
-- Prefer absolute refs in scripts; short refs rewrite on each list/search/`get --only-outcomes`.
+- Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`) when trading.
+- Prefer absolute refs (`POLYMARKET:EVENT:{id}`, `KALSHI:EVENT:{id}`). Short refs rewrite. Details in [pitfalls.md](references/pitfalls.md).
 
 JSON envelope (`ok`, `command`, `data`, `warnings`, `error`, `next_actions`) on most commands. `config` and `upgrade` print plain text. Progress goes to stderr with `-v`.
 
 ## Command routing
 
-Load the linked file before running commands. If intent spans domains, load setup/status before trade workflows.
+Load the linked file before running commands. Browse does not load setup. Load setup only for writes, missing binary, or explicit install.
 
 | Intent | Load |
 | --- | --- |
-| Install, config, setup, status, secrets, first-time keys, read-only, missing credentials | [config-and-auth.md](references/config-and-auth.md) |
+| Missing binary, install, config, setup, status, secrets, first-time keys | [config-and-auth.md](references/config-and-auth.md) |
+| Browse, odds, search, list | [commands.md](references/commands.md) + [pitfalls.md](references/pitfalls.md) |
 | Flags, predict pairs, command map | [commands.md](references/commands.md) |
 | Short refs, exit codes, quote-vs-buy | [pitfalls.md](references/pitfalls.md) |
-| Discover → quote → buy | [discover-and-buy.md](workflows/discover-and-buy.md) |
-| Quote or buy one known outcome | [commands.md](references/commands.md) + [pitfalls.md](references/pitfalls.md) |
+| Quote or buy (chosen market or known outcome) | [quote-and-buy.md](workflows/quote-and-buy.md) |
 | Sync / list / sell / claim positions | [manage-positions.md](workflows/manage-positions.md) |
 | Create a Precog market | [create-precog-market.md](workflows/create-precog-market.md) |
 
