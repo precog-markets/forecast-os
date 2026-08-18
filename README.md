@@ -4,35 +4,22 @@
 
 Ask your agent what is likely to happen. Without ForecastOS it guesses. With it, the agent checks Polymarket, Kalshi, and Precog before answering — and can discover, trade, or create prediction markets.
 
-Install the `forecast` CLI separately. Darwin, Linux, and Windows (Git Bash):
-
-```bash
-curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
-```
-
-## Skills
-
-| Skill | Description |
-| --- | --- |
-| [`forecast-os`](./skills/forecast-os/SKILL.md) | Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets. |
-
-## Installation
-
-Install with [Vercel's Skills CLI](https://skills.sh):
+## Skill
 
 ```bash
 npx skills add precog-markets/forecast-os
 ```
 
-Requires the Forecast CLI on `PATH`:
+## Forecast CLI
 
-```bash
-curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
-forecast --help
-```
+Download the binary for your OS from [GitHub Releases](https://github.com/precog-markets/forecast-os/releases). Verify it against `checksums.txt` on the same release. Put `forecast` or `forecast.exe` on `PATH`, or in the project directory.
 
-Windows PowerShell with Git Bash:
+| OS | Asset |
+| --- | --- |
+| macOS Apple silicon | `forecast-macos-arm64` |
+| macOS Intel | `forecast-macos-x86_64` |
+| Linux x86_64 | `forecast-linux-x86_64` |
+| Linux ARM | `forecast-linux-aarch64` |
+| Windows x86_64 | `forecast-windows-x86_64.exe` (rename to `forecast.exe`) |
 
-```powershell
-bash -c "curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh"
-```
+Agents install the same release with this skill's `scripts/install.sh` (checksum-verified, into the current directory). Do not pipe a remote script into `sh`.

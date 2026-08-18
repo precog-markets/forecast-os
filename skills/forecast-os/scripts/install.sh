@@ -79,11 +79,7 @@ main() {
     BINARY="forecast.exe"
   fi
   if [ -z "$INSTALL_DIR" ]; then
-    if is_windows; then
-      INSTALL_DIR="$HOME/bin"
-    else
-      INSTALL_DIR="/usr/local/bin"
-    fi
+    INSTALL_DIR=$(pwd)
   fi
 
   asset_name=$(get_asset_name)

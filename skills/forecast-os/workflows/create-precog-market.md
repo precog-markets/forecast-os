@@ -15,9 +15,11 @@ Optional: `start_timestamp` (defaults to now). Optional CLI flag: `--chain base|
 Launchpad rules:
 
 - `question` must end with `?`, max 65 characters
-- ≥2 outcomes; no commas in labels; max 32 characters each
-- `image_url` is `http(s)` or `ipfs://`
+- ≥2 outcomes; no empty labels; no commas in labels; max 32 characters each
+- `image_url` is `http(s)` or `ipfs://` with a host (CID counts as host)
 - `start_timestamp` < `end_timestamp`
+- `category` must be uppercase: one token or CSV (`SPORTS` or `SPORTS,POLITICS`). Do not send title case.
+- `collateral_address` must be a valid `0x` address. Creator comes from the Precog key, not the spec.
 
 Example:
 
@@ -25,7 +27,7 @@ Example:
 question: Which team wins the final?
 resolution_criteria: Use the official organizer result.
 image_url: ipfs://bafybeigdyrzt
-category: Sports
+category: SPORTS
 outcomes:
   - North
   - South

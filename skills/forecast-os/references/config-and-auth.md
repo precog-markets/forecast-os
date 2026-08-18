@@ -7,29 +7,17 @@
 Try in order. Stop at the first that prints a version.
 
 1. `forecast --version`
-2. A local `forecast.exe` / `forecast-windows-x86_64.exe` in the current directory
-3. Install below into the current directory
-
-Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work.
-
-## Install
-
-Install into the current directory.
+2. `./forecast --version` or `./forecast.exe --version` in the current directory
+3. Execute this skill's `scripts/install.sh` (the `scripts` folder next to `SKILL.md`). It downloads a GitHub release binary and verifies `checksums.txt`. Install into the current directory:
 
 ```bash
-INSTALL_DIR="$PWD" curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh
+INSTALL_DIR="$PWD" sh scripts/install.sh
 ./forecast --version
 ```
 
-Windows PowerShell:
+Run that script from the skill directory, or pass its absolute path. Do not pipe a URL into `sh`. If the environment blocks the download, request approval and retry the same script. After install, call `./forecast` or `./forecast.exe` until that directory is on `PATH`.
 
-```powershell
-$env:INSTALL_DIR = (Get-Location).Path
-bash -c 'curl -sSL https://raw.githubusercontent.com/precog-markets/forecast-os/main/install.sh | sh'
-./forecast.exe --version
-```
-
-If the environment blocks the download, request approval and retry. After install, call `./forecast` or `./forecast.exe` until that directory is on `PATH`.
+Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work.
 
 ## Config resolution order
 
