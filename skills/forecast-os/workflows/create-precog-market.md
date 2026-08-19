@@ -21,6 +21,12 @@ Launchpad rules:
 - `category` must be uppercase: one token or CSV (`SPORTS` or `SPORTS,POLITICS`). Do not send title case.
 - `collateral_address` must be a valid `0x` address. Creator comes from the Precog key, not the spec.
 
+Design (unless the user asked otherwise):
+
+- Prefer a multi-outcome market (≥3 named outcomes) over binary Yes/No. Use binary only when the event has exactly two exclusive results.
+- Outcomes must be MECE: mutually exclusive and collectively exhaustive. One winner only; together they cover every possible result. Add a remainder label (for example `Other`) when the named set would otherwise miss cases.
+- Set `end_timestamp` to one week before the event happens, not the event time. Close trading while the result is still uncertain.
+
 Example:
 
 ```yaml
@@ -31,9 +37,12 @@ category: SPORTS
 outcomes:
   - North
   - South
+  - East
 end_timestamp: 1800000000
 collateral_address: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 ```
+
+`end_timestamp` is Unix seconds for (event time − 7 days).
 
 ## Steps
 
