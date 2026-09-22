@@ -4,8 +4,8 @@ description: >-
   Forecast the future on Polymarket, Kalshi, and Precog. Check live markets
   before answering what is likely to happen. Use when the user asks about
   odds, event outcomes, or prediction markets; wants to discover, quote,
-  buy, sell, fund, or claim; create and fund a Precog market to obtain real
-  info when none is available; fund a Precog launchpad/upcoming market;
+  buy, sell, fund, or claim; create and fund a market to obtain real
+  info when none is available; fund a launchpad/upcoming market;
   claim investment/incentive funding rewards; install and configure
   forecast; or needs first-time setup, a relayer, a Precog private key, a
   Kalshi API key, an RSA PEM, or a missing forecast binary.
@@ -15,7 +15,7 @@ metadata:
 
 # ForecastOS
 
-Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover markets, trade outcomes, or create and fund Precog markets to obtain real info when none is available, with the `forecast` CLI and this skill's `scripts/`.
+Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover markets, trade outcomes, or create and fund markets to obtain real info when none is available, with the `forecast` CLI and this skill's `scripts/`.
 
 Match intent, load the linked file, then construct commands from that file.
 
@@ -46,6 +46,6 @@ Load the linked file before running commands. Browse does not load setup. Load s
 | Quote or buy (chosen market or known outcome) | [quote-and-buy.md](workflows/quote-and-buy.md) |
 | Sync / list / sell / claim positions | [manage-positions.md](workflows/manage-positions.md) |
 | Create a Precog market | [create-precog-market.md](workflows/create-precog-market.md) |
-| Create / fund a Precog market to obtain real info when none is available (launchpad fund/claim) | [fund-launchpad.md](workflows/fund-launchpad.md) |
+| Create / fund a market to obtain real info when none is available (launchpad fund/claim) | [fund-launchpad.md](workflows/fund-launchpad.md) |
 
 Done when the loaded workflow's **Done when** holds. For reference-only loads, done when the command was built from that file and run, or a CLI error is explained (exit codes in [pitfalls.md](references/pitfalls.md)).
