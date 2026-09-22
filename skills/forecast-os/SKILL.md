@@ -44,5 +44,6 @@ Load the linked file before running commands. Browse does not load setup. Load s
 | Quote or buy (chosen market or known outcome) | [quote-and-buy.md](workflows/quote-and-buy.md) |
 | Sync / list / sell / claim positions | [manage-positions.md](workflows/manage-positions.md) |
 | Create a Precog market | [create-precog-market.md](workflows/create-precog-market.md) |
+| Fund / claim a Precog launchpad market | [fund-launchpad.md](workflows/fund-launchpad.md) |
 
 Done when the loaded workflow's **Done when** holds. For reference-only loads, done when the command was built from that file and run, or a CLI error is explained (exit codes in [pitfalls.md](references/pitfalls.md)).
