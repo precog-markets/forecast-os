@@ -42,6 +42,8 @@ Use this loop only for writes, or when the user asked to set up trading. Do not 
 
 Pass keys via env vars or gitignored `*_file` paths. Never CLI argv, never tracked TOML, never echoed back. Prefer a file the user writes. `config --show` redacts secrets. Interactive `setup` without `--no-input` may hold keys in-session only. Agents stay on `--no-input`.
 
+Launchpad fund/claim scripts (`scripts/fund_upcoming.py`, `scripts/claim_upcoming.py`) resolve the Precog key and RPC like the CLI: `--key-file` > `PRECOG_PRIVATE_KEY` > `forecast_config.toml [precog]` (`private_key_file` / `private_key`), and `--rpc` > `BASE_RPC` / `ARBITRUM_RPC` > `[precog] base_rpc` / `arbitrum_rpc`. See [fund-launchpad.md](../workflows/fund-launchpad.md). Never echo keys.
+
 ## Resume
 
 After the user returns artifacts, run only the platform whose keys arrived:

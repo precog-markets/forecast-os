@@ -30,6 +30,14 @@ With `--output json` or `--no-input`, the CLI stops after the preview. It does n
 
 `--request-id` without `--confirm` is rejected.
 
+## Fund vs claim (launchpad scripts)
+
+- Fund takes the *upcoming* market id; claim takes the *deployed* master market id (`deployed_market_id`), not the upcoming id. `claim_upcoming.py --market` + `--chain-id` point at the deployed market.
+- Each market has ONE funding collateral, but the incentive can be a different token on a different chain (multitoken). The fund preview prints both (`collateral_symbol` + `incentive_collateral_symbol` / `incentive_chain_id`) — verify before funding.
+- Fund/claim preview without `--confirm` first. `--confirm` executes immediately: fund sends an ERC20 transfer to the precog creator (`0x5D45B7d8e517eF6b7085175ed395D9c8562b952f`), EIP-712-signs (`FUND_UPCOMING_MARKET` / `CLAIM_UPCOMING_MARKET_INVESTMENT[_INCENTIVE]`), and registers on the backend. Warn, then wait for approval.
+- Fund pre-flight aborts when collateral `balanceOf` < amount or native balance < estimated gas. Claim checks native gas balance first. `--tx-hash 0x…` reuses an already-sent transfer; the receipt is hard-validated (status, sender == funder, receiver == creator, token, amount within 0.00001) and registration aborts on mismatch.
+- Full flow lives in [fund-launchpad.md](../workflows/fund-launchpad.md). Flag map lives in [commands.md](commands.md).
+
 ## Positions
 
 - `prediction list` reads local `history.json` only (`[global].history_file` or `history.json` next to the config). `prediction sync --confirm` is required when replacing existing history.
