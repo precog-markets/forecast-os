@@ -44,10 +44,12 @@ def describe(row):
     max_funding = row.get("max_funding_amount")
     cap = max_funding if max_funding is not None else "?"
     incentive = row.get("incentive_collateral_symbol") or "none"
+    end = LaunchpadService.parse_end(row)
+    end_text = end.strftime("%Y-%m-%d") if end else "?"
     return (f"{row.get('id')} | {row.get('status')} | chain {row.get('chain_id')} | "
-            f"{clean(row.get('question'), 55)} | fund {funded}/{cap} "
+            f"{clean(row.get('question'), 50)} | fund {funded}/{cap} "
             f"{row.get('collateral_symbol')} | min {row.get('min_funding_amount')} | "
-            f"incentive {incentive}")
+            f"ends {end_text} | incentive {incentive}")
 
 
 def main():
@@ -86,10 +88,18 @@ def main():
         log.error("error: %s", e)
         return 2
 
-    # Funder mode drops rows with no room left, explorer mode keeps and tags them.
+    # Funder mode drops rows with no room left or a past end date.
+    # Explorer mode keeps and tags them instead.
     shown = []
+    dropped_ended = 0
     for row in rows:
         ok, reason = LaunchpadService.is_fundable(row)
+        if LaunchpadService.has_ended(row):
+            if args.all:
+                shown.append((row, False, "ENDED"))
+            else:
+                dropped_ended += 1
+            continue
         if ok or args.all:
             shown.append((row, ok, reason))
         if args.limit and len(shown) >= args.limit:
@@ -107,6 +117,8 @@ def main():
             line += f" | not fundable: {reason}"
         print(line)
     log.info("%s market(s) shown.", len(shown))
+    if dropped_ended and not args.all:
+        log.info("%s ended market(s) hidden (use --all to see them).", dropped_ended)
     return 0
 
 

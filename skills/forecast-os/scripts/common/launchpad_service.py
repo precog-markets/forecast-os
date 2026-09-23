@@ -389,3 +389,35 @@ class LaunchpadService:
         if max_funding is None:
             return None
         return float(max_funding) - float(funded)
+
+    @staticmethod
+    def parse_end(row):
+        # Read the market end as an aware UTC datetime, None when unknown.
+        # Prefers end_at ISO text, falls back to end_timestamp unix seconds.
+        from datetime import datetime, timezone
+        end_at = row.get("end_at")
+        if isinstance(end_at, str) and end_at.strip():
+            try:
+                parsed = datetime.fromisoformat(end_at.strip().replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed
+            except ValueError:
+                pass
+        end_ts = row.get("end_timestamp")
+        if isinstance(end_ts, bool):
+            return None
+        if isinstance(end_ts, (int, float)) and end_ts > 0:
+            return datetime.fromtimestamp(end_ts, tz=timezone.utc)
+        return None
+
+    @staticmethod
+    def has_ended(row, now=None):
+        # A market has ended when its end datetime is in the past.
+        # Unknown ends never count as ended.
+        from datetime import datetime, timezone
+        end = LaunchpadService.parse_end(row)
+        if end is None:
+            return False
+        now = now or datetime.now(timezone.utc)
+        return end <= now
