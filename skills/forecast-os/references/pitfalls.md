@@ -32,6 +32,7 @@ With `--output json` or `--no-input`, the CLI stops after the preview. It does n
 
 ## Fund vs claim (launchpad scripts)
 
+- Discover with `scripts/list_upcoming.py` (fundable only by default; `--all` for every status). Then fund by upcoming id.
 - Fund takes the *upcoming* market id; claim takes the *deployed* master market id (`deployed_market_id`), not the upcoming id. `claim_upcoming.py --market` + `--chain-id` point at the deployed market.
 - Each market has ONE funding collateral, but the incentive can be a different token on a different chain (multitoken). The fund preview prints both (`collateral_symbol` + `incentive_collateral_symbol` / `incentive_chain_id`) — verify before funding.
 - Fund/claim preview without `--confirm` first. `--confirm` executes immediately: fund sends an ERC20 transfer to the precog creator (`0x5D45B7d8e517eF6b7085175ed395D9c8562b952f`), EIP-712-signs (`FUND_UPCOMING_MARKET` / `CLAIM_UPCOMING_MARKET_INVESTMENT[_INCENTIVE]`), and registers on the backend. Warn, then wait for approval.

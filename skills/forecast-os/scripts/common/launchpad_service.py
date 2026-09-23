@@ -327,12 +327,65 @@ class LaunchpadService:
     @classmethod
     def get_market(cls, base, market_id):
         # Get backend response for the received market id
-        m = cls.api_get(base, "upcoming-markets", f"id={market_id}")
-
-        # Case: backend returned a paginated dict
-        rows = (m.get("results") or []) if isinstance(m, dict) else (m or [])
+        rows = cls.list_markets(base, {"id": market_id})
 
         # Check that a market was found
         if not rows:
             raise RuntimeError(f"market {market_id} not found on {base}.")
         return rows[0]
+
+    @classmethod
+    def list_markets(cls, base, params=None):
+        # Build the querystring, repeating multi-value params like status.
+        query = cls.build_query(params or {})
+
+        # Get backend response for the upcoming-markets list.
+        m = cls.api_get(base, "upcoming-markets", query)
+
+        # Case: backend returned a paginated dict.
+        rows = (m.get("results") or []) if isinstance(m, dict) else (m or [])
+        return rows
+
+    @staticmethod
+    def build_query(params):
+        # Encode each param, repeating list values as separate pairs.
+        # The tracker reads status as a multiple-choice filter.
+        from urllib.parse import urlencode
+        pairs = []
+        for key, value in params.items():
+            if value is None:
+                continue
+            if isinstance(value, (list, tuple)):
+                for item in value:
+                    pairs.append((key, item))
+            else:
+                pairs.append((key, value))
+        return urlencode(pairs)
+
+    @staticmethod
+    def is_fundable(row):
+        # A row is fundable when validators opened it and cap room is left.
+        # Returns an (ok, reason) pair for display.
+        status = (row.get("status") or "").upper()
+        if status == "VALIDATED":
+            return True, ""
+        if status == "FUNDED":
+            funded = row.get("collateral_funding") or 0
+            max_funding = row.get("max_funding_amount")
+            if max_funding is None:
+                return True, ""
+            if float(funded) < float(max_funding):
+                return True, ""
+            return False, "FULL"
+        if not status:
+            return False, "UNKNOWN"
+        return False, status
+
+    @staticmethod
+    def funding_room(row):
+        # Room left under the max funding cap, None when the cap is unknown.
+        funded = row.get("collateral_funding") or 0
+        max_funding = row.get("max_funding_amount")
+        if max_funding is None:
+            return None
+        return float(max_funding) - float(funded)

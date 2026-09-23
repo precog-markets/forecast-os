@@ -6,6 +6,17 @@ Multitoken note: each market has ONE funding collateral, but the incentive can b
 
 **Done when:** a preview ran without `--confirm`, and fund/claim ran only after approval.
 
+## Discover
+
+List fundable markets first (VALIDATED plus FUNDED with room under the max cap). No key needed:
+
+```bash
+python3 scripts/list_upcoming.py
+python3 scripts/list_upcoming.py --chain-id 8453 --limit 20
+```
+
+Pass `--all` to list every status with non-fundable rows tagged (`FULL`, `DEPLOYED`, `EXPIRED`, ...). Narrow with `--status`, `--category`, `--collateral-symbol`, `--funder-address`, or `--json` for full rows. Pick a market id, then continue with the fund preview below.
+
 ## Fund
 
 1. Preview (fetches market, shows collateral vs incentive token):
