@@ -4,7 +4,7 @@
   "groupings": [
     {
       "title": "ForecastOS",
-      "description": "Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets.",
+      "description": "Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover, trade, or create prediction markets, including creating and funding a market to obtain real info when none is available.",
       "skills": ["forecast-os"]
     }
   ]

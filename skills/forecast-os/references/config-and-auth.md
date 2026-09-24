@@ -33,14 +33,16 @@ TOML sections: `[global]`, `[kalshi]`, `[polymarket]`, `[precog]`. Unknown keys/
 Use this loop only for writes, or when the user asked to set up trading. Do not run `forecast setup --no-input` until credentials exist.
 
 1. `forecast status --output json --no-input`. Add `--platform` when only one is needed.
-2. Quote is not a write. Pause before `predict --confirm`, `create market --confirm`, sell, live-account sync, and claim except Kalshi when `trading` is not `ready` or `auth` is `needs setup`. For Precog create, also when `creation` is not `ready`.
-3. **Credentials pause** when `error.code` is `CONFIG_INVALID` or `AUTH_FAILED`, or `auth` is `needs setup` with a credentials message (`Credentials are not set.`, `The private key is not set.`, relayer credentials not set). Use the matching platform section below. Do not invent keys.
-4. **Funding** when `error.code` is `INSUFFICIENT_BALANCE` or `INSUFFICIENT_ALLOWANCE`, or `auth` is `set` and `trading` is `not ready`. Show the CLI `message`. Do not replay the key hunt.
+2. Quote is not a write. Pause before `predict --confirm`, sell, live-account sync, and claim except Kalshi when `trading` is not `ready` or `auth` is `needs setup`. For Precog create, gate only on auth: proceed when the key is set and valid, even with zero balance. Creation only signs and moves no funds.
+3. **Credentials pause** when `error.code` is `CONFIG_INVALID` or `AUTH_FAILED`, or `auth` is `needs setup` with a credentials message (`Credentials are not set.`, `The private key is not set.`, relayer credentials not set). Use the matching platform section below. Do not invent keys. A zero-balance `INSUFFICIENT_BALANCE` message is not a credentials pause and never blocks creation.
+4. **Funding** when `error.code` is `INSUFFICIENT_BALANCE` or `INSUFFICIENT_ALLOWANCE`, or `auth` is `set` and `trading` is `not ready`. Show the CLI `message`. Do not replay the key hunt. Funding blocks buys, sells, and launchpad funding. It does not block Precog market creation. Older binaries may still report `creation: not ready` alongside zero balance; ignore that combination when the key is valid.
 5. `creation: unsupported` on Polymarket and Kalshi is expected.
 
 ## Secrets
 
 Pass keys via env vars or gitignored `*_file` paths. Never CLI argv, never tracked TOML, never echoed back. Prefer a file the user writes. `config --show` redacts secrets. Interactive `setup` without `--no-input` may hold keys in-session only. Agents stay on `--no-input`.
+
+Launchpad fund/claim scripts (`scripts/fund_upcoming.py`, `scripts/claim_upcoming.py`) resolve the Precog key and RPC like the CLI: `--key-file` > `PRECOG_PRIVATE_KEY` > `forecast_config.toml [precog]` (`private_key_file` / `private_key`), and `--rpc` > `BASE_RPC` / `ARBITRUM_RPC` > `[precog] base_rpc` / `arbitrum_rpc`. See [fund-launchpad.md](../workflows/fund-launchpad.md). Never echo keys.
 
 ## Resume
 

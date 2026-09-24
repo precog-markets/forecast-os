@@ -2,7 +2,7 @@
 
 [![skills.sh](https://skills.sh/b/precog-markets/forecast-os)](https://skills.sh/precog-markets/forecast-os)
 
-Ask your agent what is likely to happen. Without ForecastOS it guesses. With it, the agent checks Polymarket, Kalshi, and Precog before answering — and can discover, trade, or create prediction markets.
+Ask your agent what is likely to happen. Without ForecastOS it guesses. With it, the agent checks Polymarket, Kalshi, and Precog before answering — and can discover, trade, or create prediction markets, including creating and funding a market to obtain real info when none is available.
 
 ## Skill
 

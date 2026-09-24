@@ -64,6 +64,17 @@ On Precog, `--buy-size` requires `--price-limit`. `--buy-shares` + `--spend-limi
 
 Required spec fields and Launchpad validation live in [create-precog-market.md](../workflows/create-precog-market.md).
 
+## Launchpad fund / claim (`scripts/`)
+
+Precog upcoming (launchpad) funding and reward claims run via this skill's Python scripts, not the `forecast` CLI. Backend: `https://service.precog.markets/api/v1`. Needs `pip install web3 eth-account`. Diagnostics go to stderr via logging; stdout carries only result JSON. Key/RPC resolution matches the CLI (see [config-and-auth.md](config-and-auth.md) + [fund-launchpad.md](../workflows/fund-launchpad.md)). Preview without `--confirm` first; `--confirm` only after approval.
+
+| Script | Purpose | Notable options |
+| --- | --- | --- |
+| `scripts/fund_upcoming.py` | Preview or fund an upcoming market | `--market <upcoming_id>` (required), `--amount <human_units>` (required), `--tx-hash 0x…` (reuse sent transfer), `--rpc`, `--api-url`, `--key-file`, `--config`, `--confirm` |
+| `scripts/claim_upcoming.py` | Preview or claim investment/incentive on a deployed market | `--kind investment\|incentive` (required), `--market <deployed_market_id>` (required), `--chain-id <id>` (required), `--rpc`, `--api-url`, `--key-file`, `--config`, `--confirm` |
+
+Full fund → claim flow lives in [fund-launchpad.md](../workflows/fund-launchpad.md).
+
 ## Market states (list/search)
 
 - `OPEN`. Trading available.
