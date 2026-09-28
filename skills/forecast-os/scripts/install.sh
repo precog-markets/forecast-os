@@ -4,6 +4,8 @@ set -e
 REPO="precog-markets/forecast-os"
 BINARY="forecast"
 INSTALL_DIR="${INSTALL_DIR-}"
+# Pinned CLI release tag lives next to this script. FORECAST_VERSION wins.
+SCRIPT_DIR="$(dirname "$0")"
 
 is_windows() {
   case "$(uname -s)" in
@@ -45,6 +47,15 @@ resolve_tag() {
   if [ -n "$FORECAST_VERSION" ]; then
     echo "$FORECAST_VERSION"
     return
+  fi
+
+  # Pinned tag from the skill metadata, when the script runs from the skill.
+  if [ -f "$SCRIPT_DIR/../metadata.json" ]; then
+    tag=$(sed -n 's/.*"cli": *"\([^"]*\)".*/\1/p' "$SCRIPT_DIR/../metadata.json" | head -n 1)
+    if [ -n "$tag" ]; then
+      echo "$tag"
+      return
+    fi
   fi
 
   # /releases/latest 404s when the newest tag is a prerelease. Fall back to the
