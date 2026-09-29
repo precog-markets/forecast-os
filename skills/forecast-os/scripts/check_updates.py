@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Check whether the skill and its pinned CLI are up to date. Read-only.
+"""Check skill + CLI update channels. Read-only. Stdlib only.
 
-Compares metadata.json CLI pin to the latest forecast-os release, and (when
-this is a git checkout) local HEAD to origin/HEAD. Installed
-`forecast --version` is context only. Exit 0 current (or --periodic skip),
-exit 1 stale, exit 2 metadata/releases failure. No downloads. Stdlib only.
+Skill channel: local metadata.json vs the same file on the repo default branch.
+CLI channel: local cli pin vs GitHub Releases (binaries only). Channels move
+independently. Exit 0 current/--periodic skip, 1 suggest, 2 both channels
+failed, 3 CRITICAL (agent force-applies update.md).
 
 Usage:
   python check_updates.py [--periodic] [--max-age-days 7]
@@ -13,6 +13,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -20,14 +21,24 @@ from datetime import datetime, timedelta, timezone
 
 
 class UpdateCheckService:
-    skill_repo = 'precog-markets/forecast-os'  # skill + CLI ship from this repo's releases
-    stamp_name = '.last_update_check'  # written after a network check; keeps --periodic quiet
+    skill_repo = 'precog-markets/forecast-os'  # repo holding skill tree + CLI releases
+    metadata_path = 'skills/forecast-os/metadata.json'  # skill version on default branch
+    stamp_name = '.last_update_check'  # keeps --periodic quiet
     default_max_age_days = 7  # at most one network check per week
+    critical_line = re.compile(r'(?im)^CRITICAL\b')  # CLI release body/name line
+    critical_token = '[CRITICAL]'  # literal token in CLI release name or body
 
     def __init__(self, skill_dir, api_base='https://api.github.com'):
         self.skill_dir = skill_dir
         self.api_base = api_base
-        self.stale = False
+        self.severity = 'ok'  # ok | suggest | critical
+
+    def raise_severity(self, level):
+        # Keep the highest severity seen across skill and CLI channels
+        if level == 'critical':
+            self.severity = 'critical'
+        elif level == 'suggest' and self.severity != 'critical':
+            self.severity = 'suggest'
 
     def checked_within(self, max_age_days):
         # Only for debug
@@ -60,7 +71,7 @@ class UpdateCheckService:
             f.write(today + '\n')
 
     def read_metadata(self):
-        # Get the version pin living next to the skill
+        # Get the local skill version and CLI pin
         path = os.path.join(self.skill_dir, 'metadata.json')
         with open(path, encoding='utf-8') as f:
             metadata = json.load(f)
@@ -86,9 +97,18 @@ class UpdateCheckService:
 
         return version
 
-    def get_latest_release_tag(self, repo):
-        # Newest published release (prereleases included), mirroring install.sh
-        url = f'{self.api_base}/repos/{repo}/releases?per_page=5'
+    def get_remote_metadata(self, repo):
+        # Skill version on the repo default branch (not a GitHub Release)
+        url = f'{self.api_base}/repos/{repo}/contents/{self.metadata_path}'
+        req = urllib.request.Request(
+            url, headers={'Accept': 'application/vnd.github.raw+json'})
+        with urllib.request.urlopen(req, timeout=30) as response:
+            metadata = json.load(response)
+        return metadata
+
+    def get_releases(self, repo):
+        # Newest published CLI binary releases first (prereleases included)
+        url = f'{self.api_base}/repos/{repo}/releases?per_page=10'
         req = urllib.request.Request(
             url, headers={'Accept': 'application/vnd.github+json'})
         with urllib.request.urlopen(req, timeout=30) as response:
@@ -98,76 +118,162 @@ class UpdateCheckService:
         if not releases:
             raise Exception('no releases found')
 
-        # Return newest published tag
-        return releases[0]['tag_name']
+        return releases
 
-    def get_skill_checkout_state(self):
-        # Compare local HEAD to origin/HEAD. Returns (state, detail).
-        # The skill lives two levels below the repo root (skills/forecast-os/).
-        root = os.path.abspath(os.path.join(self.skill_dir, '..', '..'))
-        state = 'unknown'
-        detail = 'not a git checkout'
+    def is_critical_release(self, release):
+        # Only for debug
+        # print('Checking CRITICAL markers')
 
-        # Check that this install is a git checkout before comparing SHAs
-        if not os.path.isdir(os.path.join(root, '.git')):
-            return state, detail
+        # Get name and body so either CRITICAL marker can match
+        name = release.get('name') or ''
+        body = release.get('body') or ''
+        text = name + '\n' + body
 
+        is_critical = False
+        if self.critical_token in text:
+            is_critical = True
+        if self.critical_line.search(text):
+            is_critical = True
+
+        return is_critical
+
+    def releases_newer_than(self, releases, pin):
+        # Walk newest-first until the pin tag; everything before it is newer
+        newer = []
+        found_pin = False
+        for release in releases:
+            if release.get('tag_name') == pin:
+                found_pin = True
+                break
+            newer.append(release)
+
+        # Check that the pin was in the feed; if not, all fetched are newer
+        if not found_pin:
+            return list(releases)
+        return newer
+
+    @staticmethod
+    def notes_excerpt(text, limit=200):
+        # First paragraph or truncated text for the agent to show the user
+        body = (text or '').strip()
+        if not body:
+            return ''
+        paragraph = body.split('\n\n')[0].strip()
+        paragraph = ' '.join(paragraph.split())
+        if len(paragraph) > limit:
+            paragraph = paragraph[: limit - 3] + '...'
+        return paragraph
+
+    def print_release_hint(self, release):
+        # Print optional release name and notes for suggest/critical output
+        name = (release.get('name') or '').strip()
+        if name:
+            print(f'release: {name}')
+        notes = self.notes_excerpt(release.get('body') or '')
+        if notes:
+            print(f'notes: {notes}')
+
+    def check_skill_channel(self, local_skill, repo):
+        # Only for debug
+        # print('Checking skill channel', local=local_skill)
+
+        channel_ok = False
         try:
-            # Get the local HEAD commit
-            local = subprocess.run(
-                ['git', 'rev-parse', 'HEAD'],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if local.returncode != 0:
-                detail = 'cannot read local HEAD'
-                return state, detail
+            # Get remote metadata.json from the default branch
+            remote = self.get_remote_metadata(repo)
+            remote_skill = remote.get('skill')
+            remote_notes = remote.get('notes') or ''
+            remote_critical = bool(remote.get('critical'))
 
-            # Get the remote default branch HEAD
-            remote = subprocess.run(
-                ['git', 'ls-remote', 'origin', 'HEAD'],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if remote.returncode != 0 or not remote.stdout.strip():
-                detail = 'cannot reach origin'
-                return state, detail
+            # Check that local skill version matches remote
+            if remote_skill == local_skill:
+                print(f'skill version: current ({local_skill}).')
+                channel_ok = True
+                return channel_ok
 
-            # Check that local and remote SHAs match
-            remote_sha = remote.stdout.strip().split()[0]
-            local_sha = local.stdout.strip()
-            if remote_sha == local_sha:
-                state = 'ok'
-                detail = f'at {remote_sha[:7]}'
+            print(f'skill version: stale (local {local_skill}, remote {remote_skill}).')
+            notes = self.notes_excerpt(remote_notes)
+            if notes:
+                print(f'notes: {notes}')
+
+            # Check that remote marked this skill bump as CRITICAL
+            if remote_critical:
+                print(f'CRITICAL update required: skill {remote_skill} '
+                      f'(local {local_skill}).')
+                print('Force update now (do not wait for user ask).')
+                self.raise_severity('critical')
             else:
-                state = 'stale'
-                detail = f'local {local_sha[:7]} vs origin {remote_sha[:7]}'
+                print(f'Update available: skill {remote_skill} (local {local_skill}).')
+                print('Ask the user before updating.')
+                self.raise_severity('suggest')
+
+            channel_ok = True
 
         except Exception as e:  # pylint: disable=broad-except
-            detail = f'git unavailable: {e}'
-            return state, detail
+            print(f'skill: remote metadata unreachable ({e}).', file=sys.stderr)
+            return False
 
-        return state, detail
+        return channel_ok
+
+    def check_cli_channel(self, pin, repo):
+        # Only for debug
+        # print('Checking CLI channel', pin=pin)
+
+        channel_ok = False
+        try:
+            # Get published CLI binary releases
+            releases = self.get_releases(repo)
+            latest = releases[0]
+            latest_tag = latest.get('tag_name')
+            newer = self.releases_newer_than(releases, pin)
+
+            # Get the newest CRITICAL release newer than the pin (if any)
+            featured_critical = None
+            for release in newer:
+                if self.is_critical_release(release):
+                    featured_critical = release
+                    break
+
+            # Check CRITICAL first, then plain stale, then current
+            if featured_critical is not None:
+                critical_tag = featured_critical.get('tag_name')
+                print(f'cli pin: stale (pin {pin}, latest {latest_tag}).')
+                print(f'CRITICAL update required: CLI {critical_tag} (pinned {pin}).')
+                self.print_release_hint(featured_critical)
+                print('Force update now (do not wait for user ask).')
+                self.raise_severity('critical')
+            elif newer or pin != latest_tag:
+                print(f'cli pin: stale (pin {pin}, latest {latest_tag}).')
+                print(f'Update available: CLI {latest_tag} (pinned {pin}).')
+                self.print_release_hint(latest)
+                print('Ask the user before updating.')
+                self.raise_severity('suggest')
+            else:
+                print(f'cli pin: current ({pin}).')
+
+            channel_ok = True
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f'cli: releases unreachable ({e}).', file=sys.stderr)
+            return False
+
+        return channel_ok
 
     def run(self):
         # Only for debug
         # print('Running update check')
 
-        # Get the version pin from metadata.json
+        # Get the local skill version and CLI pin from metadata.json
         try:
             metadata = self.read_metadata()
         except Exception as e:  # pylint: disable=broad-except
-            print(f'metadata: unreadable ({e})', file=sys.stderr)
+            print(f'metadata: unreadable ({e}).', file=sys.stderr)
             return None
 
         repo = metadata.get('cli_repo', self.skill_repo)
         pin = metadata.get('cli')
         skill_version = metadata.get('skill')
-        print(f'skill: {skill_version} (pin: cli {pin} from {repo}).')
+        print(f'local: skill {skill_version}, cli pin {pin} ({repo}).')
 
         # Report installed binary version for context only
         installed = self.get_installed_cli_version()
@@ -176,38 +282,20 @@ class UpdateCheckService:
         else:
             print('installed forecast: missing.')
 
-        # Check that the pinned CLI tag matches the latest release
-        try:
-            latest = self.get_latest_release_tag(repo)
-        except Exception as e:  # pylint: disable=broad-except
-            print(f'releases: unreachable ({e})', file=sys.stderr)
+        # Run both channels; skill patches do not require a CLI release
+        skill_ok = self.check_skill_channel(skill_version, repo)
+        cli_ok = self.check_cli_channel(pin, repo)
+        if not skill_ok and not cli_ok:
             return None
 
-        if pin == latest:
-            print(f'cli pin: current ({pin}).')
-        else:
-            print(f'cli pin: stale (pin {pin}, latest {latest}).')
-            print(f'Update available: CLI {latest} (pinned {pin}). '
-                  'Ask the user before running scripts/install.sh.')
-            self.stale = True
-
-        # Check that the local skill checkout matches the remote default branch
-        state, detail = self.get_skill_checkout_state()
-        print(f'skill checkout: {state} ({detail})')
-        if state == 'stale':
-            print('Update available: skill checkout trails origin. '
-                  'Ask the user before git pull or '
-                  'npx skills add precog-markets/forecast-os.')
-            self.stale = True
-
-        # Stamp is optional; a write failure must not hide staleness
+        # Stamp is optional; a write failure must not hide severity
         try:
             self.write_stamp()
         except Exception:  # pylint: disable=broad-except
             pass
 
-        # Return whether any comparison reported stale
-        return self.stale
+        # Return severity for the caller exit code
+        return self.severity
 
 
 def main():
@@ -245,12 +333,12 @@ def main():
         return 0
 
     # Execute update check (prints status lines)
-    stale = service.run()
-    if stale is None:
+    severity = service.run()
+    if severity is None:
         return 2
-
-    # Exit 1 when stale so callers can inform the user. Do not auto-update.
-    if stale:
+    if severity == 'critical':
+        return 3
+    if severity == 'suggest':
         return 1
 
     # All checks passed OK

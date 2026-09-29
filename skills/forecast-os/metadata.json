@@ -1,5 +1,6 @@
 {
   "skill": "1.0.0",
   "cli": "1.0.0",
-  "cli_repo": "precog-markets/forecast-os"
+  "cli_repo": "precog-markets/forecast-os",
+  "critical": false
 }
