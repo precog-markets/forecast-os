@@ -17,6 +17,8 @@ INSTALL_DIR="$PWD" sh scripts/install.sh
 
 Run that script from the skill directory, or pass its absolute path. Do not pipe a URL into `sh`. If the environment blocks the download, request approval and retry the same script. After install, call `./forecast` or `./forecast.exe` until that directory is on `PATH`.
 
+If install still fails, tell the user the CLI is required and what blocked it. Stop. Do not scrape markets or invent a substitute path.
+
 Do not borrow a random `forecast-cli` venv. Do not write fake keys to make discovery work.
 
 ## Config resolution order
