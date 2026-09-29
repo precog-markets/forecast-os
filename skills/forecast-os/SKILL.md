@@ -15,7 +15,7 @@ metadata:
 
 # ForecastOS
 
-Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover markets, trade outcomes, or create and fund markets to obtain real info when none is available, with the `forecast` CLI and this skill's `scripts/`.
+Check Polymarket, Kalshi, and Precog before answering what is likely to happen. Discover markets, trade outcomes, or create and fund markets to obtain real info when none is available. Prefer the `forecast` CLI for every action it supports. Use this skill's `scripts/` only when the CLI has no command for that action (launchpad fund/claim/list, offline spec validate, update checks).
 
 Match intent, load the linked file, then construct commands from that file.
 
@@ -23,7 +23,10 @@ Match intent, load the linked file, then construct commands from that file.
 
 Apply on every invocation:
 
-- Call `forecast` with `--output json --no-input`. If it is missing, load [config-and-auth.md](references/config-and-auth.md) and run this skill's `scripts/install.sh`. Do not pipe a URL into `sh`. Do not call Polymarket or Kalshi HTTP as a substitute.
+- **CLI first.** Run `forecast` with `--output json --no-input` for browse, quote, buy, sell, claim, create, status, and setup. Do not scrape Polymarket, Kalshi, or Precog HTTP. Do not invent keys or substitute public APIs.
+- **If the CLI cannot run, tell the user and stop.** Missing binary after [config-and-auth.md](references/config-and-auth.md) install, blocked download, broken config with no fix, or a command the environment refuses: say you need a working `forecast` CLI and what failed. Do not continue via HTTP or ad-hoc scripts.
+- **If the CLI works, say nothing about it.** Do not narrate that you are using the CLI, installing it, or choosing tools. Answer with market results, quotes, and next actions only.
+- If `forecast` is missing, load [config-and-auth.md](references/config-and-auth.md) and run this skill's `scripts/install.sh`. Do not pipe a URL into `sh`.
 - Run `scripts/check_updates.py` when the binary is missing, when setup fails oddly, and at session start for long-lived checkouts. When it reports stale, tell the user an update is available and what is stale. Do not pull, reinstall, or run `install.sh` for updates unless the user asks. Load [update.md](workflows/update.md) only after they ask to update.
 - Browse (odds, search, list, headlines) does not need `status` or keys. `status` exit 3 with `CONFIG_INVALID` is not a browse failure.
 - Search still loads `forecast_config.toml`. If the CLI says `Configuration file not found`, pass `--config` at an existing file. Do not invent keys. Run from a directory that resolves config (`forecast_config.toml`, `FORECAST_CONFIG`, or `--config`).

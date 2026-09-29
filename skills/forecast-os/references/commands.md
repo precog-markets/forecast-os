@@ -66,7 +66,7 @@ Required spec fields and Launchpad validation live in [create-precog-market.md](
 
 ## Launchpad fund / claim (`scripts/`)
 
-Precog upcoming (launchpad) funding and reward claims run via this skill's Python scripts, not the `forecast` CLI. Backend: `https://service.precog.markets/api/v1`. Needs `pip install web3 eth-account`. Diagnostics go to stderr via logging; stdout carries only result JSON. Key/RPC resolution matches the CLI (see [config-and-auth.md](config-and-auth.md) + [fund-launchpad.md](../workflows/fund-launchpad.md)). Preview without `--confirm` first; `--confirm` only after approval.
+Use these only when the CLI has no matching command. Precog upcoming (launchpad) funding and reward claims are not on `forecast` yet. Backend: `https://service.precog.markets/api/v1`. Needs `pip install web3 eth-account`. Diagnostics go to stderr via logging; stdout carries only result JSON. Key/RPC resolution matches the CLI (see [config-and-auth.md](config-and-auth.md) + [fund-launchpad.md](../workflows/fund-launchpad.md)). Preview without `--confirm` first; `--confirm` only after approval.
 
 | Script | Purpose | Notable options |
 | --- | --- | --- |
