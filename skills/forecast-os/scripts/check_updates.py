@@ -8,12 +8,13 @@ Compares three things and prints one line each:
 3. Local skill checkout vs the remote default branch (skipped when this is
    not a git checkout, e.g. skills.sh installs).
 
-Exit 0 when current, exit 1 when stale (informational only; the caller
-tells the user and waits for them to ask before updating). No downloads.
-Stdlib only.
+Exit 0 when current (or skipped by --periodic), exit 1 when stale
+(informational only; the caller tells the user and waits for them to ask
+before updating). No downloads. Stdlib only.
 
 Usage:
-  python check_updates.py [--api-base https://api.github.com] [--skill-dir ...]
+  python check_updates.py [--periodic] [--max-age-days 7]
+    [--api-base https://api.github.com] [--skill-dir ...]
 """
 import argparse
 import json
@@ -21,9 +22,46 @@ import os
 import subprocess
 import sys
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 # The skill and its CLI binary both ship from this repo's releases.
 SKILL_REPO = "precog-markets/forecast-os"
+# Stamp file written after a successful network check. Keeps --periodic quiet.
+STAMP_NAME = ".last_update_check"
+# Default: at most one network check per week.
+DEFAULT_MAX_AGE_DAYS = 7
+
+
+def stamp_path(skill_dir):
+    """Return the path of the periodic-check stamp next to the skill."""
+
+    return os.path.join(skill_dir, STAMP_NAME)
+
+
+def checked_within(skill_dir, max_age_days):
+    """True when the stamp is newer than max_age_days (UTC)."""
+
+    path = stamp_path(skill_dir)
+    try:
+        with open(path, encoding="utf-8") as f:
+            stamped = f.read().strip()
+    except OSError:
+        return False
+    try:
+        stamped_day = datetime.strptime(stamped, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    today = datetime.now(timezone.utc).date()
+    return stamped_day >= today - timedelta(days=max_age_days)
+
+
+def write_stamp(skill_dir):
+    """Record that a network check ran (UTC date)."""
+
+    path = stamp_path(skill_dir)
+    today = datetime.now(timezone.utc).date().isoformat()
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(today + "\n")
 
 
 def read_metadata(skill_dir):
@@ -148,7 +186,23 @@ def main():
         default="https://api.github.com",
         help="GitHub API base URL",
     )
+    p.add_argument(
+        "--periodic",
+        action="store_true",
+        help="skip the network check when a stamp is still fresh",
+    )
+    p.add_argument(
+        "--max-age-days",
+        type=int,
+        default=DEFAULT_MAX_AGE_DAYS,
+        help=f"with --periodic, skip if checked within this many days "
+             f"(default {DEFAULT_MAX_AGE_DAYS})",
+    )
     args = p.parse_args()
+
+    if args.periodic and checked_within(args.skill_dir, args.max_age_days):
+        # Case: a check ran recently. Stay quiet for the agent.
+        return 0
 
     stale = False
 
@@ -197,6 +251,13 @@ def main():
               "Ask the user before git pull or "
               "npx skills add precog-markets/forecast-os.")
         stale = True
+
+    # Record the check so --periodic stays quiet until max-age-days pass.
+    try:
+        write_stamp(args.skill_dir)
+    except OSError:
+        # Case: stamp is optional; a write failure must not hide staleness.
+        pass
 
     # Exit 1 when stale so callers can inform the user. Do not auto-update.
     return 1 if stale else 0

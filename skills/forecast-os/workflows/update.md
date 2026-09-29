@@ -2,11 +2,11 @@
 
 Refresh the skill and its pinned CLI binary from the source of truth, `github.com/precog-markets/forecast-os`.
 
-**Load only when the user asks to update.** Checking for updates does not load this file. When `check_updates.py` reports stale during normal use, tell the user what is stale and stop. Do not pull, reinstall, or run `install.sh` behind their back.
+**Load only when the user asks to update.** Periodic checks use `python scripts/check_updates.py --periodic` from SKILL defaults (at most once per week) and do not load this file. When that check exits 1, tell the user what is stale and keep working. Do not pull, reinstall, or run `install.sh` behind their back.
 
 **Done when:** the skill checkout matches the remote default branch (or was reinstalled), and `forecast --version` runs against the pinned release.
 
-Check first:
+Force a check (ignore the stamp):
 
 ```bash
 python scripts/check_updates.py
