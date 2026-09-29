@@ -8,7 +8,8 @@ Compares three things and prints one line each:
 3. Local skill checkout vs the remote default branch (skipped when this is
    not a git checkout, e.g. skills.sh installs).
 
-Exit 0 when current, exit 1 with an update directive when stale. No downloads.
+Exit 0 when current, exit 1 when stale (informational only; the caller
+tells the user and waits for them to ask before updating). No downloads.
 Stdlib only.
 
 Usage:
@@ -183,7 +184,8 @@ def main():
     else:
         # Case: the pin trails the latest release.
         print(f"cli pin: stale (pin {pin}, latest {latest}).")
-        print(f"Run scripts/install.sh to install {latest}.")
+        print(f"Update available: CLI {latest} (pinned {pin}). "
+              "Ask the user before running scripts/install.sh.")
         stale = True
 
     # Compare the local skill checkout against the remote default branch.
@@ -191,11 +193,12 @@ def main():
     print(f"skill checkout: {state} ({detail})")
     if state == "stale":
         # Case: the checkout trails the remote.
-        print("Reinstall the skill (npx skills add precog-markets/forecast-os) "
-              "or git pull the checkout.")
+        print("Update available: skill checkout trails origin. "
+              "Ask the user before git pull or "
+              "npx skills add precog-markets/forecast-os.")
         stale = True
 
-    # Exit 1 when anything is stale so callers can act on it.
+    # Exit 1 when stale so callers can inform the user. Do not auto-update.
     return 1 if stale else 0
 
 
