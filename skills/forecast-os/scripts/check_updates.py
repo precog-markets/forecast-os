@@ -20,11 +20,9 @@ from datetime import datetime, timedelta, timezone
 
 
 class UpdateCheckService:
-    """Update check shaped after precog-tracker MarketService validate_*/get_*."""
-
-    skill_repo = 'precog-markets/forecast-os'
-    stamp_name = '.last_update_check'
-    default_max_age_days = 7
+    skill_repo = 'precog-markets/forecast-os'  # skill + CLI ship from this repo's releases
+    stamp_name = '.last_update_check'  # written after a network check; keeps --periodic quiet
+    default_max_age_days = 7  # at most one network check per week
 
     def __init__(self, skill_dir, api_base='https://api.github.com'):
         self.skill_dir = skill_dir
@@ -33,7 +31,7 @@ class UpdateCheckService:
 
     def checked_within(self, max_age_days):
         # Only for debug
-        # print('Checking stamp age', skill_dir=self.skill_dir, max_age_days=max_age_days)
+        # print('Checking stamp age')
 
         path = os.path.join(self.skill_dir, self.stamp_name)
         try:
@@ -62,7 +60,7 @@ class UpdateCheckService:
             f.write(today + '\n')
 
     def read_metadata(self):
-        # metadata.json is the pin for which CLI release the skill was tested against
+        # Get the version pin living next to the skill
         path = os.path.join(self.skill_dir, 'metadata.json')
         with open(path, encoding='utf-8') as f:
             metadata = json.load(f)
@@ -84,7 +82,7 @@ class UpdateCheckService:
                     version = None
         except Exception:  # pylint: disable=broad-except
             # Binary missing or cannot run
-            pass
+            version = None
 
         return version
 
@@ -100,9 +98,8 @@ class UpdateCheckService:
         if not releases:
             raise Exception('no releases found')
 
-        # Build and return the newest published tag
-        tag = releases[0]['tag_name']
-        return tag
+        # Return newest published tag
+        return releases[0]['tag_name']
 
     def get_skill_checkout_state(self):
         # Compare local HEAD to origin/HEAD. Returns (state, detail).
@@ -158,14 +155,14 @@ class UpdateCheckService:
 
     def run(self):
         # Only for debug
-        # print('Running update check', skill_dir=self.skill_dir)
+        # print('Running update check')
 
         # Get the version pin from metadata.json
         try:
             metadata = self.read_metadata()
         except Exception as e:  # pylint: disable=broad-except
             print(f'metadata: unreadable ({e})', file=sys.stderr)
-            raise
+            return None
 
         repo = metadata.get('cli_repo', self.skill_repo)
         pin = metadata.get('cli')
@@ -184,7 +181,7 @@ class UpdateCheckService:
             latest = self.get_latest_release_tag(repo)
         except Exception as e:  # pylint: disable=broad-except
             print(f'releases: unreachable ({e})', file=sys.stderr)
-            raise
+            return None
 
         if pin == latest:
             print(f'cli pin: current ({pin}).')
@@ -209,6 +206,7 @@ class UpdateCheckService:
         except Exception:  # pylint: disable=broad-except
             pass
 
+        # Return whether any comparison reported stale
         return self.stale
 
 
@@ -246,10 +244,9 @@ def main():
     if args.periodic and service.checked_within(args.max_age_days):
         return 0
 
-    # Execute update check (prints status lines; raises on metadata/releases failure)
-    try:
-        stale = service.run()
-    except Exception:  # pylint: disable=broad-except
+    # Execute update check (prints status lines)
+    stale = service.run()
+    if stale is None:
         return 2
 
     # Exit 1 when stale so callers can inform the user. Do not auto-update.
