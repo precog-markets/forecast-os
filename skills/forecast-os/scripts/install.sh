@@ -50,9 +50,9 @@ resolve_tag() {
   fi
 
   # Pinned tag from the skill metadata, when the script runs from the skill.
-  metadata_file="$SCRIPT_DIR/../metadata.json"
+  metadata_file="$SCRIPT_DIR/../metadata-skill.json"
   if [ -f "$metadata_file" ]; then
-    # Read the "cli" field from metadata.json. The pin is the tested release.
+    # Read the "cli" field from metadata-skill.json. The pin is the tested release.
     tag=$(python3 -c "import json; print(json.load(open('$metadata_file'))['cli'])" 2>/dev/null)
     if [ -n "$tag" ]; then
       echo "$tag"

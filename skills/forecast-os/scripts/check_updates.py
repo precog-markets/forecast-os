@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check skill + CLI update channels. Read-only. Stdlib only.
 
-Skill channel: local metadata.json vs the same file on the repo default branch.
+Skill channel: local metadata-skill.json vs the same file on the repo default branch.
 CLI channel: local cli pin vs GitHub Releases (binaries only). Channels move
 independently. Exit 0 current/--periodic skip, 1 suggest, 2 both channels
 failed, 3 CRITICAL (agent force-applies update.md).
@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 
 class UpdateCheckService:
     skill_repo = 'precog-markets/forecast-os'  # repo holding skill tree + CLI releases
-    metadata_path = 'skills/forecast-os/metadata.json'  # skill version on default branch
+    metadata_path = 'skills/forecast-os/metadata-skill.json'  # skill version on default branch
     stamp_name = '.last_update_check'  # keeps --periodic quiet
     default_max_age_days = 7  # at most one network check per week
     critical_line = re.compile(r'(?im)^CRITICAL\b')  # CLI release body/name line
@@ -72,7 +72,7 @@ class UpdateCheckService:
 
     def read_metadata(self):
         # Get the local skill version and CLI pin
-        path = os.path.join(self.skill_dir, 'metadata.json')
+        path = os.path.join(self.skill_dir, 'metadata-skill.json')
         with open(path, encoding='utf-8') as f:
             metadata = json.load(f)
         return metadata
@@ -179,7 +179,7 @@ class UpdateCheckService:
 
         channel_ok = False
         try:
-            # Get remote metadata.json from the default branch
+            # Get remote metadata-skill.json from the default branch
             remote = self.get_remote_metadata(repo)
             remote_skill = remote.get('skill')
             remote_notes = remote.get('notes') or ''
@@ -263,7 +263,7 @@ class UpdateCheckService:
         # Only for debug
         # print('Running update check')
 
-        # Get the local skill version and CLI pin from metadata.json
+        # Get the local skill version and CLI pin from metadata-skill.json
         try:
             metadata = self.read_metadata()
         except Exception as e:  # pylint: disable=broad-except
@@ -304,7 +304,7 @@ def main():
     p.add_argument(
         '--skill-dir',
         default=os.path.join(here, '..'),
-        help='skill directory holding metadata.json',
+        help='skill directory holding metadata-skill.json',
     )
     p.add_argument(
         '--api-base',
