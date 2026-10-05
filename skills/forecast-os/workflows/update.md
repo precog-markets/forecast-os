@@ -14,7 +14,7 @@ patches land on the default branch (`skills/forecast-os/`) without a new release
 | 2 | Both channels failed | Tell the user the check failed; continue the task |
 | 3 | CRITICAL on skill and/or CLI | Apply this workflow now without waiting for the user to ask, then tell them a critical update was forced |
 
-**Done when:** local `metadata-skill.json` matches the remote skill version (and CLI pin if the CLI channel was stale), and `forecast --version` runs when a CLI install was required.
+**Done when:** local `forecast-os-metadata.json` matches the remote skill version (and CLI pin if the CLI channel was stale), and `forecast --version` runs when a CLI install was required.
 
 Force a check (ignore the stamp):
 
@@ -26,19 +26,19 @@ python scripts/check_updates.py
 
 | Channel | Source of truth | Suggest when | CRITICAL when |
 | --- | --- | --- | --- |
-| Skill | `skills/forecast-os/metadata-skill.json` on the default branch (`skill`, optional `notes`, optional `critical`) | local `skill` ≠ remote `skill` | remote `critical` is true and versions differ |
+| Skill | `skills/forecast-os/forecast-os-metadata.json` on the default branch (`skill`, optional `notes`, optional `critical`) | local `skill` ≠ remote `skill` | remote `critical` is true and versions differ |
 | CLI | GitHub Releases (binaries) vs local `cli` pin | pin behind latest release | a newer release name/body has `CRITICAL…` or `[CRITICAL]` |
 
 ## CRITICAL (publishers)
 
-**Skill-only** (no new binary). On the default branch, bump `skill` in `metadata-skill.json`, set `"critical": true`, and put a short reason in `"notes"`. Leave `cli` unchanged. Clear `"critical"` on a later skill bump once the force window is over (clients that already match `skill` stay quiet even if `critical` is still true).
+**Skill-only** (no new binary). On the default branch, bump `skill` in `forecast-os-metadata.json`, set `"critical": true`, and put a short reason in `"notes"`. Leave `cli` unchanged. Clear `"critical"` on a later skill bump once the force window is over (clients that already match `skill` stay quiet even if `critical` is still true).
 
 **CLI.** Cut a GitHub Release for the new binary. Put either of these in the release **name** or **body**:
 
 - A line starting with `CRITICAL` (example: `CRITICAL: fix signature bypass`)
 - The token `[CRITICAL]` anywhere in the name or body
 
-Also bump `cli` in `metadata-skill.json` on that same commit/tag so the pin matches.
+Also bump `cli` in `forecast-os-metadata.json` on that same commit/tag so the pin matches.
 
 ## Steps
 
@@ -51,7 +51,7 @@ git pull
 npx skills add precog-markets/forecast-os
 ```
 
-2. Install the CLI only when the CLI channel was stale (or the new skill pin points at a CLI tag you do not have). `scripts/install.sh` reads the pin from `metadata-skill.json`:
+2. Install the CLI only when the CLI channel was stale (or the new skill pin points at a CLI tag you do not have). `scripts/install.sh` reads the pin from `forecast-os-metadata.json`:
 
 ```bash
 INSTALL_DIR="$PWD" sh scripts/install.sh
